@@ -1,0 +1,73 @@
+mkdir proc sys dev var lib mnt
+
+sudo mknod -m 660 mem c 1 1
+sudo mknod -m 660 tty2 c 4 2
+sudo mknod -m 660 tty3 c 4 3
+sudo mknod -m 660 tty4 c 4 4
+
+cp scripts/etc root/ -rf
+
+#devtmpfs    /dev    devtmpfs defaults   0   0
+
+[etc/fstab]
+proc		/proc	proc	defaults    0	0
+sysfs       /sys    sysfs   defaults    0	0
+tmpfs       /var    tmpfs   defaults    0	0
+
+[etc/init.d/rcS]
+mount -t debugfs none /sys/kernel/debug
+mdev -s
+
+
+find . -print0 | cpio --null -ov --format=newc | gzip > ../initramfs.cpio.gz
+
+mkdir tmpfs
+cd tmpfs
+gzip -dc ../initramfs.cpio.gz | cpio -idv
+ls -l
+
+dd if=/dev/zero of=usb.img bs=1M count=16
+sudo mkfs.ext4 usb.img
+sudo mount -t ext4 usb.img /mnt/ -o loop
+sudo umount /mnt
+
+############### trying to build a verfs.img with 2 partitions by scripts #################
+dd if=dev/zero of=verfs.img bs=1M count=48
+
+sfdisk verfs.img << EOF
+1M,15M,L
+16M,16M,L
+EOF
+# explain: use sfdisk write a partition table to verfs.img
+# 1M,15M,L  : start from 1M, size 15M, type Linux
+# 16M,32M,L : start from 16M, size 32M, type Linux
+# sfdisk use need reserve 1M for MBR or GPT, so start from 1M
+# use fdisk -l verfs.img to check the partition table
+
+losetup -fP --show verfs.img # need su
+# mount a image file to a loop device, -f means find a free loop device, -P means scan partitions automatically
+# --show means print the name of the loop device
+# if there is more than one partition, the partitions will be like /dev/loopXp1, /dev/loopXp2
+
+dd if=rootfs.img of=/dev/loop17p1 bs=1M conv=fsync # need su
+# conv=fsync means sync data to disk after finish
+
+mkfs.ext4 -F /dev/loop17p2 # need su
+
+losetup -d /dev/loop17 # need su
+############### trying to build a verfs.img with 2 partitions by scripts #################
+
+./qemu-system-aarch64 -M virt -cpu cortex-a53 -smp 4 -m 512M -kernel ../../linux-6.15.4/arch/arm64/boot/Image -initrd ../../initramfs.cpio.gz -append "root=/dev/ram0 rdinit=/linuxrc console=ttyAMA0,115200" -nographic -no-reboot
+./qemu-system-arm -M virt-2.12 -m 256M -kernel ../../linux-6.15.4/arch/arm/boot/zImage -initrd ../../initramfs.cpio.gz -append "root=/dev/ram0 rdinit=/linuxrc" -nographic -device edu -no-reboot
+./qemu-system-arm -M virt -machine dumpdtb=~/virt.dtb
+
+./linux6.15.4/scripts/dtc/dtc -I dtb -O dts virt.dtb -o virt.dts
+
+setenv bootargs root=/dev/sda2 rootwait rw init=/linuxrc console=ttyAMA0,115200
+usb start
+usb dev 0
+usb read 0x40200000 0x800 0x4000
+booti 0x40200000 - 0x40000000
+
+make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) M=$(PWD) modules
+make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) M=$(PWD) clean
