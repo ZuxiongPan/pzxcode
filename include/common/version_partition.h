@@ -2,14 +2,19 @@
 #define __VERSION_PARTITION_H__
 
 #define VERSION_NUMBER "QEMU-Virt-PanZX-V1.0.0"
-#define STORAGE_DEVICE "usb-scsi"
 #define STORAGE_DEVICE_BLOCK_SIZE 0x200
 #define STORAGE_DEVICE_PARTTABLE_SIZE 0x00100000
 #define KERNEL_PARTITION_SIZE 0x00a00000
 #define ROOTFS_PARTITION_SIZE 0x01000000
 #define VER_HEADER_BLOCK_SIZE  STORAGE_DEVICE_BLOCK_SIZE
 
-// USB storage need 1MB space for partition table
+/** GPT part table
+ * block0 protect MBR
+ * block1 GPT header
+ * block2-block33 main partition table
+ * ...
+ * last 34 block save backup partitiontable and backup GPT header
+*/
 
 #define KERNEL1_PARTITION_OFFSET STORAGE_DEVICE_PARTTABLE_SIZE
 #define KERNEL1_PARTITION_SIZE   KERNEL_PARTITION_SIZE

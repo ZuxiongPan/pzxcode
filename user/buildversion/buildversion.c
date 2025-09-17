@@ -16,11 +16,6 @@ char rootfs_filepath[FILEPATH_MAXLEN] = {0};
 char version_filepath[FILEPATH_MAXLEN] = {0};
 char upgrade_filepath[FILEPATH_MAXLEN] = {0};
 
-const char* stroage_device_names[STORDEV_OTHER] = {
-    [STORDEV_RAM] = "ram",
-    [STORDEV_SCSI] = "scsi",
-};
-
 int get_options(int argc, char *const *argv);
 void print_usage(void);
 void header_init(struct version_header *pheader);
@@ -56,28 +51,6 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-unsigned int get_storage_device(const char *stordev_str)
-{
-    unsigned int ret = STORDEV_OTHER;
-
-    if(NULL == stordev_str)
-    {
-        printf("empty storage device, return\n");
-        return ret;
-    }
-
-    for(ret = STORDEV_RAM; ret < STORDEV_OTHER; ret++)
-    {
-        if(NULL != strstr(stordev_str, stroage_device_names[i]))
-        {
-            printf("get storage device %u\n", ret);
-            break;
-        }
-    }
-
-    return ret;
-}
-
 void header_init(struct version_header *pheader)
 {
     // pheader is valid, do not check
@@ -87,8 +60,6 @@ void header_init(struct version_header *pheader)
     pheader->common.magic[3] = VERSION_HEADER_MAGIC3;
 
     pheader->common.header_index = 0;
-
-    pheader->common.stordev = get_storage_device(STORAGE_DEVICE);
 
     time_t now = time(NULL);
     struct tm *t = localtime(&now);
@@ -271,7 +242,7 @@ int build_version_file(void)
     printf("update image2 header\n");
     pheader->common.kernel_offset = KERNEL2_PARTITION_OFFSET + VER_HEADER_BLOCK_SIZE;
     pheader->common.rootfs_offset = ROOTFS2_PARTITION_OFFSET;
-    pheader->common.header_index = 0;   // set as backup image
+    pheader->common.header_index = 2;   // set as backup image
     pheader->header_crc = pzx_crc32((const unsigned char *)pheader, sizeof(struct common_version_header));
     fseek(version, KERNEL2_PARTITION_OFFSET, SEEK_SET);
     fwrite(pheader, 1, sizeof(*pheader), version);

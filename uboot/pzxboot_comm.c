@@ -63,21 +63,35 @@ enum boot_errors find_valid_version(unsigned int offset)
     return ret;
 }
 
+static inline void set_bootargs(int index)
+{
+    if(index == 0)
+    {
+        strncat(parameter.bootargs, " root=/dev/sda2 rootwait ro", 
+            sizeof(parameter.bootargs) - strlen(parameter.bootargs) - 1);
+    }
+    else
+    {
+        strncat(parameter.bootargs, " root=/dev/sda4 rootwait ro", 
+            sizeof(parameter.bootargs) - strlen(parameter.bootargs) - 1);
+    }
+
+    return ;
+}
+
 int select_boot_version(void)
 {
     int ret = parameter.info[0].header.common.header_index > parameter.info[1].header.common.header_index ? 0 : 1;
     if((parameter.info[ret].valid_version & VERSION_ISVALID) == VERSION_ISVALID)
     {
         printf("version %d is valid, header index %d\n", ret + 1, parameter.info[ret].header.common.header_index);
-        strncat(parameter.bootargs, " root=/dev/sda2 rootwait ro", 
-            sizeof(parameter.bootargs) - strlen(parameter.bootargs) - 1);
+        set_bootargs(ret);
     }
     else if((parameter.info[!ret].valid_version & VERSION_ISVALID) == VERSION_ISVALID)
     {
         ret = !ret;
         printf("version %d is valid, header index %d\n", ret + 1, parameter.info[ret].header.common.header_index);
-        strncat(parameter.bootargs, " root=/dev/sda4 rootwait ro", 
-            sizeof(parameter.bootargs) - strlen(parameter.bootargs) - 1);
+        set_bootargs(ret);
     }
     else
     {
@@ -230,7 +244,7 @@ static void pass_infomation_to_kernel_by_dtb(int index)
 {
     int nodeoff = -1;
     int tmp = 0;
-    char buf[10];
+    char buf[16];
     struct fdt_header *fdt = map_sysmem(DTB_MEMADDRESS, 0);
 
     // add an information node under "/" path
@@ -262,12 +276,43 @@ static void pass_infomation_to_kernel_by_dtb(int index)
     fdt_setprop(fdt, nodeoff, "backverindex", buf, sizeof(buf));
     
     memset(buf, 0, sizeof(buf));
-    tmp = parameter.info[index].valid_version == VERSION_ISVALID;
+    tmp = (parameter.info[!index].valid_version == VERSION_ISVALID);
     if(tmp)
         strncpy(buf, "Valid", sizeof(buf));
     else
         strncpy(buf, "Invalid", sizeof(buf));
     fdt_setprop(fdt, nodeoff, "backverstate", buf, sizeof(buf));
+
+    if(index)
+    {
+        memset(buf, 0, sizeof(buf));
+        strncpy(buf, "/dev/sda3", sizeof(buf));
+        fdt_setprop(fdt, nodeoff, "bootospart", buf, sizeof(buf));
+        memset(buf, 0, sizeof(buf));
+        strncpy(buf, "/dev/sda4", sizeof(buf));
+        fdt_setprop(fdt, nodeoff, "bootfspart", buf, sizeof(buf));
+        memset(buf, 0, sizeof(buf));
+        strncpy(buf, "/dev/sda1", sizeof(buf));
+        fdt_setprop(fdt, nodeoff, "backospart", buf, sizeof(buf));
+        memset(buf, 0, sizeof(buf));
+        strncpy(buf, "/dev/sda2", sizeof(buf));
+        fdt_setprop(fdt, nodeoff, "backfspart", buf, sizeof(buf));
+    }
+    else
+    {
+        memset(buf, 0, sizeof(buf));
+        strncpy(buf, "/dev/sda1", sizeof(buf));
+        fdt_setprop(fdt, nodeoff, "bootospart", buf, sizeof(buf));
+        memset(buf, 0, sizeof(buf));
+        strncpy(buf, "/dev/sda2", sizeof(buf));
+        fdt_setprop(fdt, nodeoff, "bootfspart", buf, sizeof(buf));
+        memset(buf, 0, sizeof(buf));
+        strncpy(buf, "/dev/sda3", sizeof(buf));
+        fdt_setprop(fdt, nodeoff, "backospart", buf, sizeof(buf));
+        memset(buf, 0, sizeof(buf));
+        strncpy(buf, "/dev/sda4", sizeof(buf));
+        fdt_setprop(fdt, nodeoff, "backfspart", buf, sizeof(buf));
+    }
     
     unmap_sysmem(fdt);
 

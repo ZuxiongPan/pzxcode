@@ -9,7 +9,14 @@ const char *builddate = NULL;
 const char *curidx = NULL;
 const char *backidx = NULL;
 const char *backstate = NULL;
+const char *curospart = NULL;
+const char *curfspart = NULL;
+const char *backospart = NULL;
+const char *backfspart = NULL;
 
+// verinfo format: [Key: Value]
+// the Key is followed by a COLON and then a SPACE, last is the Value
+// Key may include SPACE but Value SPACE is forbidden
 static int verinfo_proc_show(struct seq_file *m, void *v)
 {
     seq_printf(m, "Software Version Number: %s\n", softversion ? softversion : "unknown");
@@ -17,6 +24,10 @@ static int verinfo_proc_show(struct seq_file *m, void *v)
     seq_printf(m, "Current Version Index: %s\n", curidx);
     seq_printf(m, "Backup Version Index: %s\n", backidx);
     seq_printf(m, "Backup Version State: %s\n", backstate);
+    seq_printf(m, "Current Kernel Part: %s\n", curospart);
+    seq_printf(m, "Current Rootfs Part: %s\n", curfspart);
+    seq_printf(m, "Backup Kernel Part: %s\n", backospart);
+    seq_printf(m, "Backup Rootfs Part: %s\n", backfspart);
 
     return 0;
 }
@@ -63,6 +74,22 @@ static int __init verinfo_init(void)
     ret = of_property_read_string(verinfo_np, "backverstate", &backstate);
     if(ret)
         pr_err("read backverstate property failed, ret %d\n", ret);
+
+    ret = of_property_read_string(verinfo_np, "bootospart", &curospart);
+    if(ret)
+        pr_err("read bootospart property failed, ret %d\n", ret);
+
+    ret = of_property_read_string(verinfo_np, "bootfspart", &curfspart);
+    if(ret)
+        pr_err("read bootfspart property failed, ret %d\n", ret);
+
+    ret = of_property_read_string(verinfo_np, "backospart", &backospart);
+    if(ret)
+        pr_err("read backospart property failed, ret %d\n", ret);
+
+    ret = of_property_read_string(verinfo_np, "backfspart", &backfspart);
+    if(ret)
+        pr_err("read backfspart property failed, ret %d\n", ret);
 
     proc_create("verinfo", 0, NULL, &verinfo_fops);
 

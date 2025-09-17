@@ -6,7 +6,7 @@ cd -
 
 dd if=/dev/zero of=$TOP_DIR/version.bin bs=1M count=64
 
-sfdisk $TOP_DIR/version.bin << EOF
+sfdisk -X gpt $TOP_DIR/version.bin << EOF
 1M,10M,L
 11M,16M,L
 27M,10M,L

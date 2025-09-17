@@ -8,12 +8,6 @@
 
 #define VERSION_NUMBERS 2
 
-enum storage_device {
-    STORDEV_RAM = 0, // initramfs
-    STORDEV_SCSI,
-    STORDEV_OTHER,
-};
-
 struct common_version_header {
     unsigned int magic[4];
 
@@ -24,7 +18,6 @@ struct common_version_header {
     unsigned int rootfs_size;
     unsigned int rootfs_crc;
 
-    unsigned int stordev;
     int header_index;
     char build_date[16];
     char soft_version_number[32];

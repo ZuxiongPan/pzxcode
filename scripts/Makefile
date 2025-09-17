@@ -11,7 +11,7 @@ APPLICATIONS_DIR := $(CODE_DIR)/user/applications
 CROSS_COMPILER_DIR := $(TOP_DIR)/aarch64-none-linux-gnu-14.3
 CROSS_COMPILER_PREFIX := $(CROSS_COMPILER_DIR)/bin/aarch64-none-linux-gnu-
 
-export TOP_DIR CODE_DIR QEMU_DIR KERNEL_DIR ROOT_DIR CROSS_COMPILER_PREFIX
+export TOP_DIR CODE_DIR QEMU_DIR KERNEL_DIR UBOOT_DIR ROOT_DIR CROSS_COMPILER_PREFIX
 
 .PHONY: all prepare config uboot kernel qemu busybox boot version \
 	uboot_clean kernel_clean qemu_clean busybox_clean clean
@@ -19,9 +19,7 @@ export TOP_DIR CODE_DIR QEMU_DIR KERNEL_DIR ROOT_DIR CROSS_COMPILER_PREFIX
 all: prepare config uboot kernel qemu busybox
 
 prepare:
-	ln -sf $(CODE_DIR)/linux $(KERNEL_DIR)/cuskernel
-	ln -sf $(CODE_DIR)/uboot $(UBOOT_DIR)/cusuboot
-	cp -rf $(SCRIPTS_DIR)/baserootfs/* $(ROOT_DIR)
+	./mkprepare.sh
 	make -C $(CODE_DIR)/user/buildversion
 
 config:
@@ -36,6 +34,7 @@ uboot:
 
 uboot_clean:
 	make -C $(UBOOT_DIR) ARCH=arm CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
+	rm -f $(UBOOT_DIR)/cusuboot
 
 kernel:
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) kernel_defconfig
@@ -43,6 +42,7 @@ kernel:
 
 kernel_clean:
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
+	rm -f $(KERNEL_DIR)/cuskernel
 
 busybox:
 	make -C $(BUSYBOX_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) defconfig
@@ -63,12 +63,12 @@ boot:
 	qemu-system-aarch64 \
     	-M virt,gic-version=3 \
     	-cpu cortex-a53 \
-    	-smp 2 -m 512M \
+    	-smp 2 -m 256M \
     	-kernel $(UBOOT_DIR)/u-boot \
 		-device nec-usb-xhci,id=xhci \
 		-device usb-storage,drive=usbdisk,bus=xhci.0 \
 		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version.bin,format=raw \
-		-device edu -device usb-mouse \
+		-device edu \
     	-nographic -no-reboot
 
 clean:
@@ -77,6 +77,4 @@ clean:
 	make busybox_clean
 	make -C $(CODE_DIR)/user/buildversion clean
 	make -C $(APPLICATIONS_DIR) clean
-	rm -f $(KERNEL_DIR)/cuskernel
-	rm -f $(UBOOT_DIR)/cusuboot
 	rm -rf $(ROOT_DIR)/*
