@@ -71,3 +71,6 @@ booti 0x40200000 - 0x40000000
 
 make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) M=$(PWD) modules
 make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) M=$(PWD) clean
+
+readelf -l binfile | grep interpreter
+readelf -d binfile | grep NEEDED

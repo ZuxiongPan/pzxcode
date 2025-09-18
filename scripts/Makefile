@@ -2,7 +2,6 @@
 SCRIPTS_DIR := $(shell pwd)
 TOP_DIR := $(shell cd ../.. && pwd)
 CODE_DIR := $(TOP_DIR)/pzxcode
-QEMU_DIR := $(TOP_DIR)/qemu-9.2.3
 UBOOT_DIR := $(TOP_DIR)/u-boot-2024.10
 KERNEL_DIR := $(TOP_DIR)/linux-6.15.4
 BUSYBOX_DIR := $(TOP_DIR)/busybox-1.36.0
@@ -11,7 +10,7 @@ APPLICATIONS_DIR := $(CODE_DIR)/user/applications
 CROSS_COMPILER_DIR := $(TOP_DIR)/aarch64-none-linux-gnu-14.3
 CROSS_COMPILER_PREFIX := $(CROSS_COMPILER_DIR)/bin/aarch64-none-linux-gnu-
 
-export TOP_DIR CODE_DIR QEMU_DIR KERNEL_DIR UBOOT_DIR ROOT_DIR CROSS_COMPILER_PREFIX
+export TOP_DIR CODE_DIR KERNEL_DIR UBOOT_DIR ROOT_DIR CROSS_COMPILER_PREFIX
 
 .PHONY: all prepare config uboot kernel qemu busybox boot version \
 	uboot_clean kernel_clean qemu_clean busybox_clean clean
@@ -55,6 +54,8 @@ busybox_clean:
 	make -C $(BUSYBOX_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
 
 version:
+	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 $(ROOT_DIR)/lib/ -f
+	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib64/libc.so.6 $(ROOT_DIR)/lib64/ -f
 	make -C $(APPLICATIONS_DIR)
 	make -C $(APPLICATIONS_DIR) install
 	./mkver.sh

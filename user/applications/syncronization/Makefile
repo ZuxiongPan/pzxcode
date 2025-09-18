@@ -1,6 +1,6 @@
 TARGET := versync
 
-CFLAGS += -static
+CFLAGS +=
 
 all: $(TARGET)
 

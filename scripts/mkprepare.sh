@@ -12,6 +12,6 @@ fi
 
 if [ ! -n "$(ls -A $ROOT_DIR)" ]; then
     echo "need copy basefilesystem"
-    cp -rf $SCRIPTS_DIR/baserootfs/* $ROOT_DIR/
+    cp -rf $CODE_DIR/scripts/baserootfs/* $ROOT_DIR/
 fi
 

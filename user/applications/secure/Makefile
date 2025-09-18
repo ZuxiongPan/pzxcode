@@ -1,6 +1,6 @@
 TARGET := secure
 
-CFLAGS += -static
+CFLAGS +=
 
 all: $(TARGET)
 

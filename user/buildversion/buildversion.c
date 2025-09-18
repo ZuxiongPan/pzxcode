@@ -242,7 +242,7 @@ int build_version_file(void)
     printf("update image2 header\n");
     pheader->common.kernel_offset = KERNEL2_PARTITION_OFFSET + VER_HEADER_BLOCK_SIZE;
     pheader->common.rootfs_offset = ROOTFS2_PARTITION_OFFSET;
-    pheader->common.header_index = 2;   // set as backup image
+    pheader->common.header_index = 0;   // set as backup image
     pheader->header_crc = pzx_crc32((const unsigned char *)pheader, sizeof(struct common_version_header));
     fseek(version, KERNEL2_PARTITION_OFFSET, SEEK_SET);
     fwrite(pheader, 1, sizeof(*pheader), version);

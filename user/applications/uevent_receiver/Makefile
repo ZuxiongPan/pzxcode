@@ -1,6 +1,6 @@
 TARGET := urecv
 
-CFLAGS += -static
+CFLAGS +=
 
 all: $(TARGET)
 

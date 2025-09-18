@@ -8,9 +8,9 @@ dd if=/dev/zero of=$TOP_DIR/version.bin bs=1M count=64
 
 sfdisk -X gpt $TOP_DIR/version.bin << EOF
 1M,10M,L
-11M,16M,L
-27M,10M,L
-37M,16M,L
+11M,20M,L
+31M,10M,L
+41M,20M,L
 EOF
 
 $CODE_DIR/user/buildversion/buildversion \

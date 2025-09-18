@@ -4,4 +4,4 @@ initramfs:
 
 rootfsimg:
 	rm -f ../rootfs.img
-	mkfs.ext4 -F -b 4096 -d $(PWD) ../rootfs.img 0x1000
+	mkfs.ext4 -F -b 1024 -d $(PWD) ../rootfs.img 0x5000
