@@ -5,7 +5,6 @@
 #include <blk.h>
 
 #include "common/version_header.h"
-#include "common/pzx_crc32.h"
 #include "common/version_partition.h"
 
 enum boot_errors {
@@ -27,7 +26,16 @@ enum boot_errors {
 #define PZXBOOTSTRS_MAXLEN 256
 
 #define DTB_MEMADDRESS 0x40000000
-#define KERNEL_MEMADDRESS CONFIG_SYS_LOAD_ADDR
+#define KERNEL_MEMADDRESS 0x41000000
+
+#define pzxboot_debug(fmt, ...) \
+    printf("[%s](Debug)@%d# " fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define pzxboot_info(fmt, ...) \
+    printf("[%s](Info)@%d# " fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define pzxboot_error(fmt, ...) \
+    printf("[%s](Error)@%d# " fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define pzxboot_emergency(fmt, ...) \
+    printf("[%s](Emergency)@%d# " fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 
 struct version_info {
     int valid_version;
@@ -45,5 +53,6 @@ enum boot_errors find_valid_version(unsigned int offset);
 int select_boot_version(void);
 void boot_kernel(int index);
 void pzxboot(void);
+extern unsigned int pzx_crc32(const unsigned char *data, unsigned int length);
 
 #endif

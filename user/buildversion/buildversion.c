@@ -7,7 +7,6 @@
 
 #include "common/version_partition.h"
 #include "common/version_header.h"
-#include "common/pzx_crc32.h"
 
 #define FILEPATH_MAXLEN 256
 
@@ -16,6 +15,8 @@ char rootfs_filepath[FILEPATH_MAXLEN] = {0};
 char version_filepath[FILEPATH_MAXLEN] = {0};
 char upgrade_filepath[FILEPATH_MAXLEN] = {0};
 
+extern unsigned int pzx_crc32(const unsigned char *data, unsigned int length);
+extern unsigned int pzx_crc32_segment(const unsigned char *data, unsigned int length, unsigned int crc);
 int get_options(int argc, char *const *argv);
 void print_usage(void);
 void header_init(struct version_header *pheader);

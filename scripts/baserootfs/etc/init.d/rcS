@@ -5,5 +5,3 @@
 mount -t debugfs none /sys/kernel/debug
 
 mount -o remount,size=2M,nr_inodes=4096,mode=755 /dev
-
-secure

@@ -52,33 +52,33 @@ void pzxboot(void)
     ret = boot_parameter_init();
     if(ret != NO_ERRORS)
     {
-        printf("init boot parameter failed, error %u: %s\n", ret, pzxerrorstr[ret]);
+        pzxboot_emergency("init boot parameter failed, error %u: %s\n", ret, pzxerrorstr[ret]);
         return ;
     }
 
     ret = find_valid_version(KERNEL1_PARTITION_OFFSET);
     if(ret != NO_ERRORS)
     {
-        printf("version 1 is not valid, error %u: %s\n", ret, pzxerrorstr[ret]);
+        pzxboot_error("version 1 is not valid, error %u: %s\n", ret, pzxerrorstr[ret]);
     }
 
     ret = find_valid_version(KERNEL2_PARTITION_OFFSET);
     if(ret != NO_ERRORS)
     {
-        printf("version 2 is not valid, error %u: %s\n", ret, pzxerrorstr[ret]);
+        pzxboot_error("version 2 is not valid, error %u: %s\n", ret, pzxerrorstr[ret]);
     }
 
     select = select_boot_version();
     if(select < 0)
     {
-        printf("no valid version to boot\n");
+        pzxboot_emergency("no valid version to boot\n");
         return ;
     }
 
     boot_kernel(select);
 
     // never come here
-    printf("boot will never come here\n");
+    pzxboot_debug("boot will never come here\n");
 
     return ;
 }
