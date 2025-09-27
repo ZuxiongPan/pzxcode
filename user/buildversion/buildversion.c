@@ -141,16 +141,14 @@ int build_upgrade_file(void)
     printf("!!! write kernel image to upgrade file start ...\n");
     pheader->common.kernel_crc = write_file_aligned(kernel, upgrade, 
         VER_HEADER_BLOCK_SIZE, &pheader->common.kernel_size);
-    pheader->common.kernel_phyblks = pheader->common.kernel_size / STORDEV_PHYSICAL_BLKSIZE;
-    printf("... write kernel finish, kernel physical blocks is %d, kernel crc is 0x%08x !!!\n", 
-        pheader->common.kernel_phyblks, pheader->common.kernel_crc);
+    printf("... write kernel finish, kernel size is %d, kernel crc is 0x%08x !!!\n", 
+        pheader->common.kernel_size, pheader->common.kernel_crc);
 
     printf("!!! write rootfs image to upgrade file start ...\n");
     pheader->common.rootfs_crc = write_file_aligned(rootfs, upgrade, 
         KERNEL_PARTITION_SIZE, &pheader->common.rootfs_size);
-    pheader->common.rootfs_phyblks = pheader->common.rootfs_size / STORDEV_PARTTABLE_SIZE;
-    printf("... write rootfs finish, rootfs physical blocks is %d, rootfs crc is 0x%08x !!!\n", 
-        pheader->common.rootfs_phyblks, pheader->common.rootfs_crc);
+    printf("... write rootfs finish, rootfs size is %d, rootfs crc is 0x%08x !!!\n", 
+        pheader->common.rootfs_size, pheader->common.rootfs_crc);
 
     pheader->header_crc = pzx_crc32((const unsigned char *)pheader, sizeof(struct common_version_header));
     printf("... header crc 0x%08x !!!\n", pheader->header_crc);

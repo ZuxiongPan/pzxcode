@@ -12,10 +12,8 @@ struct common_version_header {
     unsigned int magic[4];
 
     unsigned int kernel_size;
-    unsigned int kernel_phyblks;
     unsigned int kernel_crc;
     unsigned int rootfs_size;
-    unsigned int rootfs_phyblks;
     unsigned int rootfs_crc;
 
     char build_date[16];    // according to date decide boot version

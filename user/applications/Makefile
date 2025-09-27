@@ -7,7 +7,7 @@ export CC CFLAGS LDFLAGS
 dirs-y :=
 
 dirs-y += verctrl/
-#dirs-y += uevent_receiver/
+dirs-y += uevent_receiver/
 #dirs-y += secure/
 
 .PHONY: all install clean

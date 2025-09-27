@@ -4,15 +4,15 @@ cd $ROOT_DIR
 make rootfsimg
 cd -
 
-dd if=/dev/zero of=$TOP_DIR/version.bin bs=1M count=64
+dd if=/dev/zero of=$TOP_DIR/version.bin bs=1M count=128
 
 # if nand flash as storage device, need preventing bad block
 sfdisk -X gpt $TOP_DIR/version.bin << EOF
 1M,8M,L
-9M,16M,L
-25M,8M,L
-33M,16M,L
-49M,14M,L
+9M,24M,L
+33M,8M,L
+41M,24M,L
+65M,60M,L
 EOF
 
 $CODE_DIR/user/buildversion/buildversion \
