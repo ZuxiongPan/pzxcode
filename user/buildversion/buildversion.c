@@ -7,6 +7,7 @@
 
 #include "common/version_partition.h"
 #include "common/version_header.h"
+#include "common/pzx_stat.h"
 
 #define FILEPATH_MAXLEN 256
 
@@ -26,30 +27,30 @@ int build_version_file(void);
 
 int main(int argc, char *argv[])
 {
-    int ret = 0;
+    int ret = SUCCESS;
 
     ret = get_options(argc, argv);
-    if(ret != 0)
+    if(ret != SUCCESS)
     {
         print_usage();
         return ret;
     }
 
     ret = build_upgrade_file();
-    if(ret != 0)
+    if(ret != SUCCESS)
     {
         printf("build upgrade file %s error\n", upgrade_filepath);
         return ret;
     }
 
     ret = build_version_file();
-    if(ret != 0)
+    if(ret != SUCCESS)
     {
         printf("build version file %s error\n", version_filepath);
         return ret;
     }
     
-    return 0;
+    return ret;
 }
 
 void header_init(struct version_header *pheader)
@@ -59,8 +60,6 @@ void header_init(struct version_header *pheader)
     pheader->common.magic[1] = VERSION_HEADER_MAGIC1;
     pheader->common.magic[2] = VERSION_HEADER_MAGIC2;
     pheader->common.magic[3] = VERSION_HEADER_MAGIC3;
-
-    pheader->common.header_index = 0;
 
     time_t now = time(NULL);
     struct tm *t = localtime(&now);
@@ -76,7 +75,7 @@ void header_init(struct version_header *pheader)
 
 unsigned int write_file_aligned(FILE *in, FILE *out, unsigned int outpos, unsigned int *size)
 {
-    unsigned char buf[STORAGE_DEVICE_BLOCK_SIZE];
+    unsigned char buf[STORDEV_PHYSICAL_BLKSIZE];
     unsigned int blk_num = 0;
     unsigned int crc = 0;
 
@@ -84,15 +83,15 @@ unsigned int write_file_aligned(FILE *in, FILE *out, unsigned int outpos, unsign
     fseek(in, 0, SEEK_SET);
     fseek(out, outpos, SEEK_SET);
 
-    while(fread(buf, 1, STORAGE_DEVICE_BLOCK_SIZE, in) > 0)
+    while(fread(buf, 1, STORDEV_PHYSICAL_BLKSIZE, in) > 0)
     {
-        fwrite(buf, 1, STORAGE_DEVICE_BLOCK_SIZE, out);
+        fwrite(buf, 1, STORDEV_PHYSICAL_BLKSIZE, out);
         blk_num++;
-        crc = pzx_crc32_segment(buf, STORAGE_DEVICE_BLOCK_SIZE, crc);
+        crc = pzx_crc32_segment(buf, STORDEV_PHYSICAL_BLKSIZE, crc);
         memset(buf, 0, sizeof(buf));
     }
 
-    *size = blk_num * STORAGE_DEVICE_BLOCK_SIZE;
+    *size = blk_num * STORDEV_PHYSICAL_BLKSIZE;
     printf("write %u blocks, total size %u bytes, crc 0x%08x\n", blk_num, *size, crc);
 
     return crc;
@@ -113,7 +112,7 @@ int build_upgrade_file(void)
     if(NULL == kernel)
     {
         printf("file %s is not found, please check\n", kernel_filepath);
-        return -1;
+        return ERR_OPEN_FAILED;
     }
 
     rootfs = fopen(rootfs_filepath, "rb");
@@ -121,7 +120,7 @@ int build_upgrade_file(void)
     {
         printf("file %s is not found, please check\n", rootfs_filepath);
         fclose(kernel);
-        return -1;
+        return ERR_OPEN_FAILED;
     }
 
     upgrade = fopen(upgrade_filepath, "wb+");
@@ -130,29 +129,31 @@ int build_upgrade_file(void)
         printf("file %s create failed\n", upgrade_filepath);
         fclose(kernel);
         fclose(rootfs);
-        return -1;
+        return ERR_OPEN_FAILED;
     }
 
     /**
-     * upgrade structure: header(blk aligned) + kernel(blk aligned) + rootfs(blk aligned)
+     * upgrade file content: header(blk aligned) + kernel(blk aligned) + rootfs(blk aligned)
      * 1. write kernel to upgrade & update version upgrade
      * 2. write rootfs to upgrade & update version upgrade
      * 3. write header to upgrade
      */
-    printf("------ write kernel image to upgrade file start ------\n");
-    pheader->common.kernel_offset = VER_HEADER_BLOCK_SIZE;
+    printf("!!! write kernel image to upgrade file start ...\n");
     pheader->common.kernel_crc = write_file_aligned(kernel, upgrade, 
-        pheader->common.kernel_offset, &pheader->common.kernel_size);
-    printf("------ write kernel image to upgrade file finish ------\n");
+        VER_HEADER_BLOCK_SIZE, &pheader->common.kernel_size);
+    pheader->common.kernel_phyblks = pheader->common.kernel_size / STORDEV_PHYSICAL_BLKSIZE;
+    printf("... write kernel finish, kernel physical blocks is %d, kernel crc is 0x%08x !!!\n", 
+        pheader->common.kernel_phyblks, pheader->common.kernel_crc);
 
-    printf("------ write rootfs image to upgrade file start ------\n");
-    pheader->common.rootfs_offset = KERNEL1_PARTITION_SIZE;
+    printf("!!! write rootfs image to upgrade file start ...\n");
     pheader->common.rootfs_crc = write_file_aligned(rootfs, upgrade, 
-        pheader->common.rootfs_offset, &pheader->common.rootfs_size);
-    printf("------ write rootfs image to upgrade file finish ------\n");
+        KERNEL_PARTITION_SIZE, &pheader->common.rootfs_size);
+    pheader->common.rootfs_phyblks = pheader->common.rootfs_size / STORDEV_PARTTABLE_SIZE;
+    printf("... write rootfs finish, rootfs physical blocks is %d, rootfs crc is 0x%08x !!!\n", 
+        pheader->common.rootfs_phyblks, pheader->common.rootfs_crc);
 
     pheader->header_crc = pzx_crc32((const unsigned char *)pheader, sizeof(struct common_version_header));
-    printf("header crc 0x%08x\n", pheader->header_crc);
+    printf("... header crc 0x%08x !!!\n", pheader->header_crc);
     fseek(upgrade, 0, SEEK_SET);
     fwrite(pheader, 1, sizeof(*pheader), upgrade);
 
@@ -168,17 +169,13 @@ int build_version_file(void)
     FILE *version = NULL;
     FILE *upgrade = NULL;
     unsigned char *buf = NULL;
-    unsigned int upgrade_size = 0;
-
-    struct version_header header;
-    struct version_header *pheader = &header;
-    memset(pheader, 0, sizeof(header));
+    unsigned int upgrade_size = KERNEL_PARTITION_SIZE + ROOTFS_PARTITION_SIZE;
 
     upgrade = fopen(upgrade_filepath, "rb");
     if(NULL == upgrade)
     {
         printf("file %s is not found, please check\n", upgrade_filepath);
-        return -1;
+        return ERR_OPEN_FAILED;
     }
 
     version = fopen(version_filepath, "rb+");
@@ -186,39 +183,24 @@ int build_version_file(void)
     {
         printf("file %s create failed\n", version_filepath);
         fclose(upgrade);
-        return -1;
+        return ERR_OPEN_FAILED;
     }
 
-    fseek(upgrade, 0, SEEK_SET);
-    if(fread(pheader, 1, sizeof(*pheader), upgrade) < sizeof(*pheader))
-    {
-        printf("read upgrade file %s header failed\n", upgrade_filepath);
-        fclose(upgrade);
-        fclose(version);
-        return -1;
-    }
-
-    upgrade_size = pheader->common.rootfs_offset + pheader->common.rootfs_size;
     buf = (unsigned char *)malloc(upgrade_size);
     if(NULL == buf)
     {
         printf("malloc %u bytes memory failed\n", upgrade_size);
         fclose(upgrade);
         fclose(version);
-        return -1;
+        return ERR_MALLOC_FAILED;
     }
     memset(buf, 0, upgrade_size);
 
     // write upgrade to version file
     fseek(upgrade, 0, SEEK_SET);
-    if(fread(buf, 1, upgrade_size, upgrade) < upgrade_size)
-    {
-        printf("read upgrade file %s data failed\n", upgrade_filepath);
-        free(buf);
-        fclose(upgrade);
-        fclose(version);
-        return -1;
-    }
+    printf("start read upgrade file\n");
+    upgrade_size = fread(buf, 1, upgrade_size, upgrade);
+    printf("upgrade file real size is %d\n", upgrade_size);
     
     printf("write upgrade file to image1\n");
     fseek(version, KERNEL1_PARTITION_OFFSET, SEEK_SET);
@@ -230,24 +212,6 @@ int build_version_file(void)
 
     free(buf);
     fclose(upgrade);
-
-    // update version header
-    printf("update image1 header\n");
-    pheader->common.kernel_offset = KERNEL1_PARTITION_OFFSET + VER_HEADER_BLOCK_SIZE;
-    pheader->common.rootfs_offset = ROOTFS1_PARTITION_OFFSET;
-    pheader->common.header_index = 1;   // set as start image
-    pheader->header_crc = pzx_crc32((const unsigned char *)pheader, sizeof(struct common_version_header));
-    fseek(version, KERNEL1_PARTITION_OFFSET, SEEK_SET);
-    fwrite(pheader, 1, sizeof(*pheader), version);
-
-    printf("update image2 header\n");
-    pheader->common.kernel_offset = KERNEL2_PARTITION_OFFSET + VER_HEADER_BLOCK_SIZE;
-    pheader->common.rootfs_offset = ROOTFS2_PARTITION_OFFSET;
-    pheader->common.header_index = 0;   // set as backup image
-    pheader->header_crc = pzx_crc32((const unsigned char *)pheader, sizeof(struct common_version_header));
-    fseek(version, KERNEL2_PARTITION_OFFSET, SEEK_SET);
-    fwrite(pheader, 1, sizeof(*pheader), version);
-
     fclose(version);
 
     return 0;
@@ -255,10 +219,12 @@ int build_version_file(void)
 
 int get_options(int argc, char *const *argv)
 {
+    extern char *optarg;
+    extern int optopt;
     int opt = getopt(argc, argv, "k:r:v:u:");
-    int ret = 0;
+    int ret = SUCCESS;
     
-    while(opt != -1 && ret != -1)
+    while(opt != -1 && ret == SUCCESS)
     {
         switch(opt)
         {
@@ -279,10 +245,10 @@ int get_options(int argc, char *const *argv)
                 upgrade_filepath[FILEPATH_MAXLEN - 1] = '\0';
                 break;
             case '?':
-                ret = -1;
+                printf("unknown option %c\n", optopt);
+                ret = ERR_INVALID_ARGS;
                 break;
             default:
-                printf("unknown option %c\n", ret);
                 break;
         }
         opt = getopt(argc, argv, "k:r:v:u:");

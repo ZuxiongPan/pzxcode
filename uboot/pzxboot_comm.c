@@ -82,16 +82,17 @@ static inline void set_bootargs(int index)
 
 int select_boot_version(void)
 {
-    int ret = parameter.info[0].header.common.header_index > parameter.info[1].header.common.header_index ? 0 : 1;
+    int ret = (strncmp(parameter.info[0].header.common.build_date, parameter.info[1].header.common.build_date, 
+        sizeof(parameter.info[0].header.common.build_date)) < 0) ? 1 : 0;
     if((parameter.info[ret].valid_version & VERSION_ISVALID) == VERSION_ISVALID)
     {
-        pzxboot_info("version %d is valid, header index %d\n", ret + 1, parameter.info[ret].header.common.header_index);
+        pzxboot_info("version %d is valid, version date %s\n", ret + 1, parameter.info[ret].header.common.build_date);
         set_bootargs(ret);
     }
     else if((parameter.info[!ret].valid_version & VERSION_ISVALID) == VERSION_ISVALID)
     {
         ret = !ret;
-        pzxboot_info("version %d is valid, header index %d\n", ret + 1, parameter.info[ret].header.common.header_index);
+        pzxboot_info("version %d is valid, header index %s\n", ret + 1, parameter.info[ret].header.common.build_date);
         set_bootargs(ret);
     }
     else
@@ -113,11 +114,12 @@ void boot_kernel(int index)
     ulong read_blks = 0, count = 0, kernsize = parameter.info[index].header.common.kernel_size;
     lbaint_t start_blk = 0;
     char bootcmd[PZXBOOTSTRS_MAXLEN] = {0};
+    unsigned int kernoff = index ? KERNEL2_PARTITION_OFFSET : KERNEL1_PARTITION_OFFSET;
 
     pzxboot_info("boot version %d kernel\n", index + 1);
     // load kernel
     read_blks = parameter.info[index].header.common.kernel_size / parameter.stor_desc->blksz;
-    start_blk = parameter.info[index].header.common.kernel_offset / parameter.stor_desc->blksz;
+    start_blk = (kernoff + VER_HEADER_BLOCK_SIZE) / parameter.stor_desc->blksz;
     count = blk_dread(parameter.stor_desc, start_blk, read_blks, vaddr);
     if(count != read_blks)
     {
@@ -127,13 +129,13 @@ void boot_kernel(int index)
     unmap_sysmem(vaddr);
 
     // unzip kernel
-    if (gunzip(map_sysmem(KERNEL_MEMADDRESS, ~0UL), ~0UL, map_sysmem(loadaddr, 0), &kernsize) != 0)
+    if (gunzip(map_sysmem(KERNEL_MEMADDRESS, ~0UL), ~0U, map_sysmem(loadaddr, 0), &kernsize) != 0)
 	{
         pzxboot_error("unzip kernel failed\n");
         return ;
     }
 
-    pzxboot_info("unzip kernel success, kernel size %lu-0x%lx\n", kernsize);
+    pzxboot_info("unzip kernel success, kernel size %lu-0x%lx\n", kernsize, kernsize);
 
 #ifdef CONFIG_OF_LIBFDT
     // modify dtb, add version info
@@ -203,12 +205,12 @@ static enum boot_errors version_check(unsigned int index, unsigned int offset)
 
     // 2. check kernel
     read_blks = parameter.info[index].header.common.kernel_size / parameter.stor_desc->blksz;
-    start_blk = parameter.info[index].header.common.kernel_offset / parameter.stor_desc->blksz;
+    start_blk = (offset + VER_HEADER_BLOCK_SIZE) / parameter.stor_desc->blksz;
     count = blk_dread(parameter.stor_desc, start_blk, read_blks, vaddr);
     if(count != read_blks)
     {
-        pzxboot_error("version %u read kernel from offset 0x%08x in [%s]-[%s] device failed\n", index + 1, 
-            parameter.info[index].header.common.kernel_offset,
+        pzxboot_error("version %u read kernel from offset 0x%08x in [%s]-[%s] device failed\n", 
+            index + 1, offset + VER_HEADER_BLOCK_SIZE,
             strlen(parameter.stor_desc->vendor) ? parameter.stor_desc->vendor : "none",
             strlen(parameter.stor_desc->product) ? parameter.stor_desc->product : "none");
         return ERROR_OPSTORDEVICE;
@@ -225,12 +227,12 @@ static enum boot_errors version_check(unsigned int index, unsigned int offset)
 
     // 3. check rootfs
     read_blks = parameter.info[index].header.common.rootfs_size / parameter.stor_desc->blksz;
-    start_blk = parameter.info[index].header.common.rootfs_offset / parameter.stor_desc->blksz;
+    start_blk = (offset + KERNEL_PARTITION_SIZE) / parameter.stor_desc->blksz;
     count = blk_dread(parameter.stor_desc, start_blk, read_blks, vaddr);
     if(count != read_blks)
     {
-        pzxboot_error("version %u read rootfs from offset 0x%08x in [%s]-[%s] device failed\n", index + 1, 
-            parameter.info[index].header.common.rootfs_offset,
+        pzxboot_error("version %u read rootfs from offset 0x%08x in [%s]-[%s] device failed\n",
+            index + 1, offset + KERNEL_PARTITION_SIZE,
             strlen(parameter.stor_desc->vendor) ? parameter.stor_desc->vendor : "none", 
             strlen(parameter.stor_desc->product) ? parameter.stor_desc->product : "none");
         return ERROR_OPSTORDEVICE;
@@ -275,15 +277,10 @@ static void pass_infomation_to_kernel_by_dtb(int index)
     nodeoff = fdt_path_offset(fdt, "/verinfo");
     fdt_setprop(fdt, nodeoff, "versionnumber", parameter.info[index].header.common.soft_version_number, 
         sizeof(parameter.info[index].header.common.soft_version_number));
-    fdt_setprop(fdt, nodeoff, "builddate", parameter.info[index].header.common.build_date, 
+    fdt_setprop(fdt, nodeoff, "curbuilddate", parameter.info[index].header.common.build_date, 
         sizeof(parameter.info[index].header.common.build_date));
-    
-    memset(buf, 0, sizeof(buf));
-    snprintf(buf, sizeof(buf), "%08x", parameter.info[index].header.common.header_index);
-    fdt_setprop(fdt, nodeoff, "bootverindex", buf, sizeof(buf));
-    memset(buf, 0, sizeof(buf));
-    snprintf(buf, sizeof(buf), "%08x", parameter.info[!index].header.common.header_index);
-    fdt_setprop(fdt, nodeoff, "backverindex", buf, sizeof(buf));
+    fdt_setprop(fdt, nodeoff, "backbuilddate", parameter.info[index].header.common.build_date, 
+        sizeof(parameter.info[index].header.common.build_date));
     
     memset(buf, 0, sizeof(buf));
     tmp = (parameter.info[!index].valid_version == VERSION_ISVALID);
@@ -296,31 +293,31 @@ static void pass_infomation_to_kernel_by_dtb(int index)
     if(index)
     {
         memset(buf, 0, sizeof(buf));
-        strncpy(buf, "/dev/sda3", sizeof(buf));
+        strncpy(buf, KERNEL2_PARTITION_NAME, sizeof(buf));
         fdt_setprop(fdt, nodeoff, "bootospart", buf, sizeof(buf));
         memset(buf, 0, sizeof(buf));
-        strncpy(buf, "/dev/sda4", sizeof(buf));
+        strncpy(buf, ROOTFS2_PARTITION_NAME, sizeof(buf));
         fdt_setprop(fdt, nodeoff, "bootfspart", buf, sizeof(buf));
         memset(buf, 0, sizeof(buf));
-        strncpy(buf, "/dev/sda1", sizeof(buf));
+        strncpy(buf, KERNEL1_PARTITION_NAME, sizeof(buf));
         fdt_setprop(fdt, nodeoff, "backospart", buf, sizeof(buf));
         memset(buf, 0, sizeof(buf));
-        strncpy(buf, "/dev/sda2", sizeof(buf));
+        strncpy(buf, ROOTFS1_PARTITION_NAME, sizeof(buf));
         fdt_setprop(fdt, nodeoff, "backfspart", buf, sizeof(buf));
     }
     else
     {
         memset(buf, 0, sizeof(buf));
-        strncpy(buf, "/dev/sda1", sizeof(buf));
+        strncpy(buf, KERNEL1_PARTITION_NAME, sizeof(buf));
         fdt_setprop(fdt, nodeoff, "bootospart", buf, sizeof(buf));
         memset(buf, 0, sizeof(buf));
-        strncpy(buf, "/dev/sda2", sizeof(buf));
+        strncpy(buf, ROOTFS1_PARTITION_NAME, sizeof(buf));
         fdt_setprop(fdt, nodeoff, "bootfspart", buf, sizeof(buf));
         memset(buf, 0, sizeof(buf));
-        strncpy(buf, "/dev/sda3", sizeof(buf));
+        strncpy(buf, KERNEL2_PARTITION_NAME, sizeof(buf));
         fdt_setprop(fdt, nodeoff, "backospart", buf, sizeof(buf));
         memset(buf, 0, sizeof(buf));
-        strncpy(buf, "/dev/sda4", sizeof(buf));
+        strncpy(buf, ROOTFS2_PARTITION_NAME, sizeof(buf));
         fdt_setprop(fdt, nodeoff, "backfspart", buf, sizeof(buf));
     }
     

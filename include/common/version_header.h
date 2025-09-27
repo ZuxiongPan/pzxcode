@@ -11,15 +11,14 @@
 struct common_version_header {
     unsigned int magic[4];
 
-    unsigned int kernel_offset;
     unsigned int kernel_size;
+    unsigned int kernel_phyblks;
     unsigned int kernel_crc;
-    unsigned int rootfs_offset;
     unsigned int rootfs_size;
+    unsigned int rootfs_phyblks;
     unsigned int rootfs_crc;
 
-    int header_index;
-    char build_date[16];
+    char build_date[16];    // according to date decide boot version
     char soft_version_number[32];
 };
 
