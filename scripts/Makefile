@@ -68,7 +68,7 @@ boot:
     	-kernel $(UBOOT_DIR)/u-boot \
 		-device nec-usb-xhci,id=xhci \
 		-device usb-storage,drive=usbdisk,bus=xhci.0 \
-		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version.bin,format=raw \
+		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version1.bin,format=raw \
 		-netdev user,id=net0,tftp=$(TOP_DIR) \
 		-device virtio-net-device,netdev=net0 \
 		-device edu \

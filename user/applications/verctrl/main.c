@@ -1,18 +1,54 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <unistd.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
 #include "common/pzx_stat.h"
 
 #define LINE_BUFSIZE 256
 #define KEY_BUFSIZE 128
 #define VALUE_BUFSIZE 128
 
+extern int do_upgrade_version(const char *filepath);
+static void print_usage(void);
+
+int main(int argc, char *argv[])
+{
+    int ret = SUCCESS;
+    if(argc < 2)
+    {
+        print_usage();
+        return ERR_INVALID_ARGS;
+    }
+
+    if(!strncmp(argv[1], "-sync", sizeof("-sync")))
+    {
+        ret = SUCCESS;
+        printf("synchonize version return %d\n", ret);
+    }
+
+    if(!strncmp(argv[1], "-upgrade", sizeof("-upgrade")) && argc >= 3)
+    {
+        ret = do_upgrade_version(argv[2]);
+        printf("upgrade version %s return %d\n", argv[2], ret);
+        system("rm -f upgrade.bin");
+    }
+
+    return ret;
+}
+
+static void print_usage(void)
+{
+    printf("verctrl usage\n");
+    printf("  -upgrade <filepath> : start upgrade <filepath>\n");
+    printf("  -sync : start synchonize version\n");
+
+    return ;
+}
+
 // verinfo format: [Key: Value]
 // name is Key, this function will skip COLON and SPACE in verinfo
 // so name DO NOT include COLON character
-static int get_value_from_verinfo(const char *name, char *valbuf, unsigned int bufsize)
+int get_value_from_verinfo(const char *name, char *valbuf, unsigned int bufsize)
 {
     FILE *fp = fopen("/proc/verinfo", "r");
     if(NULL == fp)
@@ -54,47 +90,4 @@ static int get_value_from_verinfo(const char *name, char *valbuf, unsigned int b
 
     fclose(fp);
     return found;
-}
-
-int main()
-{
-    char buf[VALUE_BUFSIZE] = {0};
-    int rfd = -1, wfd = -1;
-    int curidx = 0, backidx = 0;
-    unsigned char needsync = BOOL_FALSE;
-
-    if(!get_value_from_verinfo("Current Version Index", buf, VALUE_BUFSIZE))
-    {
-        printf("Cannot find \'Current Version Index\' in /proc/verinfo!\n");
-        return ERR_READ_FAIED;
-    }
-    sscanf(buf, "%08x", &curidx);
-
-    if(!get_value_from_verinfo("Backup Version Index", buf, VALUE_BUFSIZE))
-    {
-        printf("Cannot find \'Backup Version Index\' in /proc/verinfo!\n");
-        return ERR_READ_FAIED;
-    }
-    sscanf(buf, "%08x", &backidx);
-
-    if(!get_value_from_verinfo("Backup Version State", buf, VALUE_BUFSIZE))
-    {
-        printf("Cannot find \'Backup Version State\' in /proc/verinfo!\n");
-        return ERR_READ_FAIED;
-    }
-
-    printf("versionstate: cur %d back %d stat %s\n", curidx, backidx, buf);
-
-    if(!strcmp(buf, "Invalid") || (curidx != backidx))
-    {
-        needsync = BOOL_TRUE;
-    }
-
-    if(needsync)
-    {
-        printf("version need synchonized.\n");
-        
-    }
-
-    return 0;
 }

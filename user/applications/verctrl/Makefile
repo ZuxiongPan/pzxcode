@@ -2,15 +2,18 @@ TARGET := verctrl
 
 CFLAGS += -I$(CODE_DIR)/include
 
-SRCS := $(wildcard ./*.c)
+OBJS := $(patsubst %.c, %.o, $(wildcard *.c))
 
 all: $(TARGET)
 
-$(TARGET): $(SRCS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+$(TARGET): $(OBJS)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $@ $<
 
 install:
 	cp $(TARGET) $(ROOT_DIR)/usr/bin/
 
 clean:
-	rm -f $(TARGET)
+	rm -f $(TARGET) $(OBJS)

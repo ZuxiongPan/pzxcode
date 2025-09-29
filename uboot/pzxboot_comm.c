@@ -279,7 +279,7 @@ static void pass_infomation_to_kernel_by_dtb(int index)
         sizeof(parameter.info[index].header.common.soft_version_number));
     fdt_setprop(fdt, nodeoff, "curbuilddate", parameter.info[index].header.common.build_date, 
         sizeof(parameter.info[index].header.common.build_date));
-    fdt_setprop(fdt, nodeoff, "backbuilddate", parameter.info[index].header.common.build_date, 
+    fdt_setprop(fdt, nodeoff, "backbuilddate", parameter.info[!index].header.common.build_date, 
         sizeof(parameter.info[index].header.common.build_date));
     
     memset(buf, 0, sizeof(buf));
@@ -293,32 +293,20 @@ static void pass_infomation_to_kernel_by_dtb(int index)
     if(index)
     {
         memset(buf, 0, sizeof(buf));
-        strncpy(buf, KERNEL2_PARTITION_NAME, sizeof(buf));
-        fdt_setprop(fdt, nodeoff, "bootospart", buf, sizeof(buf));
+        snprintf(buf, sizeof(buf), "0x%x", KERNEL2_PARTITION_OFFSET);
+        fdt_setprop(fdt, nodeoff, "bootveroff", buf, sizeof(buf));
         memset(buf, 0, sizeof(buf));
-        strncpy(buf, ROOTFS2_PARTITION_NAME, sizeof(buf));
-        fdt_setprop(fdt, nodeoff, "bootfspart", buf, sizeof(buf));
-        memset(buf, 0, sizeof(buf));
-        strncpy(buf, KERNEL1_PARTITION_NAME, sizeof(buf));
-        fdt_setprop(fdt, nodeoff, "backospart", buf, sizeof(buf));
-        memset(buf, 0, sizeof(buf));
-        strncpy(buf, ROOTFS1_PARTITION_NAME, sizeof(buf));
-        fdt_setprop(fdt, nodeoff, "backfspart", buf, sizeof(buf));
+        snprintf(buf, sizeof(buf), "0x%x", KERNEL1_PARTITION_OFFSET);
+        fdt_setprop(fdt, nodeoff, "backveroff", buf, sizeof(buf));
     }
     else
     {
         memset(buf, 0, sizeof(buf));
-        strncpy(buf, KERNEL1_PARTITION_NAME, sizeof(buf));
-        fdt_setprop(fdt, nodeoff, "bootospart", buf, sizeof(buf));
+        snprintf(buf, sizeof(buf), "0x%x", KERNEL1_PARTITION_OFFSET);
+        fdt_setprop(fdt, nodeoff, "bootveroff", buf, sizeof(buf));
         memset(buf, 0, sizeof(buf));
-        strncpy(buf, ROOTFS1_PARTITION_NAME, sizeof(buf));
-        fdt_setprop(fdt, nodeoff, "bootfspart", buf, sizeof(buf));
-        memset(buf, 0, sizeof(buf));
-        strncpy(buf, KERNEL2_PARTITION_NAME, sizeof(buf));
-        fdt_setprop(fdt, nodeoff, "backospart", buf, sizeof(buf));
-        memset(buf, 0, sizeof(buf));
-        strncpy(buf, ROOTFS2_PARTITION_NAME, sizeof(buf));
-        fdt_setprop(fdt, nodeoff, "backfspart", buf, sizeof(buf));
+        snprintf(buf, sizeof(buf), "0x%x", KERNEL2_PARTITION_OFFSET);
+        fdt_setprop(fdt, nodeoff, "backveroff", buf, sizeof(buf));
     }
     
     unmap_sysmem(fdt);

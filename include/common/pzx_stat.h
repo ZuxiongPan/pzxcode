@@ -12,5 +12,6 @@
 #define ERR_WRITE_FAILED -5
 #define ERR_IOCTL_FAILED -6
 #define ERR_MALLOC_FAILED -7
+#define ERR_VERIFY_FAILED -8
 
 #endif

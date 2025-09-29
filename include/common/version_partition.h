@@ -2,6 +2,7 @@
 #define __VERSION_PARTITION_H__
 
 #define VERSION_NUMBER "QEMU-Virt-PanZX-V1.0.0"
+#define STORDEV_NAME "/dev/sda"
 #define STORDEV_PHYSICAL_BLKSIZE 0x200
 #define STORDEV_PARTTABLE_SIZE 0x00100000
 #define KERNEL_PARTITION_SIZE 0x00800000
@@ -16,7 +17,7 @@
  * last 34 block save backup partitiontable and backup GPT header
 */
 
-// version header is at      the first block in kernel partition
+// version header is at the first block in kernel partition
 #define KERNEL1_PARTITION_NAME   "/dev/sda1"
 #define KERNEL1_PARTITION_OFFSET STORDEV_PARTTABLE_SIZE
 #define KERNEL1_PARTITION_SIZE   KERNEL_PARTITION_SIZE
