@@ -7,16 +7,6 @@
 #include "common/version_header.h"
 #include "common/version_partition.h"
 
-enum boot_errors {
-    NO_ERRORS,
-    ERROR_NODEVICE,
-    ERROR_HEADER,
-    ERROR_KERNEL,
-    ERROR_ROOTFS,
-    ERROR_OPSTORDEVICE,
-    ERROR_END,
-};
-
 #define HEADER_ISVALID 0x01
 #define KERNEL_ISVALID 0x02
 #define ROOTFS_ISVALID 0x04
@@ -48,8 +38,8 @@ struct boot_param {
     char bootargs[PZXBOOTSTRS_MAXLEN];
 };
 
-enum boot_errors boot_parameter_init(void);
-enum boot_errors find_valid_version(unsigned int offset);
+int boot_parameter_init(void);
+int find_valid_version(unsigned int offset);
 int select_boot_version(void);
 void boot_kernel(int index);
 void pzxboot(void);

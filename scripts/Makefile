@@ -65,7 +65,7 @@ boot:
     	-M virt,gic-version=3 \
     	-cpu cortex-a53 \
     	-smp 2 -m 256M \
-    	-kernel $(UBOOT_DIR)/u-boot \
+    	-device loader,file=$(UBOOT_DIR)/u-boot.bin \
 		-device nec-usb-xhci,id=xhci \
 		-device usb-storage,drive=usbdisk,bus=xhci.0 \
 		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version1.bin,format=raw \

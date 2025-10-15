@@ -2,16 +2,7 @@
 #include <cli.h>
 #include <linux/delay.h>
 #include "pzxboot.h"
-
-static const char pzxerrorstr[ERROR_END][128] = 
-{
-    [NO_ERRORS] = "no errors",
-    [ERROR_NODEVICE] = "no device",
-    [ERROR_HEADER] = "header invalid",
-    [ERROR_KERNEL] = "kernel invalid",
-    [ERROR_ROOTFS] = "rootfs invalid",
-    [ERROR_OPSTORDEVICE] = "read/write error",
-};
+#include "common/pzx_stat.h"
 
 static int check_keypress(void)
 {
@@ -41,7 +32,7 @@ static int check_keypress(void)
 
 void pzxboot(void)
 {
-    enum boot_errors ret = NO_ERRORS;
+    int ret = SUCCESS;
     int select = -1;
 
     if(check_keypress() == '1')
@@ -50,22 +41,22 @@ void pzxboot(void)
     }
 
     ret = boot_parameter_init();
-    if(ret != NO_ERRORS)
+    if(ret != SUCCESS)
     {
-        pzxboot_emergency("init boot parameter failed, error %u: %s\n", ret, pzxerrorstr[ret]);
+        pzxboot_emergency("init boot parameter failed, error %d\n", ret);
         return ;
     }
 
     ret = find_valid_version(KERNEL1_PARTITION_OFFSET);
-    if(ret != NO_ERRORS)
+    if(ret != SUCCESS)
     {
-        pzxboot_error("version 1 is not valid, error %u: %s\n", ret, pzxerrorstr[ret]);
+        pzxboot_error("version 1 is not valid, error %d\n", ret);
     }
 
     ret = find_valid_version(KERNEL2_PARTITION_OFFSET);
-    if(ret != NO_ERRORS)
+    if(ret != SUCCESS)
     {
-        pzxboot_error("version 2 is not valid, error %u: %s\n", ret, pzxerrorstr[ret]);
+        pzxboot_error("version 2 is not valid, error %d\n", ret);
     }
 
     select = select_boot_version();

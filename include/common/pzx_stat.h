@@ -13,5 +13,6 @@
 #define ERR_IOCTL_FAILED -6
 #define ERR_MALLOC_FAILED -7
 #define ERR_VERIFY_FAILED -8
+#define ERR_NODEVICE -9
 
 #endif
