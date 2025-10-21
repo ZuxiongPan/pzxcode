@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <linux/errno.h>
 #include <unistd.h>
-#include "common/pzx_stat.h"
 
 #define LINE_BUFSIZE 256
 #define KEY_BUFSIZE 128
@@ -13,16 +14,16 @@ static void print_usage(void);
 
 int main(int argc, char *argv[])
 {
-    int ret = SUCCESS;
+    int ret = 0;
     if(argc < 2)
     {
         print_usage();
-        return ERR_INVALID_ARGS;
+        return -EINVAL;
     }
 
     if(!strncmp(argv[1], "-sync", sizeof("-sync")))
     {
-        ret = SUCCESS;
+        ret = 0;
         printf("synchonize version return %d\n", ret);
     }
 
@@ -54,10 +55,10 @@ int get_value_from_verinfo(const char *name, char *valbuf, unsigned int bufsize)
     if(NULL == fp)
     {
         printf("open /proc/verinfo failed\n");
-        return ERR_OPEN_FAILED;
+        return -EIO;
     }
 
-    int found = BOOL_FALSE;
+    int found = false;
     char line[LINE_BUFSIZE];
     char key[KEY_BUFSIZE];
     char value[VALUE_BUFSIZE];
@@ -83,7 +84,7 @@ int get_value_from_verinfo(const char *name, char *valbuf, unsigned int bufsize)
         {
             strncpy(valbuf, value, bufsize -1);
             valbuf[bufsize - 1] = '\0';
-            found = BOOL_TRUE;
+            found = true;
             break;
         }
     }

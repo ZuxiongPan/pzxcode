@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <linux/errno.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include "common/pzx_stat.h"
 #include "common/version_header.h"
 #include "common/version_partition.h"
 
@@ -29,14 +30,14 @@ static int version_check(int fd)
     {
         printf("invalid header magic %x %x %x %x\n", header.common.magic[0], header.common.magic[1], 
             header.common.magic[2], header.common.magic[3]);
-        return ERR_VERIFY_FAILED;
+        return -EKEYEXPIRED;
     }
     crc = pzx_crc32(buf, sizeof(struct common_version_header));
     printf("calculated header crc is 0x%x, stored header crc is 0x%x\n", crc, header.header_crc);
     if(crc != header.header_crc)
     {
         printf("header crc is error!\n");
-        return ERR_VERIFY_FAILED;
+        return -EKEYEXPIRED;
     }
 
     // 2. check kernel
@@ -52,7 +53,7 @@ static int version_check(int fd)
     if(crc != header.common.kernel_crc)
     {
         printf("kernel crc is error!\n");
-        return ERR_VERIFY_FAILED;
+        return -EKEYEXPIRED;
     }
 
     // 3. check rootfs
@@ -68,10 +69,10 @@ static int version_check(int fd)
     if(crc != header.common.rootfs_crc)
     {
         printf("rootfs crc is error!\n");
-        return ERR_VERIFY_FAILED;
+        return -EKEYEXPIRED;
     }
 
-    return SUCCESS;
+    return 0;
 }
 
 static int write_version(int rfd, int wfd)
@@ -82,14 +83,14 @@ static int write_version(int rfd, int wfd)
     if(NULL == tmp)
     {
         printf("malloc buffer memory failed\n");
-        return ERR_MALLOC_FAILED;
+        return -ENOMEM;
     }
 
-    if(BOOL_TRUE != get_value_from_verinfo("Backup Version Offset", buf, sizeof(buf)))
+    if(true != get_value_from_verinfo("Backup Version Offset", buf, sizeof(buf)))
     {
         printf("get Backup Version Offset failed\n");
         free(tmp);
-        return ERR_READ_FAIED;
+        return -EIO;
     }
 
     sscanf(buf, "0x%x", &woff);
@@ -108,17 +109,17 @@ static int write_version(int rfd, int wfd)
     printf("write %d Bytes success\n", woff);
     free(tmp);
 
-    return SUCCESS;
+    return 0;
 }
 
 int do_upgrade_version(const char *filepath)
 {
-    int ret = SUCCESS;
+    int ret = 0;
     int rfd = open(filepath, O_RDONLY);
     if(rfd < 0)
     {
         printf("open file %s failed\n", filepath);
-        return ERR_OPEN_FAILED;
+        return -EIO;
     }
 
     int wfd = open(STORDEV_NAME, O_WRONLY);
@@ -126,11 +127,11 @@ int do_upgrade_version(const char *filepath)
     {
         printf("open file %s failed\n", STORDEV_NAME);
         close(rfd);
-        return ERR_OPEN_FAILED;
+        return -EIO;
     }
 
     ret = version_check(rfd);
-    if(ret != SUCCESS)
+    if(ret != 0)
     {
         printf("version check failed, ret %d\n", ret);
         close(rfd);

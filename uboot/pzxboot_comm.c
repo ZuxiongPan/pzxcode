@@ -1,6 +1,7 @@
 #include <env.h>
 #include <gzip.h>
 #include <stdio.h>
+#include <linux/errno.h>
 #include <mapmem.h>
 #include <command.h>
 #include <bootm.h>
@@ -8,7 +9,6 @@
 #include <linux/string.h>
 #include <linux/libfdt.h>
 #include "pzxboot.h"
-#include "common/pzx_stat.h"
 
 #ifdef CONFIG_USB_STORAGE
 #include <usb.h>
@@ -30,7 +30,7 @@ int boot_parameter_init(void)
     if(usb_storage < 0)
     {
         pzxboot_error("no usb storage device found\n");
-        return ERR_NODEVICE;
+        return -ENODEV;
     }
     pzxboot_info("boot from usb storage device, dev number %d\n", usb_storage);
     //blk_common_cmd(argc, argv, UCLASS_USB, &usb_storage);
@@ -38,18 +38,18 @@ int boot_parameter_init(void)
     if(ret || (NULL == parameter.stor_desc))
     {
         pzxboot_error("get usb storage device %d failed\n", usb_storage);
-        return ERR_NODEVICE;
+        return -EBADFD;
     }
     strncpy(parameter.bootargs, "init=/linuxrc console=ttyAMA0,115200", sizeof(parameter.bootargs) - 1);
     pzxboot_info("current block size of this storage device is 0x%08lx\n", parameter.stor_desc->blksz);
 #endif
 
-    return SUCCESS;
+    return 0;
 }
 
 int find_valid_version(unsigned int offset)
 {
-    int ret = SUCCESS;
+    int ret = 0;
 
     if(offset == KERNEL1_PARTITION_OFFSET)
     {
@@ -161,7 +161,7 @@ static int check_header(unsigned int index, struct version_header *pheader)
             pzxboot_error("version %u header magic 0x%08x 0x%08x 0x%08x 0x%08x is invalid\n", index + 1,
                 pheader->common.magic[0], pheader->common.magic[1],
                 pheader->common.magic[2], pheader->common.magic[3]);
-            return ERR_VERIFY_FAILED;
+            return -EKEYEXPIRED;
         }
     
     unsigned int crc = pzx_crc32((unsigned char*)pheader, sizeof(struct common_version_header));
@@ -169,20 +169,20 @@ static int check_header(unsigned int index, struct version_header *pheader)
     if(crc != pheader->header_crc)
     {
         pzxboot_error("version %u header is invalid\n", index + 1);
-        return ERR_VERIFY_FAILED;
+        return -EKEYEXPIRED;
     }
 
     parameter.info[index].valid_version |= HEADER_ISVALID;
     memcpy(&parameter.info[index].header, pheader, sizeof(struct version_header));
 
-    return SUCCESS;
+    return 0;
 }
 
 static int version_check(unsigned int index, unsigned int offset)
 {
     ulong read_blks = 0, count = 0;
     lbaint_t start_blk = 0;
-    int ret = SUCCESS;
+    int ret = 0;
     phys_addr_t loadaddr = CONFIG_SYS_LOAD_ADDR;
     void *vaddr = map_sysmem(loadaddr, ROOTFS_PARTITION_SIZE);
 
@@ -195,10 +195,10 @@ static int version_check(unsigned int index, unsigned int offset)
         pzxboot_error("version %u read header from offset 0x%08x in [%s]-[%s] device failed\n", index + 1, offset, 
             strlen(parameter.stor_desc->vendor) ? parameter.stor_desc->vendor : "none",
             strlen(parameter.stor_desc->product) ? parameter.stor_desc->product : "none");
-        return ERR_READ_FAIED;
+        return -EIO;
     }
     ret = check_header(index, vaddr);
-    if(ret != SUCCESS)
+    if(ret != 0)
     {
         pzxboot_error("version %u header is invalid\n", index + 1);
         return ret;
@@ -214,7 +214,7 @@ static int version_check(unsigned int index, unsigned int offset)
             index + 1, offset + VER_HEADER_BLOCK_SIZE,
             strlen(parameter.stor_desc->vendor) ? parameter.stor_desc->vendor : "none",
             strlen(parameter.stor_desc->product) ? parameter.stor_desc->product : "none");
-        return ERR_READ_FAIED;
+        return -EIO;
     }
     unsigned int crc = pzx_crc32(vaddr, parameter.info[index].header.common.kernel_size);
     pzxboot_info("version %u kernel crc 0x%08x, expect crc 0x%08x\n", index + 1, crc, 
@@ -222,7 +222,7 @@ static int version_check(unsigned int index, unsigned int offset)
     if(crc != parameter.info[index].header.common.kernel_crc)
     {
         pzxboot_error("version %u kernel crc is invalid\n", index + 1);
-        return ERR_VERIFY_FAILED;
+        return -EKEYEXPIRED;
     }
     parameter.info[index].valid_version |= KERNEL_ISVALID;
 
@@ -236,7 +236,7 @@ static int version_check(unsigned int index, unsigned int offset)
             index + 1, offset + KERNEL_PARTITION_SIZE,
             strlen(parameter.stor_desc->vendor) ? parameter.stor_desc->vendor : "none", 
             strlen(parameter.stor_desc->product) ? parameter.stor_desc->product : "none");
-        return ERR_READ_FAIED;
+        return -EIO;
     }
     crc = pzx_crc32(vaddr, parameter.info[index].header.common.rootfs_size);
     pzxboot_info("version %u rootfs crc 0x%08x, expect crc 0x%08x\n", index + 1, crc, 
@@ -244,13 +244,13 @@ static int version_check(unsigned int index, unsigned int offset)
     if(crc != parameter.info[index].header.common.rootfs_crc)
     {
         pzxboot_error("version %u rootfs crc is invalid\n", index + 1);
-        return ERR_VERIFY_FAILED;
+        return -EKEYEXPIRED;
     }
     parameter.info[index].valid_version |= ROOTFS_ISVALID;
 
     unmap_sysmem(vaddr);
 
-    return SUCCESS;
+    return 0;
 }
 
 static void pass_infomation_to_kernel_by_dtb(int index)

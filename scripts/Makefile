@@ -12,10 +12,10 @@ CROSS_COMPILER_PREFIX := $(CROSS_COMPILER_DIR)/bin/aarch64-none-linux-gnu-
 
 export TOP_DIR CODE_DIR KERNEL_DIR UBOOT_DIR ROOT_DIR CROSS_COMPILER_PREFIX
 
-.PHONY: all prepare config uboot kernel qemu busybox boot version \
-	uboot_clean kernel_clean qemu_clean busybox_clean clean
+.PHONY: all prepare config uboot kernel busybox boot version \
+	uboot_clean kernel_clean busybox_clean clean
 
-all: prepare config uboot kernel qemu busybox
+all: prepare config uboot kernel busybox
 
 prepare:
 	./mkprepare.sh
@@ -68,7 +68,7 @@ boot:
     	-device loader,file=$(UBOOT_DIR)/u-boot.bin \
 		-device nec-usb-xhci,id=xhci \
 		-device usb-storage,drive=usbdisk,bus=xhci.0 \
-		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version1.bin,format=raw \
+		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version.bin,format=raw \
 		-netdev user,id=net0,tftp=$(TOP_DIR) \
 		-device virtio-net-device,netdev=net0 \
 		-device edu \

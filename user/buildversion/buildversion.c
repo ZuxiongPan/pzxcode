@@ -4,11 +4,10 @@
 #include <unistd.h>
 #include <time.h>
 #include <ctype.h>
+#include <linux/errno.h>
 
 #include "common/version_partition.h"
 #include "common/version_header.h"
-#include "common/pzx_stat.h"
-
 #define FILEPATH_MAXLEN 256
 
 char kernel_filepath[FILEPATH_MAXLEN] = {0};
@@ -27,24 +26,24 @@ int build_version_file(void);
 
 int main(int argc, char *argv[])
 {
-    int ret = SUCCESS;
+    int ret = 0;
 
     ret = get_options(argc, argv);
-    if(ret != SUCCESS)
+    if(ret != 0)
     {
         print_usage();
         return ret;
     }
 
     ret = build_upgrade_file();
-    if(ret != SUCCESS)
+    if(ret != 0)
     {
         printf("build upgrade file %s error\n", upgrade_filepath);
         return ret;
     }
 
     ret = build_version_file();
-    if(ret != SUCCESS)
+    if(ret != 0)
     {
         printf("build version file %s error\n", version_filepath);
         return ret;
@@ -112,7 +111,7 @@ int build_upgrade_file(void)
     if(NULL == kernel)
     {
         printf("file %s is not found, please check\n", kernel_filepath);
-        return ERR_OPEN_FAILED;
+        return -EIO;
     }
 
     rootfs = fopen(rootfs_filepath, "rb");
@@ -120,7 +119,7 @@ int build_upgrade_file(void)
     {
         printf("file %s is not found, please check\n", rootfs_filepath);
         fclose(kernel);
-        return ERR_OPEN_FAILED;
+        return -EIO;
     }
 
     upgrade = fopen(upgrade_filepath, "wb+");
@@ -129,7 +128,7 @@ int build_upgrade_file(void)
         printf("file %s create failed\n", upgrade_filepath);
         fclose(kernel);
         fclose(rootfs);
-        return ERR_OPEN_FAILED;
+        return -EIO;
     }
 
     /**
@@ -173,7 +172,7 @@ int build_version_file(void)
     if(NULL == upgrade)
     {
         printf("file %s is not found, please check\n", upgrade_filepath);
-        return ERR_OPEN_FAILED;
+        return -EIO;
     }
 
     version = fopen(version_filepath, "rb+");
@@ -181,7 +180,7 @@ int build_version_file(void)
     {
         printf("file %s create failed\n", version_filepath);
         fclose(upgrade);
-        return ERR_OPEN_FAILED;
+        return -EIO;
     }
 
     buf = (unsigned char *)malloc(upgrade_size);
@@ -190,7 +189,7 @@ int build_version_file(void)
         printf("malloc %u bytes memory failed\n", upgrade_size);
         fclose(upgrade);
         fclose(version);
-        return ERR_MALLOC_FAILED;
+        return -ENOMEM;
     }
     memset(buf, 0, upgrade_size);
 
@@ -220,9 +219,9 @@ int get_options(int argc, char *const *argv)
     extern char *optarg;
     extern int optopt;
     int opt = getopt(argc, argv, "k:r:v:u:");
-    int ret = SUCCESS;
+    int ret = 0;
     
-    while(opt != -1 && ret == SUCCESS)
+    while(opt != -1 && ret == 0)
     {
         switch(opt)
         {
@@ -244,7 +243,7 @@ int get_options(int argc, char *const *argv)
                 break;
             case '?':
                 printf("unknown option %c\n", optopt);
-                ret = ERR_INVALID_ARGS;
+                ret = -EINVAL;
                 break;
             default:
                 break;

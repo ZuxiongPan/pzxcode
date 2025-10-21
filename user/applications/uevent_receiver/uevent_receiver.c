@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <linux/netlink.h>
+#include <linux/errno.h>
 
 #define UEVENT_MSG_BUFSIZE 4096
 
@@ -18,7 +19,7 @@ int main(void)
     if(sock < 0)
     {
         perror("socket create");
-        return -1;
+        return -EPERM;
     }
 
     memset(&addr, 0, sizeof(addr));
@@ -32,7 +33,7 @@ int main(void)
     {
         perror("bind socket");
         close(sock);
-        return -1;
+        return -EPERM;
     }
 
     printf("Now listening from kernel uevent\n");

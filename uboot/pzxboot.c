@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <cli.h>
+#include <errno.h>
 #include <linux/delay.h>
 #include "pzxboot.h"
-#include "common/pzx_stat.h"
 
 static int check_keypress(void)
 {
@@ -32,7 +32,7 @@ static int check_keypress(void)
 
 void pzxboot(void)
 {
-    int ret = SUCCESS;
+    int ret = 0;
     int select = -1;
 
     if(check_keypress() == '1')
@@ -41,20 +41,20 @@ void pzxboot(void)
     }
 
     ret = boot_parameter_init();
-    if(ret != SUCCESS)
+    if(ret != 0)
     {
         pzxboot_emergency("init boot parameter failed, error %d\n", ret);
         return ;
     }
 
     ret = find_valid_version(KERNEL1_PARTITION_OFFSET);
-    if(ret != SUCCESS)
+    if(ret != 0)
     {
         pzxboot_error("version 1 is not valid, error %d\n", ret);
     }
 
     ret = find_valid_version(KERNEL2_PARTITION_OFFSET);
-    if(ret != SUCCESS)
+    if(ret != 0)
     {
         pzxboot_error("version 2 is not valid, error %d\n", ret);
     }
