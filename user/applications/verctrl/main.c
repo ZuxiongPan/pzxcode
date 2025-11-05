@@ -55,7 +55,7 @@ int get_value_from_verinfo(const char *name, char *valbuf, unsigned int bufsize)
     if(NULL == fp)
     {
         printf("open /proc/verinfo failed\n");
-        return -EIO;
+        return -EACCES;
     }
 
     int found = false;

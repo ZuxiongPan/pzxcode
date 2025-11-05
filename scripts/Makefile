@@ -56,6 +56,7 @@ busybox_clean:
 version:
 	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 $(ROOT_DIR)/lib/ -f
 	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib64/libc.so.6 $(ROOT_DIR)/lib64/ -f
+	find $(CODE_DIR)/linux/ -name *.ko -exec cp -f {} $(ROOT_DIR)/lib/modules \;
 	make -C $(APPLICATIONS_DIR)
 	make -C $(APPLICATIONS_DIR) install
 	./mkver.sh

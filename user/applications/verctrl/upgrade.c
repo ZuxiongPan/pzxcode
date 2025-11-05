@@ -90,7 +90,7 @@ static int write_version(int rfd, int wfd)
     {
         printf("get Backup Version Offset failed\n");
         free(tmp);
-        return -EIO;
+        return -EACCES;
     }
 
     sscanf(buf, "0x%x", &woff);
@@ -119,7 +119,7 @@ int do_upgrade_version(const char *filepath)
     if(rfd < 0)
     {
         printf("open file %s failed\n", filepath);
-        return -EIO;
+        return -EACCES;
     }
 
     int wfd = open(STORDEV_NAME, O_WRONLY);
@@ -127,7 +127,7 @@ int do_upgrade_version(const char *filepath)
     {
         printf("open file %s failed\n", STORDEV_NAME);
         close(rfd);
-        return -EIO;
+        return -EACCES;
     }
 
     ret = version_check(rfd);

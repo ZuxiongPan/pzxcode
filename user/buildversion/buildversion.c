@@ -111,7 +111,7 @@ int build_upgrade_file(void)
     if(NULL == kernel)
     {
         printf("file %s is not found, please check\n", kernel_filepath);
-        return -EIO;
+        return -EACCES;
     }
 
     rootfs = fopen(rootfs_filepath, "rb");
@@ -119,7 +119,7 @@ int build_upgrade_file(void)
     {
         printf("file %s is not found, please check\n", rootfs_filepath);
         fclose(kernel);
-        return -EIO;
+        return -EACCES;
     }
 
     upgrade = fopen(upgrade_filepath, "wb+");
@@ -128,7 +128,7 @@ int build_upgrade_file(void)
         printf("file %s create failed\n", upgrade_filepath);
         fclose(kernel);
         fclose(rootfs);
-        return -EIO;
+        return -EACCES;
     }
 
     /**
@@ -172,7 +172,7 @@ int build_version_file(void)
     if(NULL == upgrade)
     {
         printf("file %s is not found, please check\n", upgrade_filepath);
-        return -EIO;
+        return -EACCES;
     }
 
     version = fopen(version_filepath, "rb+");
@@ -180,7 +180,7 @@ int build_version_file(void)
     {
         printf("file %s create failed\n", version_filepath);
         fclose(upgrade);
-        return -EIO;
+        return -EACCES;
     }
 
     buf = (unsigned char *)malloc(upgrade_size);

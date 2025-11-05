@@ -3,6 +3,7 @@
 #include <linux/of.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#include <linux/errno.h>
 
 const char *softversion = NULL;
 const char *curbuilddate = NULL;
@@ -46,7 +47,7 @@ static int __init verinfo_init(void)
     if(NULL == verinfo_np)
     {
         pr_err("no verinfo node found in dtb\n");
-        return -ENODEV;
+        return -ENXIO;
     }
 
     ret = of_property_read_string(verinfo_np, "versionnumber", &softversion);
