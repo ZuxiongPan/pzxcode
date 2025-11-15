@@ -56,7 +56,7 @@ busybox_clean:
 version:
 	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 $(ROOT_DIR)/lib/ -f
 	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib64/libc.so.6 $(ROOT_DIR)/lib64/ -f
-	find $(CODE_DIR)/linux/ -name *.ko -exec cp -f {} $(ROOT_DIR)/lib/modules \;
+	find $(CODE_DIR)/linux/ -name *.ko -exec cp -f {} $(ROOT_DIR)/modules \;
 	make -C $(APPLICATIONS_DIR)
 	make -C $(APPLICATIONS_DIR) install
 	./mkver.sh
@@ -66,13 +66,14 @@ boot:
     	-M virt,gic-version=3 \
     	-cpu cortex-a53 \
     	-smp 2 -m 256M \
+		-monitor telnet:127.0.0.1:9999,server,nowait \
     	-device loader,file=$(UBOOT_DIR)/u-boot.bin \
 		-device nec-usb-xhci,id=xhci \
 		-device usb-storage,drive=usbdisk,bus=xhci.0 \
 		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version.bin,format=raw \
 		-netdev user,id=net0,tftp=$(TOP_DIR) \
 		-device virtio-net-device,netdev=net0 \
-		-device edu \
+		-device edu,dma_mask=32 \
     	-nographic -no-reboot
 
 clean:

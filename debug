@@ -74,3 +74,15 @@ make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) M=$(PWD)
 
 readelf -l binfile | grep interpreter
 readelf -d binfile | grep NEEDED
+
+# qemu monitor
+qemu-system-aarch64 ... -monitor telnet:127.0.0.1:9999,server,nowait
+telnet localhost 9999
+# add a usb storage device in qemu monitor
+drive_add 0 file=path_to_image,if=none,id=usb2disk,format=raw
+device_add usb-storage,bus=xhci.0,drive=usb2disk,id=usbstor2
+# delete a usb storage device in qemu monitor
+device_del usbstor2
+
+# create start password
+python3 -c "import crypt; print(crypt.crypt('Qemu*pzx', crypt.mksalt(crypt.METHOD_SHA512)))"

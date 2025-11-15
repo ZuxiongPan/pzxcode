@@ -9,3 +9,5 @@ mount -o remount,size=2M,nr_inodes=4096,mode=755 /dev
 # user mode networking, qemu allocate private subnet to guest
 # qemu inner virtual gateway IP is 10.0.2.2
 ifconfig eth0 10.0.2.15 netmask 255.255.255.0 up
+
+hostname qemu-virt

@@ -8,6 +8,7 @@ dirs-y :=
 
 dirs-y += verctrl/
 dirs-y += uevent_receiver/
+dirs-y += eduapp/
 #dirs-y += secure/
 
 .PHONY: all install clean
