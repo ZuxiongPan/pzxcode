@@ -6,6 +6,7 @@
 
 #include "common/version_header.h"
 #include "common/version_partition.h"
+#include "pzx_aes.h"
 
 #define HEADER_ISVALID 0x01
 #define KERNEL_ISVALID 0x02

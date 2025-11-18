@@ -5,6 +5,7 @@
 #include <linux/errno.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include "pzx_aes.h"
 #include "common/version_header.h"
 #include "common/version_partition.h"
 
@@ -19,11 +20,14 @@ static int version_check(int fd)
     unsigned int crc = 0, size = 0;
     unsigned char buf[STORDEV_PHYSICAL_BLKSIZE];
     struct version_header header;
+    struct aes_ctx ctx;
     memset(&header, 0, sizeof(header));
 
     read(fd, buf, STORDEV_PHYSICAL_BLKSIZE);
-    memcpy(&header, buf, sizeof(struct version_header));
+    aes_init_ctx_iv(&ctx, (unsigned char *)AESKEY, (unsigned char *)AESIV);
+    aes_cbc_decrypt_buffer(&ctx, (unsigned char *)buf, VER_HEADER_BLOCK_SIZE);
 
+    memcpy(&header, buf, sizeof(struct version_header));
     // 1. check header
     if((header.common.magic[0] != VERSION_HEADER_MAGIC0) || (header.common.magic[1] != VERSION_HEADER_MAGIC1) ||
         (header.common.magic[2] != VERSION_HEADER_MAGIC2) || (header.common.magic[3] != VERSION_HEADER_MAGIC3))

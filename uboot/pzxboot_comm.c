@@ -185,7 +185,8 @@ static int version_check(unsigned int index, unsigned int offset)
     int ret = 0;
     phys_addr_t loadaddr = CONFIG_SYS_LOAD_ADDR;
     void *vaddr = map_sysmem(loadaddr, ROOTFS_PARTITION_SIZE);
-
+    struct aes_ctx ctx;
+    
     // 1. check headers
     read_blks = VER_HEADER_BLOCK_SIZE / parameter.stor_desc->blksz;
     start_blk = offset / parameter.stor_desc->blksz;
@@ -197,6 +198,10 @@ static int version_check(unsigned int index, unsigned int offset)
             strlen(parameter.stor_desc->product) ? parameter.stor_desc->product : "none");
         return -EIO;
     }
+
+    aes_init_ctx_iv(&ctx, (unsigned char *)AESKEY, (unsigned char *)AESIV);
+    aes_cbc_decrypt_buffer(&ctx, (unsigned char *)vaddr, VER_HEADER_BLOCK_SIZE);
+
     ret = check_header(index, vaddr);
     if(ret != 0)
     {

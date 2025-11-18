@@ -8,6 +8,7 @@
 
 #include "common/version_partition.h"
 #include "common/version_header.h"
+#include "pzx_aes.h"
 #define FILEPATH_MAXLEN 256
 
 char kernel_filepath[FILEPATH_MAXLEN] = {0};
@@ -96,15 +97,23 @@ unsigned int write_file_aligned(FILE *in, FILE *out, unsigned int outpos, unsign
     return crc;
 }
 
+static void encrypt_version_header(unsigned char *buf)
+{
+    struct aes_ctx ctx;
+
+    aes_init_ctx_iv(&ctx, AESKEY, AESIV);
+    aes_cbc_encrypt_buffer(&ctx, buf, VER_HEADER_BLOCK_SIZE);
+}
+
 int build_upgrade_file(void)
 {
     FILE *upgrade = NULL;
     FILE *kernel = NULL;
     FILE *rootfs = NULL;
 
-    struct version_header header;
-    struct version_header *pheader = &header;
-    memset(pheader, 0, sizeof(header));
+    unsigned char headbuf[VER_HEADER_BLOCK_SIZE];
+    memset(headbuf, 0xff, sizeof(headbuf));
+    struct version_header *pheader = (struct version_header *)headbuf;
     header_init(pheader);
 
     kernel = fopen(kernel_filepath, "rb");
@@ -135,7 +144,7 @@ int build_upgrade_file(void)
      * upgrade file content: header(blk aligned) + kernel(blk aligned) + rootfs(blk aligned)
      * 1. write kernel to upgrade & update version upgrade
      * 2. write rootfs to upgrade & update version upgrade
-     * 3. write header to upgrade
+     * 3. encrypt header and write header to upgrade
      */
     printf("!!! write kernel image to upgrade file start ...\n");
     pheader->common.kernel_crc = write_file_aligned(kernel, upgrade, 
@@ -151,8 +160,9 @@ int build_upgrade_file(void)
 
     pheader->header_crc = pzx_crc32((const unsigned char *)pheader, sizeof(struct common_version_header));
     printf("... header crc 0x%08x !!!\n", pheader->header_crc);
+    encrypt_version_header(headbuf);
     fseek(upgrade, 0, SEEK_SET);
-    fwrite(pheader, 1, sizeof(*pheader), upgrade);
+    fwrite(headbuf, 1, VER_HEADER_BLOCK_SIZE, upgrade);
 
     fclose(kernel);
     fclose(rootfs);

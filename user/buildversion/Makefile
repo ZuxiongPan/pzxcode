@@ -5,7 +5,7 @@ CFLAGS += -I../../include
 
 all: buildversion
 
-buildversion: pzx_crc32table.c buildversion.c
+buildversion: pzx_crc32table.c pzx_aes.c buildversion.c
 	$(CC) -o $@ $^ $(CFLAGS)
 
 clean:
