@@ -24,6 +24,7 @@ void header_init(struct version_header *pheader);
 unsigned int write_file_aligned(FILE *in, FILE *out, unsigned int outpos, unsigned int *size);
 int build_upgrade_file(void);
 int build_version_file(void);
+int encrypt_kernel(void);
 
 int main(int argc, char *argv[])
 {
@@ -33,6 +34,13 @@ int main(int argc, char *argv[])
     if(ret != 0)
     {
         print_usage();
+        return ret;
+    }
+
+    ret = encrypt_kernel();
+    if(ret != 0)
+    {
+        printf("encrypt kernel failed\n");
         return ret;
     }
 
@@ -97,12 +105,50 @@ unsigned int write_file_aligned(FILE *in, FILE *out, unsigned int outpos, unsign
     return crc;
 }
 
-static void encrypt_version_header(unsigned char *buf)
+static void encrypt(unsigned char *buf, unsigned int len)
 {
     struct aes_ctx ctx;
 
-    aes_init_ctx_iv(&ctx, AESKEY, AESIV);
-    aes_cbc_encrypt_buffer(&ctx, buf, VER_HEADER_BLOCK_SIZE);
+    aes_init_ctx_iv(&ctx, (unsigned char *)AESKEY, (unsigned char *)AESIV);
+    aes_cbc_encrypt_buffer(&ctx, buf, len);
+}
+
+int encrypt_kernel(void)
+{
+    FILE *kernel = fopen(kernel_filepath, "rb+");
+    if(NULL == kernel)
+    {
+        printf("file %s is not found, please check\n", kernel_filepath);
+        return -EACCES;
+    }
+
+    fseek(kernel, 0, SEEK_END);
+    unsigned int size = ftell(kernel);
+    unsigned int aligned = (size + STORDEV_PHYSICAL_BLKSIZE - 1) & ~(STORDEV_PHYSICAL_BLKSIZE -1);
+    unsigned char *buf = malloc(aligned);
+    if(NULL == buf)
+    {
+        printf("alloc memory for encrypt failed\n");
+        fclose(kernel);
+        return -ENOMEM;
+    }
+    memset(buf, 0xff, aligned);
+    fseek(kernel, 0, SEEK_SET);
+    if(size != fread(buf, sizeof(unsigned char), size, kernel))
+    {
+        printf("read kernel failed\n");
+        free(buf);
+        fclose(kernel);
+        return -EACCES;
+    }
+
+    encrypt(buf, aligned);
+    fseek(kernel, 0, SEEK_SET);
+    fwrite(buf, sizeof(unsigned char), aligned, kernel);
+
+    free(buf);
+    fclose(kernel);
+    return 0;
 }
 
 int build_upgrade_file(void)
@@ -160,7 +206,7 @@ int build_upgrade_file(void)
 
     pheader->header_crc = pzx_crc32((const unsigned char *)pheader, sizeof(struct common_version_header));
     printf("... header crc 0x%08x !!!\n", pheader->header_crc);
-    encrypt_version_header(headbuf);
+    encrypt(headbuf, VER_HEADER_BLOCK_SIZE);
     fseek(upgrade, 0, SEEK_SET);
     fwrite(headbuf, 1, VER_HEADER_BLOCK_SIZE, upgrade);
 

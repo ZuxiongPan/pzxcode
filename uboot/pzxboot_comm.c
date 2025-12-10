@@ -115,6 +115,7 @@ void boot_kernel(int index)
     ulong read_blks = 0, count = 0, kernsize = parameter.info[index].header.common.kernel_size;
     lbaint_t start_blk = 0;
     char bootcmd[PZXBOOTSTRS_MAXLEN] = {0};
+    struct aes_ctx ctx;
     unsigned int kernoff = index ? KERNEL2_PARTITION_OFFSET : KERNEL1_PARTITION_OFFSET;
 
     pzxboot_info("boot version %d kernel\n", index + 1);
@@ -127,6 +128,9 @@ void boot_kernel(int index)
         pzxboot_error("read kernel failed\n");
         return ;
     }
+    pzxboot_info("start decrypt kernel\n");
+    aes_init_ctx_iv(&ctx, (unsigned char *)AESKEY, (unsigned char *)AESIV);
+    aes_cbc_decrypt_buffer(&ctx, (unsigned char *)vaddr, parameter.info[index].header.common.kernel_size);
     unmap_sysmem(vaddr);
 
     // unzip kernel
