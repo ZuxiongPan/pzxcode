@@ -8,7 +8,6 @@
 
 #include "common/version_partition.h"
 #include "common/version_header.h"
-#include "pzx_aes.h"
 #define FILEPATH_MAXLEN 256
 
 char kernel_filepath[FILEPATH_MAXLEN] = {0};
@@ -24,7 +23,7 @@ void header_init(struct version_header *pheader);
 unsigned int write_file_aligned(FILE *in, FILE *out, unsigned int outpos, unsigned int *size);
 int build_upgrade_file(void);
 int build_version_file(void);
-int encrypt_kernel(void);
+int rsasign_upgrade_file(void);
 
 int main(int argc, char *argv[])
 {
@@ -37,17 +36,17 @@ int main(int argc, char *argv[])
         return ret;
     }
 
-    ret = encrypt_kernel();
-    if(ret != 0)
-    {
-        printf("encrypt kernel failed\n");
-        return ret;
-    }
-
     ret = build_upgrade_file();
     if(ret != 0)
     {
         printf("build upgrade file %s error\n", upgrade_filepath);
+        return ret;
+    }
+
+    ret = rsasign_upgrade_file();
+    if(ret != 0)
+    {
+        printf("rsa sign file %s failed\n", upgrade_filepath);
         return ret;
     }
 
@@ -64,17 +63,17 @@ int main(int argc, char *argv[])
 void header_init(struct version_header *pheader)
 {
     // pheader is valid, do not check
-    pheader->common.magic[0] = VERSION_HEADER_MAGIC0;
-    pheader->common.magic[1] = VERSION_HEADER_MAGIC1;
-    pheader->common.magic[2] = VERSION_HEADER_MAGIC2;
-    pheader->common.magic[3] = VERSION_HEADER_MAGIC3;
+    pheader->magic[0] = VERSION_HEADER_MAGIC0;
+    pheader->magic[1] = VERSION_HEADER_MAGIC1;
+    pheader->header_version = VERSION_HEADER_VERNUM;
+    pheader->header_size = sizeof(struct version_header);
 
     time_t now = time(NULL);
     struct tm *t = localtime(&now);
-    snprintf(pheader->common.build_date, sizeof(pheader->common.build_date), "%04u%02u%02u%02u%02u%02u", 
+    snprintf(pheader->build_date, sizeof(pheader->build_date), "%04u%02u%02u%02u%02u%02u", 
              t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
 
-    snprintf(pheader->common.soft_version_number, sizeof(pheader->common.soft_version_number), VERSION_NUMBER);
+    snprintf(pheader->soft_version_number, sizeof(pheader->soft_version_number), VERSION_NUMBER);
 
     pheader->header_crc = 0;
 
@@ -100,55 +99,9 @@ unsigned int write_file_aligned(FILE *in, FILE *out, unsigned int outpos, unsign
     }
 
     *size = blk_num * STORDEV_PHYSICAL_BLKSIZE;
-    printf("write %u blocks, total size %u bytes, crc 0x%08x\n", blk_num, *size, crc);
+    printf("write %u blocks, crc 0x%08x\n", blk_num, crc);
 
     return crc;
-}
-
-static void encrypt(unsigned char *buf, unsigned int len)
-{
-    struct aes_ctx ctx;
-
-    aes_init_ctx_iv(&ctx, (unsigned char *)AESKEY, (unsigned char *)AESIV);
-    aes_cbc_encrypt_buffer(&ctx, buf, len);
-}
-
-int encrypt_kernel(void)
-{
-    FILE *kernel = fopen(kernel_filepath, "rb+");
-    if(NULL == kernel)
-    {
-        printf("file %s is not found, please check\n", kernel_filepath);
-        return -EACCES;
-    }
-
-    fseek(kernel, 0, SEEK_END);
-    unsigned int size = ftell(kernel);
-    unsigned int aligned = (size + STORDEV_PHYSICAL_BLKSIZE - 1) & ~(STORDEV_PHYSICAL_BLKSIZE -1);
-    unsigned char *buf = malloc(aligned);
-    if(NULL == buf)
-    {
-        printf("alloc memory for encrypt failed\n");
-        fclose(kernel);
-        return -ENOMEM;
-    }
-    memset(buf, 0xff, aligned);
-    fseek(kernel, 0, SEEK_SET);
-    if(size != fread(buf, sizeof(unsigned char), size, kernel))
-    {
-        printf("read kernel failed\n");
-        free(buf);
-        fclose(kernel);
-        return -EACCES;
-    }
-
-    encrypt(buf, aligned);
-    fseek(kernel, 0, SEEK_SET);
-    fwrite(buf, sizeof(unsigned char), aligned, kernel);
-
-    free(buf);
-    fclose(kernel);
-    return 0;
 }
 
 int build_upgrade_file(void)
@@ -157,7 +110,7 @@ int build_upgrade_file(void)
     FILE *kernel = NULL;
     FILE *rootfs = NULL;
 
-    unsigned char headbuf[VER_HEADER_BLOCK_SIZE];
+    unsigned char headbuf[STORDEV_PHYSICAL_BLKSIZE];
     memset(headbuf, 0xff, sizeof(headbuf));
     struct version_header *pheader = (struct version_header *)headbuf;
     header_init(pheader);
@@ -187,31 +140,72 @@ int build_upgrade_file(void)
     }
 
     /**
-     * upgrade file content: header(blk aligned) + kernel(blk aligned) + rootfs(blk aligned)
+     * upgrade file content:
+     * signature(one block) + header(one block) + kernel + rootfs
      * 1. write kernel to upgrade & update version upgrade
      * 2. write rootfs to upgrade & update version upgrade
-     * 3. encrypt header and write header to upgrade
      */
     printf("!!! write kernel image to upgrade file start ...\n");
-    pheader->common.kernel_crc = write_file_aligned(kernel, upgrade, 
-        VER_HEADER_BLOCK_SIZE, &pheader->common.kernel_size);
+    pheader->kernel_crc = write_file_aligned(kernel, upgrade, 
+        ALL_HEADERS_SIZE, &pheader->kernel_size);
     printf("... write kernel finish, kernel size is %d, kernel crc is 0x%08x !!!\n", 
-        pheader->common.kernel_size, pheader->common.kernel_crc);
+        pheader->kernel_size, pheader->kernel_crc);
 
     printf("!!! write rootfs image to upgrade file start ...\n");
-    pheader->common.rootfs_crc = write_file_aligned(rootfs, upgrade, 
-        KERNEL_PARTITION_SIZE, &pheader->common.rootfs_size);
+    pheader->rootfs_crc = write_file_aligned(rootfs, upgrade, 
+        KERNEL_PARTITION_SIZE, &pheader->rootfs_size);
     printf("... write rootfs finish, rootfs size is %d, rootfs crc is 0x%08x !!!\n", 
-        pheader->common.rootfs_size, pheader->common.rootfs_crc);
+        pheader->rootfs_size, pheader->rootfs_crc);
 
-    pheader->header_crc = pzx_crc32((const unsigned char *)pheader, sizeof(struct common_version_header));
+    pheader->header_crc = pzx_crc32((const unsigned char *)pheader,
+        sizeof(struct version_header) - sizeof(unsigned int));
     printf("... header crc 0x%08x !!!\n", pheader->header_crc);
-    encrypt(headbuf, VER_HEADER_BLOCK_SIZE);
-    fseek(upgrade, 0, SEEK_SET);
-    fwrite(headbuf, 1, VER_HEADER_BLOCK_SIZE, upgrade);
+    fseek(upgrade, VERSION_HEADER_OFFSET, SEEK_SET);
+    fwrite(headbuf, 1, STORDEV_PHYSICAL_BLKSIZE, upgrade);
 
     fclose(kernel);
     fclose(rootfs);
+    fclose(upgrade);
+
+    // until here, the first 512Bytes of version.bin is empty
+    return 0;
+}
+
+int rsasign_upgrade_file(void)
+{
+    FILE *upgrade = NULL;
+    unsigned char sigbuf[STORDEV_PHYSICAL_BLKSIZE];
+    unsigned char hash[32];
+    unsigned int signed_size = 0;
+    memset(sigbuf, 0, STORDEV_PHYSICAL_BLKSIZE);
+    struct signature_header *pheader = (struct signature_header *)sigbuf;
+
+    upgrade = fopen(upgrade_filepath, "rb+");
+    if(NULL == upgrade)
+    {
+        printf("file %s is not found, please check\n", upgrade_filepath);
+        return -EACCES;
+    }
+
+    fseek(upgrade, 0, SEEK_END);
+    signed_size = ftell(upgrade);
+    signed_size -= STORDEV_PHYSICAL_BLKSIZE; // sign header do not verify
+
+    //rsa_sign_buffer(upgrade, sizeof(struct signature_header), signed_size, hash, pheader->signature);
+    pheader->magic[0] = SIGN_HEADER_MAGIC0;
+    pheader->magic[1] = SIGN_HEADER_MAGIC1;
+    pheader->header_version = SIGN_HEADER_VERNUM;
+    pheader->header_size = sizeof(struct signature_header);
+    pheader->hash_algo = SIGN_HASH_SHA256;
+    pheader->sign_algo = SIGN_RSA2048;
+    pheader->padding = SIGN_PADDING_PKCS15;
+    pheader->signed_data_size = signed_size;
+    pheader->header_crc = pzx_crc32((const unsigned char *)pheader,
+        sizeof(struct signature_header) - sizeof(unsigned int));
+
+    fseek(upgrade, 0, SEEK_SET);
+    fwrite(sigbuf, 1, STORDEV_PHYSICAL_BLKSIZE, upgrade);
+
     fclose(upgrade);
 
     return 0;
@@ -222,7 +216,7 @@ int build_version_file(void)
     FILE *version = NULL;
     FILE *upgrade = NULL;
     unsigned char *buf = NULL;
-    unsigned int upgrade_size = KERNEL_PARTITION_SIZE + ROOTFS_PARTITION_SIZE;
+    unsigned int upgrade_size = VERSION_PARTITION_SIZE;
 
     upgrade = fopen(upgrade_filepath, "rb");
     if(NULL == upgrade)
@@ -256,11 +250,11 @@ int build_version_file(void)
     printf("upgrade file real size is %d\n", upgrade_size);
     
     printf("write upgrade file to image1\n");
-    fseek(version, KERNEL1_PARTITION_OFFSET, SEEK_SET);
+    fseek(version, VERSION1_PARTITION_OFFSET, SEEK_SET);
     fwrite(buf, 1, upgrade_size, version);
 
     printf("write upgrade file to image2\n");
-    fseek(version, KERNEL2_PARTITION_OFFSET, SEEK_SET);
+    fseek(version, VERSION2_PARTITION_OFFSET, SEEK_SET);
     fwrite(buf, 1, upgrade_size, version);
 
     free(buf);

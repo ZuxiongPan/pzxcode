@@ -15,10 +15,10 @@ sfdisk -X gpt $TOP_DIR/version.bin << EOF
 65M,60M,L
 EOF
 
-cp $KERNEL_DIR/arch/arm64/boot/Image.gz $TOP_DIR/ -f
+#cp $KERNEL_DIR/arch/arm64/boot/Image.gz $TOP_DIR/ -f
 
 $CODE_DIR/user/buildversion/buildversion \
-    -k $TOP_DIR/Image.gz \
+    -k $KERNEL_DIR/arch/arm64/boot/Image.gz \
     -r $TOP_DIR/rootfs.img \
     -v $TOP_DIR/version.bin \
     -u $TOP_DIR/upgrade.bin

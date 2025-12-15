@@ -30,6 +30,7 @@
 
 struct version_info {
     int valid_version;
+    struct signature_header sign;
     struct version_header header;
 };
 

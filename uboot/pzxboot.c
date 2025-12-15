@@ -47,13 +47,13 @@ void pzxboot(void)
         return ;
     }
 
-    ret = find_valid_version(KERNEL1_PARTITION_OFFSET);
+    ret = find_valid_version(VERSION1_PARTITION_OFFSET);
     if(ret != 0)
     {
         pzxboot_error("version 1 is not valid, error %d\n", ret);
     }
 
-    ret = find_valid_version(KERNEL2_PARTITION_OFFSET);
+    ret = find_valid_version(VERSION2_PARTITION_OFFSET);
     if(ret != 0)
     {
         pzxboot_error("version 2 is not valid, error %d\n", ret);
