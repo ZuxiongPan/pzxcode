@@ -8,6 +8,8 @@
 #include <image.h>
 #include <linux/string.h>
 #include <linux/libfdt.h>
+#include <u-boot/sha256.h>
+#include <u-boot/rsa.h>
 #include "pzxboot.h"
 
 #ifdef CONFIG_USB_STORAGE
@@ -16,7 +18,8 @@
 
 static struct boot_param parameter;
 
-static int check_header(unsigned int index, struct version_header *pheader);
+static int check_header(unsigned int index, void *vaddr);
+static int check_rsa_sign(unsigned int index, void *vaddr);
 static int version_check(unsigned int index, unsigned int offset);
 static void pass_infomation_to_kernel_by_dtb(int index);
 
@@ -53,12 +56,12 @@ int find_valid_version(unsigned int offset)
     if(offset == VERSION1_PARTITION_OFFSET)
     {
         ret = version_check(0, offset);
-        pzxboot_info("version 1 check ret %u\n", ret);
+        pzxboot_info("version 1 check ret %d\n", ret);
     }
     else
     {
         ret = version_check(1, offset);
-        pzxboot_info("version 2 check ret %u\n", ret);
+        pzxboot_info("version 2 check ret %d\n", ret);
     }
 
     return ret;
@@ -151,26 +154,36 @@ void boot_kernel(int index)
     return ;
 }
 
-static int check_header(unsigned int index, struct version_header *pheader)
+static int check_header(unsigned int index, void *vaddr)
 {
-    if((pheader->magic[0] != VERSION_HEADER_MAGIC0) || (pheader->magic[1] != VERSION_HEADER_MAGIC1))
-        {
-            pzxboot_error("version %u header magic 0x%08x 0x%08x is invalid\n", index + 1,
-                pheader->magic[0], pheader->magic[1]);
-            return -EKEYEXPIRED;
-        }
+    unsigned int crc = 0;
+
+    const struct version_header *verhead = (struct version_header *)(vaddr + VERSION_HEADER_OFFSET);
+    if((verhead->magic[0] != VERSION_HEADER_MAGIC0) || (verhead->magic[1] != VERSION_HEADER_MAGIC1))
+    {
+        pzxboot_error("version %u header magic 0x%08x 0x%08x is invalid\n", index + 1,
+            verhead->magic[0], verhead->magic[1]);
+        return -EKEYEXPIRED;
+    }
     
-    unsigned int crc = pzx_crc32((unsigned char*)pheader,
+    crc = pzx_crc32((unsigned char*)verhead,
         sizeof(struct version_header) - sizeof(unsigned int));
-    pzxboot_info("version %u header crc 0x%08x, expect crc 0x%08x\n", index + 1, crc, pheader->header_crc);
-    if(crc != pheader->header_crc)
+    pzxboot_info("version %u header crc 0x%08x, expect crc 0x%08x\n", index + 1, crc, verhead->header_crc);
+    if(crc != verhead->header_crc)
     {
         pzxboot_error("version %u header is invalid\n", index + 1);
         return -EKEYEXPIRED;
     }
 
     parameter.info[index].valid_version |= HEADER_ISVALID;
-    memcpy(&parameter.info[index].header, pheader, sizeof(struct version_header));
+    memcpy(&parameter.info[index].header, verhead, sizeof(struct version_header));
+
+    return 0;
+}
+
+static int check_rsa_sign(unsigned int index, void *vaddr)
+{
+    parameter.info[index].valid_version |= SIGN_ISVALID;
 
     return 0;
 }
@@ -196,14 +209,22 @@ static int version_check(unsigned int index, unsigned int offset)
     }
 
     // 1. check headers
-    ret = check_header(index, vaddr + VERSION_HEADER_OFFSET);
+    ret = check_header(index, vaddr);
     if(ret != 0)
     {
         pzxboot_error("version %u header is invalid\n", index + 1);
         return ret;
     }
 
-    // 2. check kernel
+    // 2. check rsa signature
+    ret = check_rsa_sign(index, vaddr);
+    if(ret != 0)
+    {
+        pzxboot_error("rsa sign verify %u is failed\n", index + 1);
+        return ret;
+    }
+
+    // 3. check kernel
     crc = pzx_crc32(vaddr + ALL_HEADERS_SIZE, parameter.info[index].header.kernel_size);
     pzxboot_info("version %u kernel crc 0x%08x, expect crc 0x%08x\n", index + 1, crc, 
         parameter.info[index].header.kernel_crc);
@@ -214,7 +235,7 @@ static int version_check(unsigned int index, unsigned int offset)
     }
     parameter.info[index].valid_version |= KERNEL_ISVALID;
 
-    // 3. check rootfs
+    // 4. check rootfs
     crc = pzx_crc32(vaddr + KERNEL_PARTITION_SIZE, parameter.info[index].header.rootfs_size);
     pzxboot_info("version %u rootfs crc 0x%08x, expect crc 0x%08x\n", index + 1, crc, 
         parameter.info[index].header.rootfs_crc);

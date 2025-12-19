@@ -1,7 +1,7 @@
 CC := gcc
 
 CFLAGS := -Wall -Wextra -O2
-CFLAGS += -I../../include
+CFLAGS += -I../../include -lcrypto
 
 all: buildversion
 

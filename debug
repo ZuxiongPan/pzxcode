@@ -1,4 +1,4 @@
-mkdir proc sys dev var lib mnt
+mkdir proc sys dev var lib mnt lib64
 
 sudo mknod -m 660 mem c 1 1
 sudo mknod -m 660 tty2 c 4 2
@@ -86,3 +86,9 @@ device_del usbstor2
 
 # create start password
 python3 -c "import crypt; print(crypt.crypt('Qemu*pzx', crypt.mksalt(crypt.METHOD_SHA512)))"
+
+# rsa sign
+openssl genrsa -out private.pem 2048    # this is for sign
+openssl rsa -in private.pem -pubout -out public.pem
+openssl rsa -pubin -in public.pem -outform DER -out public.der  # this is for uboot pubkey
+xxd -i public.der > rsa_pubkey.c

@@ -5,6 +5,10 @@
 #include <time.h>
 #include <ctype.h>
 #include <linux/errno.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
+#include <openssl/rsa.h>
+#include <openssl/sha.h>
 
 #include "common/version_partition.h"
 #include "common/version_header.h"
@@ -23,7 +27,6 @@ void header_init(struct version_header *pheader);
 unsigned int write_file_aligned(FILE *in, FILE *out, unsigned int outpos, unsigned int *size);
 int build_upgrade_file(void);
 int build_version_file(void);
-int rsasign_upgrade_file(void);
 
 int main(int argc, char *argv[])
 {
@@ -40,13 +43,6 @@ int main(int argc, char *argv[])
     if(ret != 0)
     {
         printf("build upgrade file %s error\n", upgrade_filepath);
-        return ret;
-    }
-
-    ret = rsasign_upgrade_file();
-    if(ret != 0)
-    {
-        printf("rsa sign file %s failed\n", upgrade_filepath);
         return ret;
     }
 
@@ -171,46 +167,6 @@ int build_upgrade_file(void)
     return 0;
 }
 
-int rsasign_upgrade_file(void)
-{
-    FILE *upgrade = NULL;
-    unsigned char sigbuf[STORDEV_PHYSICAL_BLKSIZE];
-    unsigned char hash[32];
-    unsigned int signed_size = 0;
-    memset(sigbuf, 0, STORDEV_PHYSICAL_BLKSIZE);
-    struct signature_header *pheader = (struct signature_header *)sigbuf;
-
-    upgrade = fopen(upgrade_filepath, "rb+");
-    if(NULL == upgrade)
-    {
-        printf("file %s is not found, please check\n", upgrade_filepath);
-        return -EACCES;
-    }
-
-    fseek(upgrade, 0, SEEK_END);
-    signed_size = ftell(upgrade);
-    signed_size -= STORDEV_PHYSICAL_BLKSIZE; // sign header do not verify
-
-    //rsa_sign_buffer(upgrade, sizeof(struct signature_header), signed_size, hash, pheader->signature);
-    pheader->magic[0] = SIGN_HEADER_MAGIC0;
-    pheader->magic[1] = SIGN_HEADER_MAGIC1;
-    pheader->header_version = SIGN_HEADER_VERNUM;
-    pheader->header_size = sizeof(struct signature_header);
-    pheader->hash_algo = SIGN_HASH_SHA256;
-    pheader->sign_algo = SIGN_RSA2048;
-    pheader->padding = SIGN_PADDING_PKCS15;
-    pheader->signed_data_size = signed_size;
-    pheader->header_crc = pzx_crc32((const unsigned char *)pheader,
-        sizeof(struct signature_header) - sizeof(unsigned int));
-
-    fseek(upgrade, 0, SEEK_SET);
-    fwrite(sigbuf, 1, STORDEV_PHYSICAL_BLKSIZE, upgrade);
-
-    fclose(upgrade);
-
-    return 0;
-}
-
 int build_version_file(void)
 {
     FILE *version = NULL;
@@ -311,6 +267,7 @@ void print_usage(void)
     printf("  -r <rootfs image>   : specify rootfs image filepath\n");
     printf("  -v <version file>   : specify whole image filepath\n");
     printf("  -u <upgrade file>   : specify upgrade filepath\n");
+    printf("  -s <rsa sign key file>   : specify sign key filepath\n");
 
     return ;
 }
