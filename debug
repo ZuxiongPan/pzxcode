@@ -60,8 +60,16 @@ losetup -d /dev/loop17 # need su
 ./qemu-system-aarch64 -M virt -cpu cortex-a53 -smp 4 -m 512M -kernel ../../linux-6.15.4/arch/arm64/boot/Image -initrd ../../initramfs.cpio.gz -append "root=/dev/ram0 rdinit=/linuxrc console=ttyAMA0,115200" -nographic -no-reboot
 ./qemu-system-arm -M virt-2.12 -m 256M -kernel ../../linux-6.15.4/arch/arm/boot/zImage -initrd ../../initramfs.cpio.gz -append "root=/dev/ram0 rdinit=/linuxrc" -nographic -device edu -no-reboot
 ./qemu-system-arm -M virt -machine dumpdtb=~/virt.dtb
+qemu-system-aarch64 -M virt,gic-version=3 \
+	-cpu cortex-a53 -smp 2 -m 256M \
+	-device loader,file=/home/pzx/aarch64/u-boot-2024.10/u-boot.bin \
+	-netdev user,id=net0,tftp=/home/pzx/aarch64 \
+	-device virtio-net-device,netdev=net0 \
+	-nographic -no-reboot \
+	-machine dumpdtb=~/virt-initramfs.dtb
 
-./linux6.15.4/scripts/dtc/dtc -I dtb -O dts virt.dtb -o virt.dts
+dtc -I dtb -O dts virt.dtb -o virt.dts
+dtc -I dts -O dtb virt.dts -o virt.dtb
 
 setenv bootargs root=/dev/sda2 rootwait rw init=/linuxrc console=ttyAMA0,115200
 usb start

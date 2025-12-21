@@ -38,6 +38,8 @@ uboot_clean:
 kernel:
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) kernel_defconfig
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) -j16
+	$(KERNEL_DIR)/scripts/dtc/dtc -I dts -O dtb $(CODE_DIR)/virt-initramfs.dts \
+		-o $(TOP_DIR)/virt-initramfs.dtb
 
 kernel_clean:
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
@@ -52,6 +54,9 @@ busybox:
 
 busybox_clean:
 	make -C $(BUSYBOX_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
+
+initramfs_img:
+	$(UBOOT_DIR)/tools/mkimage -f $(SCRIPTS_DIR)/kernel.its $(TOP_DIR)/kernel.itb
 
 version:
 	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 $(ROOT_DIR)/lib/ -f
@@ -70,7 +75,7 @@ boot:
     	-device loader,file=$(UBOOT_DIR)/u-boot.bin \
 		-device nec-usb-xhci,id=xhci \
 		-device usb-storage,drive=usbdisk,bus=xhci.0 \
-		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version.bin,format=raw \
+		-drive if=none,id=usbdisk,file=$(TOP_DIR)/kernel.itb,format=raw \
 		-netdev user,id=net0,tftp=$(TOP_DIR) \
 		-device virtio-net-device,netdev=net0 \
 		-device edu,dma_mask=32 \

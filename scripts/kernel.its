@@ -1,7 +1,4 @@
-/* This file will not use because qemu virt dtb is invalid */
-/* if combined kernel and dtb need use command and enable MACRO CONFIG_FIT in uboot:
-    mkimage -f $(SCRIPTS_DIR)/kernel.its kernel.itb
-*/
+
 /dts-v1/;
 / {
     description = "arm64 Linux Kernel FIT Image";
@@ -10,7 +7,7 @@
     images {
         kernel {
             description = "gzipped Linux Kernel Image";
-            data = /incbin/("/home/pzx/aarh64/linux-6.15.4/arch/arm64/boot/Image.gz");
+            data = /incbin/("/home/pzx/aarch64/linux-6.15.4/arch/arm64/boot/Image.gz");
             type = "kernel";
             arch = "arm64";
             os = "linux";
@@ -20,10 +17,20 @@
         };
 
         fdt {
-            description = "qemu virt dumpdtb";
-            data = /incbin/("/home/pzx/aarh64/pzxcode/virt.dtb");
-            arch = "arm64";
+            description = "qemu virt dump dtb";
+            data = /incbin/("/home/pzx/aarch64/virt-initramfs.dtb");
             type = "flat_dt";
+            arch = "arm64";
+            compression = "none";
+        };
+
+        ramdisk {
+            description = "initramfs";
+            data = /incbin/("/home/pzx/aarch64/initramfs.cpio.gz");
+            type = "ramdisk";
+            arch = "arm64";
+            os = "linux";
+            load = <0x44000000>;
         };
     };
 
@@ -33,6 +40,7 @@
             description = "qemu uImage";
             kernel = "kernel";
             fdt = "fdt";
+            ramdisk = "ramdisk";
         };
     };
 };
