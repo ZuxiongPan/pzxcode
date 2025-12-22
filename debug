@@ -100,3 +100,7 @@ openssl genrsa -out private.pem 2048    # this is for sign
 openssl rsa -in private.pem -pubout -out public.pem
 openssl rsa -pubin -in public.pem -outform DER -out public.der  # this is for uboot pubkey
 xxd -i public.der > rsa_pubkey.c
+
+# FIT rsa sign (uboot doc/usage/fit/signature.rst)
+openssl genpkey -algorithm RSA -out dev.key -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:65537
+openssl req -batch -new -x509 -key dev.key -out dev.crt

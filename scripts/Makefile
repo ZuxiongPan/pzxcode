@@ -56,7 +56,8 @@ busybox_clean:
 	make -C $(BUSYBOX_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
 
 initramfs_img:
-	$(UBOOT_DIR)/tools/mkimage -f $(SCRIPTS_DIR)/kernel.its $(TOP_DIR)/kernel.itb
+	$(UBOOT_DIR)/tools/mkimage -f $(SCRIPTS_DIR)/kernel.its $(TOP_DIR)/kernel.itb \
+		-k $(SCRIPTS_DIR)/rsakeys -K $(UBOOT_DIR)/arch/arm/dts/qemu-arm64.dtb -r
 
 version:
 	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 $(ROOT_DIR)/lib/ -f
@@ -70,7 +71,7 @@ boot:
 	qemu-system-aarch64 \
     	-M virt,gic-version=3 \
     	-cpu cortex-a53 \
-    	-smp 2 -m 256M \
+    	-smp 2 -m 128M \
 		-monitor telnet:127.0.0.1:9999,server,nowait \
     	-device loader,file=$(UBOOT_DIR)/u-boot.bin \
 		-device nec-usb-xhci,id=xhci \
