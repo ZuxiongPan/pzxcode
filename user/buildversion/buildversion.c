@@ -5,10 +5,6 @@
 #include <time.h>
 #include <ctype.h>
 #include <linux/errno.h>
-#include <openssl/pem.h>
-#include <openssl/err.h>
-#include <openssl/rsa.h>
-#include <openssl/sha.h>
 
 #include "common/version_partition.h"
 #include "common/version_header.h"
@@ -19,12 +15,8 @@ char rootfs_filepath[FILEPATH_MAXLEN] = {0};
 char version_filepath[FILEPATH_MAXLEN] = {0};
 char upgrade_filepath[FILEPATH_MAXLEN] = {0};
 
-extern unsigned int pzx_crc32(const unsigned char *data, unsigned int length);
-extern unsigned int pzx_crc32_segment(const unsigned char *data, unsigned int length, unsigned int crc);
 int get_options(int argc, char *const *argv);
 void print_usage(void);
-void header_init(struct version_header *pheader);
-unsigned int write_file_aligned(FILE *in, FILE *out, unsigned int outpos, unsigned int *size);
 int build_upgrade_file(void);
 int build_version_file(void);
 
@@ -56,48 +48,25 @@ int main(int argc, char *argv[])
     return ret;
 }
 
-void header_init(struct version_header *pheader)
+static void version_header_init(struct version_header *pheader)
 {
     // pheader is valid, do not check
     pheader->magic[0] = VERSION_HEADER_MAGIC0;
     pheader->magic[1] = VERSION_HEADER_MAGIC1;
     pheader->header_version = VERSION_HEADER_VERNUM;
-    pheader->header_size = sizeof(struct version_header);
+    pheader->kpart_size = KERNEL_PARTITION_SIZE;
+    pheader->kernel_size = 0;
+    pheader->rpart_size = ROOTFS_PARTITION_SIZE;
+    pheader->rootfs_size = 0;
 
     time_t now = time(NULL);
     struct tm *t = localtime(&now);
     snprintf(pheader->build_date, sizeof(pheader->build_date), "%04u%02u%02u%02u%02u%02u", 
              t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
 
-    snprintf(pheader->soft_version_number, sizeof(pheader->soft_version_number), VERSION_NUMBER);
-
-    pheader->header_crc = 0;
+    snprintf(pheader->soft_version, sizeof(pheader->soft_version), VERSION_NUMBER);
 
     return ;
-}
-
-unsigned int write_file_aligned(FILE *in, FILE *out, unsigned int outpos, unsigned int *size)
-{
-    unsigned char buf[STORDEV_PHYSICAL_BLKSIZE];
-    unsigned int blk_num = 0;
-    unsigned int crc = 0;
-
-    memset(buf, 0, sizeof(buf));
-    fseek(in, 0, SEEK_SET);
-    fseek(out, outpos, SEEK_SET);
-
-    while(fread(buf, 1, STORDEV_PHYSICAL_BLKSIZE, in) > 0)
-    {
-        fwrite(buf, 1, STORDEV_PHYSICAL_BLKSIZE, out);
-        blk_num++;
-        crc = pzx_crc32_segment(buf, STORDEV_PHYSICAL_BLKSIZE, crc);
-        memset(buf, 0, sizeof(buf));
-    }
-
-    *size = blk_num * STORDEV_PHYSICAL_BLKSIZE;
-    printf("write %u blocks, crc 0x%08x\n", blk_num, crc);
-
-    return crc;
 }
 
 int build_upgrade_file(void)
@@ -105,65 +74,91 @@ int build_upgrade_file(void)
     FILE *upgrade = NULL;
     FILE *kernel = NULL;
     FILE *rootfs = NULL;
-
+    unsigned int file_size = 0;
+    unsigned char *buf = NULL;
     unsigned char headbuf[STORDEV_PHYSICAL_BLKSIZE];
     memset(headbuf, 0xff, sizeof(headbuf));
     struct version_header *pheader = (struct version_header *)headbuf;
-    header_init(pheader);
+    version_header_init(pheader);
 
-    kernel = fopen(kernel_filepath, "rb");
-    if(NULL == kernel)
+    buf = malloc(STORDEV_PHYSICAL_BLKSIZE);
+    if(NULL == buf)
     {
-        printf("file %s is not found, please check\n", kernel_filepath);
-        return -EACCES;
-    }
-
-    rootfs = fopen(rootfs_filepath, "rb");
-    if(NULL == rootfs)
-    {
-        printf("file %s is not found, please check\n", rootfs_filepath);
-        fclose(kernel);
-        return -EACCES;
-    }
-
-    upgrade = fopen(upgrade_filepath, "wb+");
-    if(NULL == upgrade)
-    {
-        printf("file %s create failed\n", upgrade_filepath);
-        fclose(kernel);
-        fclose(rootfs);
-        return -EACCES;
+        printf("cannot get %u Bytes memory\n", STORDEV_PHYSICAL_BLKSIZE);
+        return -ENOMEM;
     }
 
     /**
      * upgrade file content:
      * signature(one block) + header(one block) + kernel + rootfs
-     * 1. write kernel to upgrade & update version upgrade
-     * 2. write rootfs to upgrade & update version upgrade
      */
+    upgrade = fopen(upgrade_filepath, "wb+");
+    if(NULL == upgrade)
+    {
+        printf("file %s create failed\n", upgrade_filepath);
+        free(buf);
+        return -EACCES;
+    }
+
+    kernel = fopen(kernel_filepath, "rb");
+    if(NULL == kernel)
+    {
+        printf("file %s is not found, please check\n", kernel_filepath);
+        fclose(upgrade);
+        free(buf);
+        return -EACCES;
+    }
+
     printf("!!! write kernel image to upgrade file start ...\n");
-    pheader->kernel_crc = write_file_aligned(kernel, upgrade, 
-        ALL_HEADERS_SIZE, &pheader->kernel_size);
-    printf("... write kernel finish, kernel size is %d, kernel crc is 0x%08x !!!\n", 
-        pheader->kernel_size, pheader->kernel_crc);
+    fseek(upgrade, KERNEL_OFFSET, SEEK_SET);
+    fseek(kernel, 0, SEEK_SET);
+    memset(buf, 0, STORDEV_PHYSICAL_BLKSIZE);
+    while(fread(buf, 1, STORDEV_PHYSICAL_BLKSIZE, kernel) > 0)
+    {
+        fwrite(buf, 1, STORDEV_PHYSICAL_BLKSIZE, upgrade);
+        pheader->kernel_size += STORDEV_PHYSICAL_BLKSIZE;
+        memset(buf, 0, STORDEV_PHYSICAL_BLKSIZE);
+    }
+    printf("... write kernel image to upgrade file end, kernel size %u !!!\n",
+        pheader->kernel_size);
+    fclose(kernel);
+
+    rootfs = fopen(rootfs_filepath, "rb");
+    if(NULL == rootfs)
+    {
+        printf("file %s is not found, please check\n", rootfs_filepath);
+        fclose(upgrade);
+        free(buf);
+        return -EACCES;
+    }
 
     printf("!!! write rootfs image to upgrade file start ...\n");
-    pheader->rootfs_crc = write_file_aligned(rootfs, upgrade, 
-        KERNEL_PARTITION_SIZE, &pheader->rootfs_size);
-    printf("... write rootfs finish, rootfs size is %d, rootfs crc is 0x%08x !!!\n", 
-        pheader->rootfs_size, pheader->rootfs_crc);
+    fseek(upgrade, KERNEL_PARTITION_SIZE, SEEK_SET);
+    fseek(rootfs, 0, SEEK_SET);
+    memset(buf, 0, STORDEV_PHYSICAL_BLKSIZE);
+    while(fread(buf, 1, STORDEV_PHYSICAL_BLKSIZE, rootfs) > 0)
+    {
+        fwrite(buf, 1, STORDEV_PHYSICAL_BLKSIZE, upgrade);
+        pheader->rootfs_size += STORDEV_PHYSICAL_BLKSIZE;
+        memset(buf, 0, STORDEV_PHYSICAL_BLKSIZE);
+    }
+    printf("... write rootfs image to upgrade file end, rootfs size %u !!!\n",
+        pheader->rootfs_size);
+    fclose(rootfs);
+    free(buf);
 
-    pheader->header_crc = pzx_crc32((const unsigned char *)pheader,
-        sizeof(struct version_header) - sizeof(unsigned int));
-    printf("... header crc 0x%08x !!!\n", pheader->header_crc);
     fseek(upgrade, VERSION_HEADER_OFFSET, SEEK_SET);
     fwrite(headbuf, 1, STORDEV_PHYSICAL_BLKSIZE, upgrade);
 
-    fclose(kernel);
-    fclose(rootfs);
     fclose(upgrade);
-
     // until here, the first 512Bytes of version.bin is empty
+    file_size = KERNEL_OFFSET + pheader->kernel_size + pheader->rootfs_size;
+    if(file_size > VERSION_PARTITION_SIZE)
+    {
+        printf("upgrade file size is %u, larger than partition\n", file_size);
+        return -EINVAL;
+    }
+
     return 0;
 }
 
@@ -173,6 +168,7 @@ int build_version_file(void)
     FILE *upgrade = NULL;
     unsigned char *buf = NULL;
     unsigned int upgrade_size = VERSION_PARTITION_SIZE;
+    unsigned int rdsize = 0;
 
     upgrade = fopen(upgrade_filepath, "rb");
     if(NULL == upgrade)
@@ -202,19 +198,19 @@ int build_version_file(void)
     // write upgrade to version file
     fseek(upgrade, 0, SEEK_SET);
     printf("start read upgrade file\n");
-    upgrade_size = fread(buf, 1, upgrade_size, upgrade);
-    printf("upgrade file real size is %d\n", upgrade_size);
+    rdsize = fread(buf, 1, upgrade_size, upgrade);
+    printf("upgrade file real size is %u\n", rdsize);
+    fclose(upgrade);
     
     printf("write upgrade file to image1\n");
-    fseek(version, VERSION1_PARTITION_OFFSET, SEEK_SET);
+    fseek(version, VERSION0_PARTITION_OFFSET, SEEK_SET);
     fwrite(buf, 1, upgrade_size, version);
 
     printf("write upgrade file to image2\n");
-    fseek(version, VERSION2_PARTITION_OFFSET, SEEK_SET);
+    fseek(version, VERSION1_PARTITION_OFFSET, SEEK_SET);
     fwrite(buf, 1, upgrade_size, version);
 
     free(buf);
-    fclose(upgrade);
     fclose(version);
 
     return 0;
@@ -267,7 +263,6 @@ void print_usage(void)
     printf("  -r <rootfs image>   : specify rootfs image filepath\n");
     printf("  -v <version file>   : specify whole image filepath\n");
     printf("  -u <upgrade file>   : specify upgrade filepath\n");
-    printf("  -s <rsa sign key file>   : specify sign key filepath\n");
 
     return ;
 }

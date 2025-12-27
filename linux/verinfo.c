@@ -11,6 +11,8 @@ const char *backbuilddate = NULL;
 const char *backstate = NULL;
 const char *curveroff = NULL;
 const char *backveroff = NULL;
+const char *curheaderver = NULL;
+const char *backheaderver = NULL;
 
 // verinfo format: [Key: Value]
 // the Key is followed by a COLON and then a SPACE, last is the Value
@@ -23,6 +25,8 @@ static int verinfo_proc_show(struct seq_file *m, void *v)
     seq_printf(m, "Backup Version State: %s\n", backstate ? backstate : "unknown");
     seq_printf(m, "Current Version Offset: %s\n", curveroff ? curveroff : "unknown");
     seq_printf(m, "Backup Version Offset: %s\n", backveroff ? backveroff : "unknown");
+    seq_printf(m, "Current Header Version: %s\n", curheaderver ? curheaderver : "None");
+    seq_printf(m, "Backup Header Version: %s\n", backheaderver ? backheaderver : "None");
 
     return 0;
 }
@@ -43,7 +47,7 @@ static const struct proc_ops verinfo_fops = {
 static int __init verinfo_init(void)
 {
     int ret = 0;
-    struct device_node *verinfo_np = of_find_node_by_path("/verinfo");
+    struct device_node *verinfo_np = of_find_node_by_path("/chosen");
     if(NULL == verinfo_np)
     {
         pr_err("no verinfo node found in dtb\n");
@@ -74,7 +78,15 @@ static int __init verinfo_init(void)
     if(ret)
         pr_err("read bootveroff property failed, ret %d\n", ret);
 
-    proc_create("verinfo", 0, NULL, &verinfo_fops);
+    ret = of_property_read_string(verinfo_np, "curheaderver", &curheaderver);
+    if(ret)
+        pr_err("read bootveroff property failed, ret %d\n", ret);
+
+    ret = of_property_read_string(verinfo_np, "backheaderver", &backheaderver);
+    if(ret)
+        pr_err("read bootveroff property failed, ret %d\n", ret);
+
+    proc_create("pzxver", 0, NULL, &verinfo_fops);
 
 	return 0;
 }

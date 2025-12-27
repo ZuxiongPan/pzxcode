@@ -18,15 +18,13 @@
 
 static struct boot_param parameter;
 
-static int check_header(unsigned int index, void *vaddr);
-static int check_rsa_sign(unsigned int index, void *vaddr);
-static int version_check(unsigned int index, unsigned int offset);
-static void pass_infomation_to_kernel_by_dtb(int index);
+static void parse_version_header(int index, void *vaddr);
 
 int boot_parameter_init(void)
 {
     int ret = 0;
     memset(&parameter, 0, sizeof(struct boot_param));
+    parameter.bootidx = -1;
 
 #ifdef CONFIG_USB_STORAGE
     int usb_storage = usb_stor_scan(1);
@@ -49,151 +47,11 @@ int boot_parameter_init(void)
     return 0;
 }
 
-int find_valid_version(unsigned int offset)
+int version_check(int index)
 {
-    int ret = 0;
-
-    if(offset == VERSION1_PARTITION_OFFSET)
-    {
-        ret = version_check(0, offset);
-        pzxboot_info("version 1 check ret %d\n", ret);
-    }
-    else
-    {
-        ret = version_check(1, offset);
-        pzxboot_info("version 2 check ret %d\n", ret);
-    }
-
-    return ret;
-}
-
-static inline void set_bootargs(int index)
-{
-    if(index == 0)
-    {
-        snprintf(parameter.bootargs, sizeof(parameter.bootargs),
-            "init=/linuxrc console=ttyAMA0,115200 root=%s rootwait ro", VERSION1_ROOTFS_PARTITION);
-    }
-    else
-    {
-        snprintf(parameter.bootargs, sizeof(parameter.bootargs),
-            "init=/linuxrc console=ttyAMA0,115200 root=%s rootwait ro", VERSION2_ROOTFS_PARTITION);
-    }
-
-    return ;
-}
-
-int select_boot_version(void)
-{
-    int ret = (strncmp(parameter.info[0].header.build_date, parameter.info[1].header.build_date, 
-        sizeof(parameter.info[0].header.build_date)) < 0) ? 1 : 0;
-    if((parameter.info[ret].valid_version & VERSION_ISVALID) == VERSION_ISVALID)
-    {
-        pzxboot_info("version %d is valid, version date %s\n", ret + 1, parameter.info[ret].header.build_date);
-        set_bootargs(ret);
-    }
-    else if((parameter.info[!ret].valid_version & VERSION_ISVALID) == VERSION_ISVALID)
-    {
-        ret = !ret;
-        pzxboot_info("version %d is valid, header index %s\n", ret + 1, parameter.info[ret].header.build_date);
-        set_bootargs(ret);
-    }
-    else
-    {
-        pzxboot_emergency("no valid version, version valid mask %x %x\n",
-            parameter.info[0].valid_version, parameter.info[1].valid_version);
-        ret = -1;
-    }
-    pzxboot_info("bootargs: %s\n", parameter.bootargs);
-    env_set("bootargs", parameter.bootargs);
-
-    return ret;
-}
-
-void boot_kernel(int index)
-{
-    phys_addr_t loadaddr = CONFIG_SYS_LOAD_ADDR;
-    unsigned long kernsize = parameter.info[index].header.kernel_size;
-    void *vaddr = map_sysmem(loadaddr, kernsize);
-    char bootcmd[PZXBOOTSTRS_MAXLEN] = {0};
-    ulong count = 0, read_blks = 0;
-    lbaint_t start_blk = 0;
-    unsigned int kernoff = index ? VERSION2_PARTITION_OFFSET : VERSION1_PARTITION_OFFSET;
-
-    pzxboot_info("boot version %d kernel\n", index + 1);
-    // load kernel
-    read_blks = parameter.info[index].header.kernel_size / parameter.stor_desc->blksz;
-    start_blk = (kernoff + ALL_HEADERS_SIZE) / parameter.stor_desc->blksz;
-    count = blk_dread(parameter.stor_desc, start_blk, read_blks, vaddr);
-    if(count != read_blks)
-    {
-        pzxboot_error("read kernel failed\n");
-        return ;
-    }
-    unmap_sysmem(vaddr);
-
-    // unzip kernel
-    if (gunzip(map_sysmem(KERNEL_MEMADDRESS, ~0UL), ~0U, map_sysmem(loadaddr, 0), &kernsize) != 0)
-	{
-        pzxboot_error("unzip kernel failed\n");
-        return ;
-    }
-
-    pzxboot_info("unzip kernel success, kernel size %lu-0x%lx\n", kernsize, kernsize);
-
-#ifdef CONFIG_OF_LIBFDT
-    // modify dtb, add version info
-    pass_infomation_to_kernel_by_dtb(index);
-#endif
-    // jump to kernel
-    snprintf(bootcmd, sizeof(bootcmd), "booti 0x%08x - 0x%08x", KERNEL_MEMADDRESS, DTB_MEMADDRESS);
-    pzxboot_info("run command: %s\n", bootcmd);
-    run_command(bootcmd, 0);
-
-    //never come here
-    return ;
-}
-
-static int check_header(unsigned int index, void *vaddr)
-{
-    unsigned int crc = 0;
-
-    const struct version_header *verhead = (struct version_header *)(vaddr + VERSION_HEADER_OFFSET);
-    if((verhead->magic[0] != VERSION_HEADER_MAGIC0) || (verhead->magic[1] != VERSION_HEADER_MAGIC1))
-    {
-        pzxboot_error("version %u header magic 0x%08x 0x%08x is invalid\n", index + 1,
-            verhead->magic[0], verhead->magic[1]);
-        return -EKEYEXPIRED;
-    }
-    
-    crc = pzx_crc32((unsigned char*)verhead,
-        sizeof(struct version_header) - sizeof(unsigned int));
-    pzxboot_info("version %u header crc 0x%08x, expect crc 0x%08x\n", index + 1, crc, verhead->header_crc);
-    if(crc != verhead->header_crc)
-    {
-        pzxboot_error("version %u header is invalid\n", index + 1);
-        return -EKEYEXPIRED;
-    }
-
-    parameter.info[index].valid_version |= HEADER_ISVALID;
-    memcpy(&parameter.info[index].header, verhead, sizeof(struct version_header));
-
-    return 0;
-}
-
-static int check_rsa_sign(unsigned int index, void *vaddr)
-{
-    parameter.info[index].valid_version |= SIGN_ISVALID;
-
-    return 0;
-}
-
-static int version_check(unsigned int index, unsigned int offset)
-{
+    unsigned int offset = index ? VERSION1_PARTITION_OFFSET : VERSION0_PARTITION_OFFSET;
     ulong read_blks = 0, count = 0;
     lbaint_t start_blk = offset / parameter.stor_desc->blksz;
-    int ret = 0;
-    unsigned int crc = 0;
     phys_addr_t loadaddr = CONFIG_SYS_LOAD_ADDR;
     void *vaddr = map_sysmem(loadaddr, VERSION_PARTITION_SIZE);
 
@@ -208,107 +66,195 @@ static int version_check(unsigned int index, unsigned int offset)
         return -EIO;
     }
 
-    // 1. check headers
-    ret = check_header(index, vaddr);
-    if(ret != 0)
-    {
-        pzxboot_error("version %u header is invalid\n", index + 1);
-        return ret;
-    }
+    // 1. check rsa sign
+    parameter.valid_mask |= (1 << index);
 
-    // 2. check rsa signature
-    ret = check_rsa_sign(index, vaddr);
-    if(ret != 0)
-    {
-        pzxboot_error("rsa sign verify %u is failed\n", index + 1);
-        return ret;
-    }
-
-    // 3. check kernel
-    crc = pzx_crc32(vaddr + ALL_HEADERS_SIZE, parameter.info[index].header.kernel_size);
-    pzxboot_info("version %u kernel crc 0x%08x, expect crc 0x%08x\n", index + 1, crc, 
-        parameter.info[index].header.kernel_crc);
-    if(crc != parameter.info[index].header.kernel_crc)
-    {
-        pzxboot_error("version %u kernel crc is invalid\n", index + 1);
-        return -EKEYEXPIRED;
-    }
-    parameter.info[index].valid_version |= KERNEL_ISVALID;
-
-    // 4. check rootfs
-    crc = pzx_crc32(vaddr + KERNEL_PARTITION_SIZE, parameter.info[index].header.rootfs_size);
-    pzxboot_info("version %u rootfs crc 0x%08x, expect crc 0x%08x\n", index + 1, crc, 
-        parameter.info[index].header.rootfs_crc);
-    if(crc != parameter.info[index].header.rootfs_crc)
-    {
-        pzxboot_error("version %u rootfs crc is invalid\n", index + 1);
-        return -EKEYEXPIRED;
-    }
-    parameter.info[index].valid_version |= ROOTFS_ISVALID;
+    // 2. parse headers
+    parse_version_header(index, vaddr + VERSION_HEADER_OFFSET);
 
     unmap_sysmem(vaddr);
 
     return 0;
 }
 
-static void pass_infomation_to_kernel_by_dtb(int index)
+void set_partition_table(void)
+{
+    struct part_info {
+        char name[32];
+        unsigned int size;  // in MiB
+    };
+    char partstr[4096] = { 0 };
+
+    struct part_info parts[] = {
+        { "kernel0", parameter.headers[0].kpart_size / 0x100000 },
+        { "rootfs0", parameter.headers[0].rpart_size / 0x100000 },
+        { "kernel1", parameter.headers[1].kpart_size / 0x100000 },
+        { "rootfs1", parameter.headers[1].rpart_size / 0x100000 },
+    };
+
+    snprintf(partstr, 4096,"gpt write %s %d " "name=%s,size=%uMiB\\;name=%s,size=%uMiB\\;"
+        "name=%s,size=%uMiB\\;name=%s,size=%uMiB\\;name=remainder,size=0",
+        "usb", 0, parts[0].name, parts[0].size, parts[1].name, parts[1].size,
+        parts[2].name, parts[2].size, parts[3].name, parts[3].size);
+
+    pzxboot_info("gpt command %s\n", partstr);
+    run_command(partstr, 0);
+    return ;
+}
+
+int select_boot_version(void)
+{
+    switch(parameter.valid_mask)
+    {
+        case 0:
+            pzxboot_emergency("version 0 and version 1 are both bad, fail\n");
+            parameter.bootidx = -1;
+            break;
+        case 1:
+            pzxboot_error("version 0 is ok, version 1 is bad\n");
+            parameter.bootidx = 0;
+            break;
+        case 2:
+            pzxboot_error("version 0 is bad, version 1 is ok\n");
+            parameter.bootidx = 1;
+            break;
+        case 3:
+            pzxboot_info("version 0 and version 1 are both ok\n");
+            parameter.bootidx = (strncmp(parameter.headers[0].build_date, parameter.headers[1].build_date, 
+                    sizeof(parameter.headers[0].build_date)) < 0) ? 1 : 0;
+            break;
+        default:
+            pzxboot_emergency("invalid mask, fail\n");
+            parameter.bootidx = -1;
+            break;
+    }
+
+    if(parameter.bootidx == 0)
+    {
+        snprintf(parameter.bootargs, sizeof(parameter.bootargs), 
+            "init=/linuxrc console=ttyAMA0,115200 root=%s rootwait ro", VERSION0_ROOTFS_PARTITION);
+    }
+    else if(parameter.bootidx == 1)
+    {
+        snprintf(parameter.bootargs, sizeof(parameter.bootargs), 
+            "init=/linuxrc console=ttyAMA0,115200 root=%s rootwait ro", VERSION1_ROOTFS_PARTITION);
+    }
+
+    return parameter.bootidx;
+}
+
+void boot_kernel(void)
+{
+    int index = parameter.bootidx;
+    phys_addr_t loadaddr = KERNEL_MEMADDRESS;
+    unsigned long kernsize = parameter.headers[index].kernel_size;
+    void *vaddr = map_sysmem(loadaddr, kernsize);
+    char bootcmd[PZXBOOTSTRS_MAXLEN] = {0};
+    ulong count = 0, read_blks = 0;
+    lbaint_t start_blk = 0;
+    unsigned int kernoff = index ? VERSION1_PARTITION_OFFSET : VERSION0_PARTITION_OFFSET;
+
+    pzxboot_info("boot version %d kernel\n", index);
+    // load kernel
+    read_blks = parameter.headers[index].kernel_size / parameter.stor_desc->blksz;
+    start_blk = (kernoff + KERNEL_OFFSET) / parameter.stor_desc->blksz;
+    count = blk_dread(parameter.stor_desc, start_blk, read_blks, vaddr);
+    if(count != read_blks)
+    {
+        pzxboot_error("read kernel failed\n");
+        return ;
+    }
+    unmap_sysmem(vaddr);
+
+    // jump to kernel
+    snprintf(bootcmd, sizeof(bootcmd), "bootm 0x%08x", KERNEL_MEMADDRESS);
+    pzxboot_info("run command: %s\n", bootcmd);
+    run_command(bootcmd, 0);
+
+    //never come here
+    return ;
+}
+
+static void parse_version_header(int index, void *vaddr)
+{
+    const struct version_header *verhead = (struct version_header *)(vaddr);
+    pzxboot_info("\nversion %d header info:\n \
+        magic[0]: %x, maigc[1]: %x\n \
+        head version: %d.%d.%d.%d\n \
+        build date: %s\n \
+        verison number: %s\n", index, verhead->magic[0], verhead->magic[1],
+        VERNUM_RESERVE(verhead->header_version), VERNUM_MAJOR(verhead->header_version),
+        VERNUM_MINOR(verhead->header_version), VERNUM_PATCH(verhead->header_version),
+        verhead->build_date, verhead->soft_version);
+    
+    memcpy(&parameter.headers[index], verhead, sizeof(struct version_header));
+
+    return ;
+}
+
+#ifdef CONFIG_OF_BOARD_SETUP
+int ft_board_setup(void *blob, struct bd_info *bd)
 {
     int nodeoff = -1;
-    int tmp = 0;
     char buf[16];
-    struct fdt_header *fdt = map_sysmem(DTB_MEMADDRESS, 0);
+    int index = parameter.bootidx;
 
-    // add an information node under "/" path
-    nodeoff = fdt_path_offset(fdt, "/");
+    pzxboot_info("start set bootargs and verinfo\n");
+    // add an information node under "/chosen" path
+    nodeoff = fdt_path_offset(blob, "/chosen");
     if(nodeoff < 0)
     {
-        pzxboot_error("find root node failed in fdt\n");
-        return ;
+        pzxboot_error("find chosen node failed in fdt\n");
+        return -1;
     }
-    tmp = fdt_add_subnode(fdt, nodeoff, "verinfo");
-    if(tmp < 0)
-    {
-        pzxboot_error("add node verinfo failed\n");
-        return ;
-    }
-    
-    // verinfo node is valid, so do not check return value
-    nodeoff = fdt_path_offset(fdt, "/verinfo");
-    fdt_setprop(fdt, nodeoff, "versionnumber", parameter.info[index].header.soft_version_number, 
-        sizeof(parameter.info[index].header.soft_version_number));
-    fdt_setprop(fdt, nodeoff, "curbuilddate", parameter.info[index].header.build_date, 
-        sizeof(parameter.info[index].header.build_date));
-    fdt_setprop(fdt, nodeoff, "backbuilddate", parameter.info[!index].header.build_date, 
-        sizeof(parameter.info[index].header.build_date));
+
+    fdt_setprop(blob, nodeoff, "bootargs", parameter.bootargs, sizeof(parameter.bootargs));
+    fdt_setprop(blob, nodeoff, "versionnumber", parameter.headers[index].soft_version, 
+        sizeof(parameter.headers[index].soft_version));
+    fdt_setprop(blob, nodeoff, "curbuilddate", parameter.headers[index].build_date, 
+        sizeof(parameter.headers[index].build_date));
+    fdt_setprop(blob, nodeoff, "backbuilddate", parameter.headers[!index].build_date, 
+        sizeof(parameter.headers[index].build_date));
     
     memset(buf, 0, sizeof(buf));
-    tmp = (parameter.info[!index].valid_version == VERSION_ISVALID);
-    if(tmp)
+    if(3 == parameter.valid_mask)
         strncpy(buf, "Valid", sizeof(buf));
     else
         strncpy(buf, "Invalid", sizeof(buf));
-    fdt_setprop(fdt, nodeoff, "backverstate", buf, sizeof(buf));
+    fdt_setprop(blob, nodeoff, "backverstate", buf, sizeof(buf));
+
+    snprintf(buf, sizeof(buf), "%u.%u.%u.%u", 
+        VERNUM_RESERVE(parameter.headers[index].header_version),
+        VERNUM_MAJOR(parameter.headers[index].header_version),
+        VERNUM_MINOR(parameter.headers[index].header_version),
+        VERNUM_PATCH(parameter.headers[index].header_version));
+    fdt_setprop(blob, nodeoff, "curheaderver", buf, sizeof(buf));
+    snprintf(buf, sizeof(buf), "%u.%u.%u.%u", 
+        VERNUM_RESERVE(parameter.headers[!index].header_version),
+        VERNUM_MAJOR(parameter.headers[!index].header_version),
+        VERNUM_MINOR(parameter.headers[!index].header_version),
+        VERNUM_PATCH(parameter.headers[!index].header_version));
+    fdt_setprop(blob, nodeoff, "backheaderver", buf, sizeof(buf));
 
     if(index)
     {
         memset(buf, 0, sizeof(buf));
-        snprintf(buf, sizeof(buf), "0x%x", VERSION2_PARTITION_OFFSET);
-        fdt_setprop(fdt, nodeoff, "bootveroff", buf, sizeof(buf));
-        memset(buf, 0, sizeof(buf));
         snprintf(buf, sizeof(buf), "0x%x", VERSION1_PARTITION_OFFSET);
-        fdt_setprop(fdt, nodeoff, "backveroff", buf, sizeof(buf));
+        fdt_setprop(blob, nodeoff, "bootveroff", buf, sizeof(buf));
+        memset(buf, 0, sizeof(buf));
+        snprintf(buf, sizeof(buf), "0x%x", VERSION0_PARTITION_OFFSET);
+        fdt_setprop(blob, nodeoff, "backveroff", buf, sizeof(buf));
     }
     else
     {
         memset(buf, 0, sizeof(buf));
-        snprintf(buf, sizeof(buf), "0x%x", VERSION1_PARTITION_OFFSET);
-        fdt_setprop(fdt, nodeoff, "bootveroff", buf, sizeof(buf));
+        snprintf(buf, sizeof(buf), "0x%x", VERSION0_PARTITION_OFFSET);
+        fdt_setprop(blob, nodeoff, "bootveroff", buf, sizeof(buf));
         memset(buf, 0, sizeof(buf));
-        snprintf(buf, sizeof(buf), "0x%x", VERSION2_PARTITION_OFFSET);
-        fdt_setprop(fdt, nodeoff, "backveroff", buf, sizeof(buf));
+        snprintf(buf, sizeof(buf), "0x%x", VERSION1_PARTITION_OFFSET);
+        fdt_setprop(blob, nodeoff, "backveroff", buf, sizeof(buf));
     }
-    
-    unmap_sysmem(fdt);
 
-    return ;
+    return 0;
 }
+#endif

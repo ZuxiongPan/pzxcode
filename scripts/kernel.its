@@ -6,14 +6,14 @@
 
     images {
         kernel {
-            description = "gzipped Linux Kernel Image";
+            description = "qemu-virt image";
             data = /incbin/("/home/pzx/aarch64/linux-6.15.4/arch/arm64/boot/Image.gz");
             type = "kernel";
             arch = "arm64";
             os = "linux";
             compression = "gzip";
-            load = <0x42000000>;
-            entry = <0x42000000>;
+            load = <0x40200000>;
+            entry = <0x40200000>;
 
             hash-1 {
                 algo = "sha256";
@@ -21,32 +21,14 @@
         };
 
         fdt {
-            description = "qemu virt dump dtb";
-            data = /incbin/("/home/pzx/aarch64/virt-initramfs.dtb");
+            description = "qemu-virt dtb";
+            data = /incbin/("/home/pzx/aarch64/virt.dtb");
             type = "flat_dt";
             arch = "arm64";
             compression = "none";
 
             hash-1 {
                 algo = "sha256";
-            };
-        };
-
-        ramdisk {
-            description = "initramfs";
-            data = /incbin/("/home/pzx/aarch64/initramfs.cpio.gz");
-            type = "ramdisk";
-            arch = "arm64";
-            os = "linux";
-            load = <0x44000000>;
-
-            hash-1 {
-                algo = "sha256";
-            };
-
-            signature {
-                algo = "sha256,rsa2048";
-                key-name-hint = "rootfs";
             };
         };
     };
@@ -58,13 +40,6 @@
             description = "qemu uImage";
             kernel = "kernel";
             fdt = "fdt";
-            ramdisk = "ramdisk";
-
-            signature {
-                algo = "sha256,rsa2048";
-                key-name-hint = "kernel";
-                sign-images = "kernel", "fdt";
-            };
         };
     };
 };

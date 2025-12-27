@@ -104,3 +104,12 @@ xxd -i public.der > rsa_pubkey.c
 # FIT rsa sign (uboot doc/usage/fit/signature.rst)
 openssl genpkey -algorithm RSA -out dev.key -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:65537
 openssl req -batch -new -x509 -key dev.key -out dev.crt
+
+# sfdisk create gpt partition table
+sfdisk -X gpt binfile << EOF
+1M,8M,L
+9M,24M,L
+33M,8M,L
+41M,24M,L
+65M,60M,L
+EOF

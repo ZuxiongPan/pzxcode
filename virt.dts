@@ -410,6 +410,5 @@
 
 	chosen {
 		stdout-path = "serial";
-		bootargs = "root=/dev/ram0 rdinit=/linuxrc console=ttyAMA0,115200";
 	};
 };

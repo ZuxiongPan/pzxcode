@@ -47,17 +47,13 @@ void pzxboot(void)
         return ;
     }
 
-    ret = find_valid_version(VERSION1_PARTITION_OFFSET);
-    if(ret != 0)
+    for(int i = 0; i < VERSION_COUNTS; i++)
     {
-        pzxboot_error("version 1 is not valid, error %d\n", ret);
+        ret = version_check(i);
+        pzxboot_info("check version %d ret %d\n", i, ret);
     }
 
-    ret = find_valid_version(VERSION2_PARTITION_OFFSET);
-    if(ret != 0)
-    {
-        pzxboot_error("version 2 is not valid, error %d\n", ret);
-    }
+    set_partition_table();
 
     select = select_boot_version();
     if(select < 0)
@@ -66,7 +62,7 @@ void pzxboot(void)
         return ;
     }
 
-    boot_kernel(select);
+    boot_kernel();
 
     // never come here
     pzxboot_debug("boot will never come here\n");
