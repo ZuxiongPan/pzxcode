@@ -7,13 +7,6 @@
 #include "common/version_header.h"
 #include "common/version_partition.h"
 
-#define HEADER_ISVALID 0x01
-#define SIGN_ISVALID 0x02
-#define KERNEL_ISVALID 0x04
-#define ROOTFS_ISVALID 0x08
-
-#define VERSION_ISVALID (HEADER_ISVALID | SIGN_ISVALID | KERNEL_ISVALID | ROOTFS_ISVALID)
-
 #define PZXBOOTSTRS_MAXLEN 256
 
 #define KERNEL_MEMADDRESS 0x44000000

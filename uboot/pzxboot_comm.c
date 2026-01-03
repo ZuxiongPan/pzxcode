@@ -6,6 +6,8 @@
 #include <command.h>
 #include <bootm.h>
 #include <image.h>
+#include <stdint.h>
+#include <asm/global_data.h>
 #include <linux/string.h>
 #include <linux/libfdt.h>
 #include <u-boot/sha256.h>
@@ -16,9 +18,15 @@
 #include <usb.h>
 #endif
 
+DECLARE_GLOBAL_DATA_PTR;
 static struct boot_param parameter;
 
 static void parse_version_header(int index, void *vaddr);
+static unsigned int pzx_rsa_check(void *sighead_addr, void *sigdata_addr);
+
+extern unsigned int pzx_crc32(const unsigned char *data, unsigned int length);
+extern int rsa_verify_with_keynode(struct image_sign_info *info,
+			const void *hash, uint8_t *sig, uint sig_len, int node);
 
 int boot_parameter_init(void)
 {
@@ -44,6 +52,22 @@ int boot_parameter_init(void)
     pzxboot_info("current block size of this storage device is 0x%08lx\n", parameter.stor_desc->blksz);
 #endif
 
+/*
+    pzxboot_info("global data info:\n \
+            bd: 0x%lx, flags: 0x%lx, baudrate: 0x%x\n \
+            cpu_clk: 0x%lx, bus_clk: 0x%lx, pci_clk: 0x%lx, mem_clk: 0x%lx\n \
+            have_console: %lu, env_addr: 0x%lx, env_valid: %lu, env_has_init: %lu\n \
+            env_load_prio: %d, ram_base: 0x%lx, ram_top: 0x%lx, relocaddr: 0x%lx\n \
+            ram_size: 0x%lx, mon_len: 0x%lx, irq_sp: 0x%lx, start_addr_sp: 0x%lx\n \
+            reloc_off: 0x%lx, new_gd: 0x%lx, fdt_blob: 0x%lx, new_fdt: 0x%lx\n \
+            fdt_size: 0x%x, fdt_src: %u\n", (unsigned long)gd->bd, gd->flags, gd->baudrate,
+            gd->cpu_clk, gd->bus_clk, gd->pci_clk, gd->mem_clk, gd->have_console,
+            gd->env_addr, gd->env_valid, gd->env_has_init, gd->env_load_prio,
+            gd->ram_base, gd->ram_top, gd->relocaddr, gd->ram_size, gd->mon_len,
+            gd->irq_sp, gd->start_addr_sp, gd->reloc_off, (unsigned long)gd->new_gd,
+            (unsigned long)gd->fdt_blob, (unsigned long)gd->new_fdt, gd->fdt_size, gd->fdt_src);
+*/
+
     return 0;
 }
 
@@ -60,14 +84,20 @@ int version_check(int index)
     count = blk_dread(parameter.stor_desc, start_blk, read_blks, vaddr);
     if(count != read_blks)
     {
-        pzxboot_error("version %u read header from offset 0x%08x in [%s]-[%s] device failed\n", index + 1, offset, 
+        pzxboot_error("version %u read header from offset 0x%08x in [%s]-[%s] device failed\n", index , offset, 
             strlen(parameter.stor_desc->vendor) ? parameter.stor_desc->vendor : "none",
             strlen(parameter.stor_desc->product) ? parameter.stor_desc->product : "none");
         return -EIO;
     }
 
     // 1. check rsa sign
-    parameter.valid_mask |= (1 << index);
+    unsigned int ret = pzx_rsa_check(vaddr + SIGN_HEADER_OFFSET, vaddr + VERSION_HEADER_OFFSET);
+    parameter.valid_mask |= (ret << index);
+    if(0 == ret)
+    {
+        pzxboot_error("version %u rsa sign check is invalid\n", index);
+        return -EKEYEXPIRED;
+    }
 
     // 2. parse headers
     parse_version_header(index, vaddr + VERSION_HEADER_OFFSET);
@@ -178,7 +208,7 @@ void boot_kernel(void)
 static void parse_version_header(int index, void *vaddr)
 {
     const struct version_header *verhead = (struct version_header *)(vaddr);
-    pzxboot_info("\nversion %d header info:\n \
+    pzxboot_info("version %d header info:\n \
         magic[0]: %x, maigc[1]: %x\n \
         head version: %d.%d.%d.%d\n \
         build date: %s\n \
@@ -190,6 +220,72 @@ static void parse_version_header(int index, void *vaddr)
     memcpy(&parameter.headers[index], verhead, sizeof(struct version_header));
 
     return ;
+}
+
+static unsigned int pzx_rsa_check(void *sighead_addr, void *sigdata_addr)
+{
+    unsigned int crc = 0;
+    struct signature_header *sighead = (struct signature_header *)sighead_addr;
+
+    if(SIGN_HEADER_MAGIC0 != sighead->magic[0] || SIGN_HEADER_MAGIC1 != sighead->magic[1])
+    {
+        pzxboot_error("signature header is invalid, need 0x%08x 0x%08x, real 0x%08x 0x%08x\n",
+            SIGN_HEADER_MAGIC0, SIGN_HEADER_MAGIC1, sighead->magic[0], sighead->magic[1]);
+        return 0;
+    }
+
+    crc = pzx_crc32(sighead_addr, sizeof(struct signature_header) - sizeof(unsigned int));
+    if(crc != sighead->header_crc)
+    {
+        pzxboot_error("header crc is invalid, need 0x%08x, real 0x%08x\n", crc, sighead->header_crc);
+        return 0;
+    }
+
+    pzxboot_info("signature info:\n \
+        magic[0]: %x magic[1]: %x\n \
+        head version: %d.%d.%d.%d\n \
+        signed data size %u, signature size %u\n \
+        signature:\n",
+        sighead->magic[0], sighead->magic[1],
+        VERNUM_RESERVE(sighead->header_version), VERNUM_MAJOR(sighead->header_version),
+        VERNUM_MINOR(sighead->header_version), VERNUM_PATCH(sighead->header_version),
+        sighead->signed_size, sighead->sig_size);
+    
+    for(unsigned int i = 0; i < sighead->sig_size; i++)
+    {
+        printf("%02x", sighead->signature[i]);
+    }
+    printf("\n");
+
+    int ret = 0;
+    struct image_sign_info info = {0};
+    struct image_region region = { sigdata_addr, sighead->signed_size };
+    info.name = RSASIGN_NAME;
+    info.keyname = "rsapub";
+    info.checksum = image_get_checksum_algo(RSASIGN_NAME);
+    info.crypto = image_get_crypto_algo(RSASIGN_NAME);
+    info.padding = image_get_padding_algo(RSA_DEFAULT_PADDING_NAME);
+    info.fdt_blob = gd->fdt_blob;
+    info.required_keynode = fdt_subnode_offset(info.fdt_blob, 0, "rsapub");
+
+    if(info.required_keynode < 0 || NULL == info.checksum || NULL == info.crypto || NULL == info.padding)
+    {
+        pzxboot_error("pubkey/checksum/crypto/padding is invalid\n");
+        return 0;
+    }
+
+    unsigned char hash[info.crypto->key_len];
+    ret = info.checksum->calculate(info.checksum->name, &region, 1, hash);
+    if(ret < 0)
+    {
+        pzxboot_error("calculate image hash failed\n");
+        return 0;
+    }
+
+    ret = rsa_verify_with_keynode(&info, hash, sighead->signature, sighead->sig_size, info.required_keynode);
+    pzxboot_info("rsa_verify_with_keynode return %d\n", ret);
+
+    return (ret == 0);
 }
 
 #ifdef CONFIG_OF_BOARD_SETUP

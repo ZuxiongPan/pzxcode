@@ -1,11 +1,13 @@
 CC := gcc
 
 CFLAGS := -Wall -Wextra -O2
-CFLAGS += -I../../include -lcrypto
+CFLAGS += -I../../include -lcrypto -lssl
+
+SRCS := $(wildcard *.c)
 
 all: buildversion
 
-buildversion: pzx_crc32table.c buildversion.c
+buildversion: $(SRCS)
 	$(CC) -o $@ $^ $(CFLAGS)
 
 clean:

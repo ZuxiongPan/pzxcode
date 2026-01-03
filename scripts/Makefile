@@ -26,6 +26,8 @@ config:
 	cp $(CODE_DIR)/kernel_defconfig $(KERNEL_DIR)/arch/arm64/configs/
 	rm -f $(UBOOT_DIR)/configs/uboot_defconfig
 	cp $(CODE_DIR)/uboot_defconfig $(UBOOT_DIR)/configs/
+	rm -f $(UBOOT_DIR)/arch/arm/dts/qemu-arm64.dts
+	cp $(CODE_DIR)/virt-uboot.dts $(UBOOT_DIR)/arch/arm/dts/qemu-arm64.dts -f
 
 uboot:
 	make -C $(UBOOT_DIR) ARCH=arm CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) uboot_defconfig
@@ -68,6 +70,7 @@ boot:
     	-cpu cortex-a53 \
     	-smp 2 -m 128M \
 		-monitor telnet:127.0.0.1:9999,server,nowait \
+		-dtb $(UBOOT_DIR)/arch/arm/dts/qemu-arm64.dtb \
     	-device loader,file=$(UBOOT_DIR)/u-boot.bin \
 		-device nec-usb-xhci,id=xhci \
 		-device usb-storage,drive=usbdisk,bus=xhci.0 \

@@ -14,11 +14,14 @@ char kernel_filepath[FILEPATH_MAXLEN] = {0};
 char rootfs_filepath[FILEPATH_MAXLEN] = {0};
 char version_filepath[FILEPATH_MAXLEN] = {0};
 char upgrade_filepath[FILEPATH_MAXLEN] = {0};
+char rsakey_filepath[FILEPATH_MAXLEN] = {0};
 
 int get_options(int argc, char *const *argv);
 void print_usage(void);
 int build_upgrade_file(void);
 int build_version_file(void);
+
+extern int rsa_sign(char *filepath, char *keypath);
 
 int main(int argc, char *argv[])
 {
@@ -36,6 +39,19 @@ int main(int argc, char *argv[])
     {
         printf("build upgrade file %s error\n", upgrade_filepath);
         return ret;
+    }
+
+    ret = rsa_sign(upgrade_filepath, rsakey_filepath);
+    if(ret != 0)
+    {
+        printf("sign upgrade file %s error\n", upgrade_filepath);
+        return ret;
+    }
+
+    if(0 == strlen(version_filepath))
+    {
+        printf("do not create version file\n");
+        return 0;
     }
 
     ret = build_version_file();
@@ -220,7 +236,7 @@ int get_options(int argc, char *const *argv)
 {
     extern char *optarg;
     extern int optopt;
-    int opt = getopt(argc, argv, "k:r:v:u:");
+    int opt = getopt(argc, argv, "k:r:v:u:p:");
     int ret = 0;
     
     while(opt != -1 && ret == 0)
@@ -243,6 +259,10 @@ int get_options(int argc, char *const *argv)
                 strncpy(upgrade_filepath, optarg, FILEPATH_MAXLEN - 1);
                 upgrade_filepath[FILEPATH_MAXLEN - 1] = '\0';
                 break;
+            case 'p':
+                strncpy(rsakey_filepath, optarg, FILEPATH_MAXLEN - 1);
+                rsakey_filepath[FILEPATH_MAXLEN - 1] = '\0';
+                break;
             case '?':
                 printf("unknown option %c\n", optopt);
                 ret = -EINVAL;
@@ -250,7 +270,7 @@ int get_options(int argc, char *const *argv)
             default:
                 break;
         }
-        opt = getopt(argc, argv, "k:r:v:u:");
+        opt = getopt(argc, argv, "k:r:v:u:p:");
     }
 
     return ret;
@@ -263,6 +283,7 @@ void print_usage(void)
     printf("  -r <rootfs image>   : specify rootfs image filepath\n");
     printf("  -v <version file>   : specify whole image filepath\n");
     printf("  -u <upgrade file>   : specify upgrade filepath\n");
+    printf("  -p <rsa key file>   : specify rsa key filepath\n");
 
     return ;
 }

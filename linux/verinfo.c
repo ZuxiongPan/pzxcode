@@ -4,6 +4,7 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/errno.h>
+#include <linux/string.h>
 
 const char *softversion = NULL;
 const char *curbuilddate = NULL;
@@ -21,12 +22,15 @@ static int verinfo_proc_show(struct seq_file *m, void *v)
 {
     seq_printf(m, "Software Version Number: %s\n", softversion ? softversion : "unknown");
     seq_printf(m, "Current Build Date: %s\n", curbuilddate ? curbuilddate : "unknown");
-    seq_printf(m, "Backup Build Date: %s\n", backbuilddate ? backbuilddate : "unknown");
-    seq_printf(m, "Backup Version State: %s\n", backstate ? backstate : "unknown");
     seq_printf(m, "Current Version Offset: %s\n", curveroff ? curveroff : "unknown");
-    seq_printf(m, "Backup Version Offset: %s\n", backveroff ? backveroff : "unknown");
     seq_printf(m, "Current Header Version: %s\n", curheaderver ? curheaderver : "None");
-    seq_printf(m, "Backup Header Version: %s\n", backheaderver ? backheaderver : "None");
+    seq_printf(m, "Backup Version State: %s\n", backstate ? backstate : "unknown");
+    if(NULL != backstate && !strcmp(backstate, "Valid"))
+    {
+        seq_printf(m, "Backup Build Date: %s\n", backbuilddate ? backbuilddate : "unknown");
+        seq_printf(m, "Backup Version Offset: %s\n", backveroff ? backveroff : "unknown");
+        seq_printf(m, "Backup Header Version: %s\n", backheaderver ? backheaderver : "None");
+    }
 
     return 0;
 }

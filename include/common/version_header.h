@@ -17,6 +17,7 @@
 #define VERNUM_PATCH(vernum) ((vernum) & 0x000000ff)
 
 #define VERSION_COUNTS 2
+#define RSASIGN_NAME "sha256,rsa2048"
 
 struct version_header {
     unsigned int magic[2];
@@ -35,7 +36,9 @@ struct signature_header {
     unsigned int magic[2];
 
     unsigned int header_version;
-    unsigned int signed_data_size;
+    unsigned int signed_size;
+    unsigned int sig_size;
+    unsigned char signature[384];
 
     unsigned int header_crc;    // do not calculate crc
 };
