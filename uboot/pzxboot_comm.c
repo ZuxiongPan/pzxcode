@@ -22,7 +22,6 @@ DECLARE_GLOBAL_DATA_PTR;
 static struct boot_param parameter;
 
 static void parse_version_header(int index, void *vaddr);
-static unsigned int pzx_rsa_check(void *sighead_addr, void *sigdata_addr);
 
 extern unsigned int pzx_crc32(const unsigned char *data, unsigned int length);
 extern int rsa_verify_with_keynode(struct image_sign_info *info,
@@ -91,7 +90,7 @@ int version_check(int index)
     }
 
     // 1. check rsa sign
-    unsigned int ret = pzx_rsa_check(vaddr + SIGN_HEADER_OFFSET, vaddr + VERSION_HEADER_OFFSET);
+    int ret = pzx_rsa_check(vaddr + SIGN_HEADER_OFFSET, vaddr + VERSION_HEADER_OFFSET);
     parameter.valid_mask |= (ret << index);
     if(0 == ret)
     {
@@ -113,13 +112,37 @@ void set_partition_table(void)
         char name[32];
         unsigned int size;  // in MiB
     };
-    char partstr[4096] = { 0 };
+    char partstr[4096] = {0};
+    unsigned int kpart0_size = 0, kpart1_size = 0;
+    unsigned int rpart0_size = 0, rpart1_size = 0;
+
+    if(parameter.valid_mask & 0x1)
+    {
+        kpart0_size = parameter.headers[0].kpart_size;
+        rpart0_size = parameter.headers[0].rpart_size;
+    }
+    else
+    {
+        kpart0_size = KERNEL_PARTITION_SIZE;
+        rpart0_size = ROOTFS_PARTITION_SIZE;
+    }
+
+    if(parameter.valid_mask & 0x2)
+    {
+        kpart1_size = parameter.headers[1].kpart_size;
+        rpart1_size = parameter.headers[1].rpart_size;
+    }
+    else
+    {
+        kpart1_size = KERNEL_PARTITION_SIZE;
+        rpart1_size = ROOTFS_PARTITION_SIZE;
+    }
 
     struct part_info parts[] = {
-        { "kernel0", parameter.headers[0].kpart_size / 0x100000 },
-        { "rootfs0", parameter.headers[0].rpart_size / 0x100000 },
-        { "kernel1", parameter.headers[1].kpart_size / 0x100000 },
-        { "rootfs1", parameter.headers[1].rpart_size / 0x100000 },
+        { "kernel0", kpart0_size / 0x100000 },
+        { "rootfs0", rpart0_size / 0x100000 },
+        { "kernel1", kpart1_size / 0x100000 },
+        { "rootfs1", rpart1_size / 0x100000 },
     };
 
     snprintf(partstr, 4096,"gpt write %s %d " "name=%s,size=%uMiB\\;name=%s,size=%uMiB\\;"
@@ -222,7 +245,7 @@ static void parse_version_header(int index, void *vaddr)
     return ;
 }
 
-static unsigned int pzx_rsa_check(void *sighead_addr, void *sigdata_addr)
+int pzx_rsa_check(void *sighead_addr, void *sigdata_addr)
 {
     unsigned int crc = 0;
     struct signature_header *sighead = (struct signature_header *)sighead_addr;

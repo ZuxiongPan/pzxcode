@@ -9,7 +9,7 @@
 
 #define PZXBOOTSTRS_MAXLEN 256
 
-#define KERNEL_MEMADDRESS 0x44000000
+#define KERNEL_MEMADDRESS 0x42000000
 
 #define pzxboot_debug(fmt, ...) \
     printf("[%s](Debug)@%d# " fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__)
@@ -32,6 +32,7 @@ int boot_parameter_init(void);
 int version_check(int index);
 void set_partition_table(void);
 int select_boot_version(void);
+int pzx_rsa_check(void *sighead_addr, void *sigdata_addr);
 void boot_kernel(void);
 
 #endif
