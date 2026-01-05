@@ -7,7 +7,8 @@ export CC CFLAGS LDFLAGS
 dirs-y :=
 
 dirs-y += uevent_receiver/
-dirs-y += eduapp/
+#dirs-y += eduapp/
+dirs-y += verctrl/
 
 .PHONY: all install clean
 

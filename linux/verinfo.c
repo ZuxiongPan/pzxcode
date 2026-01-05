@@ -5,6 +5,7 @@
 #include <linux/seq_file.h>
 #include <linux/errno.h>
 #include <linux/string.h>
+#include "common/version_info.h"
 
 const char *softversion = NULL;
 const char *curbuilddate = NULL;
@@ -20,16 +21,16 @@ const char *backheaderver = NULL;
 // Key may include SPACE but Value SPACE is forbidden
 static int verinfo_proc_show(struct seq_file *m, void *v)
 {
-    seq_printf(m, "Software Version Number: %s\n", softversion ? softversion : "unknown");
-    seq_printf(m, "Current Build Date: %s\n", curbuilddate ? curbuilddate : "unknown");
-    seq_printf(m, "Current Version Offset: %s\n", curveroff ? curveroff : "unknown");
-    seq_printf(m, "Current Header Version: %s\n", curheaderver ? curheaderver : "None");
-    seq_printf(m, "Backup Version State: %s\n", backstate ? backstate : "unknown");
-    if(NULL != backstate && !strcmp(backstate, "Valid"))
+    seq_printf(m, "%s: %s\n", PROC_VERNUM_NAME, softversion ? softversion : STATES_INVALID);
+    seq_printf(m, "%s: %s\n", PROC_CURVERDATE_NAME, curbuilddate ? curbuilddate : STATES_INVALID);
+    seq_printf(m, "%s: %s\n", PROC_CURVEROFF_NAME, curveroff ? curveroff : STATES_INVALID);
+    seq_printf(m, "%s: %s\n", PROC_CURHEADVER_NAME, curheaderver ? curheaderver : STATES_INVALID);
+    seq_printf(m, "%s: %s\n", PROC_BACKVERSTAT_NAME, backstate ? backstate : STATES_INVALID);
+    seq_printf(m, "%s: %s\n", PROC_BACKVEROFF_NAME, backveroff ? backveroff : STATES_INVALID);
+    if(NULL != backstate && !strncmp(backstate, STATES_VALID, sizeof(STATES_VALID)))
     {
-        seq_printf(m, "Backup Build Date: %s\n", backbuilddate ? backbuilddate : "unknown");
-        seq_printf(m, "Backup Version Offset: %s\n", backveroff ? backveroff : "unknown");
-        seq_printf(m, "Backup Header Version: %s\n", backheaderver ? backheaderver : "None");
+        seq_printf(m, "%s: %s\n", PROC_BACKVERDATE_NAME, backbuilddate ? backbuilddate : STATES_INVALID);
+        seq_printf(m, "%s: %s\n", PROC_BACKHEADVER_NAME, backheaderver ? backheaderver : STATES_INVALID);
     }
 
     return 0;
@@ -58,37 +59,37 @@ static int __init verinfo_init(void)
         return -ENXIO;
     }
 
-    ret = of_property_read_string(verinfo_np, "versionnumber", &softversion);
+    ret = of_property_read_string(verinfo_np, DTB_VERNUM_NAME, &softversion);
     if(ret)
-        pr_err("read versionnumber property failed, ret %d\n", ret);
+        pr_err("read %s property failed, ret %d\n", DTB_VERNUM_NAME, ret);
     
-    ret = of_property_read_string(verinfo_np, "curbuilddate", &curbuilddate);
+    ret = of_property_read_string(verinfo_np, DTB_CURVERDATE_NAME, &curbuilddate);
     if(ret)
-        pr_err("read builddate property failed, ret %d\n", ret);
+        pr_err("read %s property failed, ret %d\n", DTB_CURVERDATE_NAME, ret);
 
-    ret = of_property_read_string(verinfo_np, "backbuilddate", &backbuilddate);
+    ret = of_property_read_string(verinfo_np, DTB_BACKVERDATE_NAME, &backbuilddate);
     if(ret)
-        pr_err("read builddate property failed, ret %d\n", ret);
+        pr_err("read %s property failed, ret %d\n", DTB_BACKVERDATE_NAME, ret);
 
-    ret = of_property_read_string(verinfo_np, "backverstate", &backstate);
+    ret = of_property_read_string(verinfo_np, DTB_BACKVERSTAT_NAME, &backstate);
     if(ret)
-        pr_err("read backverstate property failed, ret %d\n", ret);
+        pr_err("read %s property failed, ret %d\n", DTB_BACKVERSTAT_NAME, ret);
 
-    ret = of_property_read_string(verinfo_np, "bootveroff", &curveroff);
+    ret = of_property_read_string(verinfo_np, DTB_CURVEROFF_NAME, &curveroff);
     if(ret)
-        pr_err("read bootveroff property failed, ret %d\n", ret);
+        pr_err("read %s property failed, ret %d\n", DTB_CURVEROFF_NAME, ret);
 
-    ret = of_property_read_string(verinfo_np, "backveroff", &backveroff);
+    ret = of_property_read_string(verinfo_np, DTB_BACKVEROFF_NAME, &backveroff);
     if(ret)
-        pr_err("read bootveroff property failed, ret %d\n", ret);
+        pr_err("read %s property failed, ret %d\n", DTB_BACKVEROFF_NAME, ret);
 
-    ret = of_property_read_string(verinfo_np, "curheaderver", &curheaderver);
+    ret = of_property_read_string(verinfo_np, DTB_CURHEADVER_NAME, &curheaderver);
     if(ret)
-        pr_err("read bootveroff property failed, ret %d\n", ret);
+        pr_err("read %s property failed, ret %d\n", DTB_CURHEADVER_NAME, ret);
 
-    ret = of_property_read_string(verinfo_np, "backheaderver", &backheaderver);
+    ret = of_property_read_string(verinfo_np, DTB_BACKHEADVER_NAME, &backheaderver);
     if(ret)
-        pr_err("read bootveroff property failed, ret %d\n", ret);
+        pr_err("read %s property failed, ret %d\n", DTB_BACKHEADVER_NAME, ret);
 
     proc_create("pzxver", 0, NULL, &verinfo_fops);
 

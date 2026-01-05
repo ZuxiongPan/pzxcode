@@ -20,6 +20,8 @@ all: prepare config uboot kernel busybox
 prepare:
 	./mkprepare.sh
 	make -C $(CODE_DIR)/user/buildversion
+	make -C $(CODE_DIR)/user/applications
+	make -C $(CODE_DIR)/user/applications install
 
 config:
 	rm -f $(KERNEL_DIR)/arch/arm64/configs/kernel_defconfig

@@ -13,6 +13,7 @@
 #include <u-boot/sha256.h>
 #include <u-boot/rsa.h>
 #include "pzxboot.h"
+#include "common/version_info.h"
 
 #ifdef CONFIG_USB_STORAGE
 #include <usb.h>
@@ -328,50 +329,56 @@ int ft_board_setup(void *blob, struct bd_info *bd)
     }
 
     fdt_setprop(blob, nodeoff, "bootargs", parameter.bootargs, sizeof(parameter.bootargs));
-    fdt_setprop(blob, nodeoff, "versionnumber", parameter.headers[index].soft_version, 
+    fdt_setprop(blob, nodeoff, DTB_VERNUM_NAME, parameter.headers[index].soft_version, 
         sizeof(parameter.headers[index].soft_version));
-    fdt_setprop(blob, nodeoff, "curbuilddate", parameter.headers[index].build_date, 
-        sizeof(parameter.headers[index].build_date));
-    fdt_setprop(blob, nodeoff, "backbuilddate", parameter.headers[!index].build_date, 
+    fdt_setprop(blob, nodeoff, DTB_CURVERDATE_NAME, parameter.headers[index].build_date, 
         sizeof(parameter.headers[index].build_date));
     
     memset(buf, 0, sizeof(buf));
-    if(3 == parameter.valid_mask)
-        strncpy(buf, "Valid", sizeof(buf));
-    else
-        strncpy(buf, "Invalid", sizeof(buf));
-    fdt_setprop(blob, nodeoff, "backverstate", buf, sizeof(buf));
-
     snprintf(buf, sizeof(buf), "%u.%u.%u.%u", 
         VERNUM_RESERVE(parameter.headers[index].header_version),
         VERNUM_MAJOR(parameter.headers[index].header_version),
         VERNUM_MINOR(parameter.headers[index].header_version),
         VERNUM_PATCH(parameter.headers[index].header_version));
-    fdt_setprop(blob, nodeoff, "curheaderver", buf, sizeof(buf));
-    snprintf(buf, sizeof(buf), "%u.%u.%u.%u", 
-        VERNUM_RESERVE(parameter.headers[!index].header_version),
-        VERNUM_MAJOR(parameter.headers[!index].header_version),
-        VERNUM_MINOR(parameter.headers[!index].header_version),
-        VERNUM_PATCH(parameter.headers[!index].header_version));
-    fdt_setprop(blob, nodeoff, "backheaderver", buf, sizeof(buf));
-
+    fdt_setprop(blob, nodeoff, DTB_CURHEADVER_NAME, buf, sizeof(buf));
+    
     if(index)
     {
         memset(buf, 0, sizeof(buf));
         snprintf(buf, sizeof(buf), "0x%x", VERSION1_PARTITION_OFFSET);
-        fdt_setprop(blob, nodeoff, "bootveroff", buf, sizeof(buf));
+        fdt_setprop(blob, nodeoff, DTB_CURVEROFF_NAME, buf, sizeof(buf));
         memset(buf, 0, sizeof(buf));
         snprintf(buf, sizeof(buf), "0x%x", VERSION0_PARTITION_OFFSET);
-        fdt_setprop(blob, nodeoff, "backveroff", buf, sizeof(buf));
+        fdt_setprop(blob, nodeoff, DTB_BACKVEROFF_NAME, buf, sizeof(buf));
     }
     else
     {
         memset(buf, 0, sizeof(buf));
         snprintf(buf, sizeof(buf), "0x%x", VERSION0_PARTITION_OFFSET);
-        fdt_setprop(blob, nodeoff, "bootveroff", buf, sizeof(buf));
+        fdt_setprop(blob, nodeoff, DTB_CURVEROFF_NAME, buf, sizeof(buf));
         memset(buf, 0, sizeof(buf));
         snprintf(buf, sizeof(buf), "0x%x", VERSION1_PARTITION_OFFSET);
-        fdt_setprop(blob, nodeoff, "backveroff", buf, sizeof(buf));
+        fdt_setprop(blob, nodeoff, DTB_BACKVEROFF_NAME, buf, sizeof(buf));
+    }
+
+    if(3 == parameter.valid_mask)
+    {
+        fdt_setprop(blob, nodeoff, DTB_BACKVERSTAT_NAME, STATES_VALID, sizeof(STATES_VALID));
+        fdt_setprop(blob, nodeoff, DTB_BACKVERDATE_NAME, parameter.headers[!index].build_date, 
+            sizeof(parameter.headers[index].build_date));
+        memset(buf, 0, sizeof(buf));
+        snprintf(buf, sizeof(buf), "%u.%u.%u.%u", 
+            VERNUM_RESERVE(parameter.headers[!index].header_version),
+            VERNUM_MAJOR(parameter.headers[!index].header_version),
+            VERNUM_MINOR(parameter.headers[!index].header_version),
+            VERNUM_PATCH(parameter.headers[!index].header_version));
+        fdt_setprop(blob, nodeoff, DTB_BACKHEADVER_NAME, buf, sizeof(buf));
+    }
+    else
+    {
+        fdt_setprop(blob, nodeoff, DTB_BACKVERDATE_NAME, STATES_INVALID, sizeof(STATES_INVALID));
+        fdt_setprop(blob, nodeoff, DTB_BACKVERSTAT_NAME, STATES_INVALID, sizeof(STATES_INVALID));
+        fdt_setprop(blob, nodeoff, DTB_BACKHEADVER_NAME, STATES_INVALID, sizeof(STATES_INVALID));
     }
 
     return 0;
