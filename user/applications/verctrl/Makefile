@@ -13,7 +13,7 @@ $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -c $@ $<
 
 install:
-	cp $(TARGET) $(ROOT_DIR)/usr/bin/
+	cp $(TARGET) $(ROOT_DIR)/usr/bin/ -f
 
 clean:
 	rm -f $(TARGET) $(OBJS)

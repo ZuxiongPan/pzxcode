@@ -38,7 +38,7 @@ struct signature_header {
     unsigned int header_version;
     unsigned int signed_size;
     unsigned int sig_size;
-    unsigned char signature[384];
+    unsigned char signature[256];
 
     unsigned int header_crc;    // do not calculate crc
 };
