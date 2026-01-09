@@ -104,6 +104,7 @@ xxd -i public.der > rsa_pubkey.c
 # FIT rsa sign (uboot doc/usage/fit/signature.rst)
 openssl genpkey -algorithm RSA -out pzx.key -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:65537
 openssl req -batch -new -x509 -key pzx.key -out pzx.crt
+openssl x509 -in pzx.crt -pubkey -noout > pzx.pub
 mkimage -f kernel.its kernel.itb -k keydir -K uboot.dtb -r
 # using this add rsa pub key info to uboot dtb
     pubkey {

@@ -6,22 +6,19 @@ UBOOT_DIR := $(TOP_DIR)/u-boot-2024.10
 KERNEL_DIR := $(TOP_DIR)/linux-6.15.4
 BUSYBOX_DIR := $(TOP_DIR)/busybox-1.36.0
 ROOT_DIR := $(TOP_DIR)/root
-APPLICATIONS_DIR := $(CODE_DIR)/user/applications
 CROSS_COMPILER_DIR := $(TOP_DIR)/aarch64-none-linux-gnu-14.3
 CROSS_COMPILER_PREFIX := $(CROSS_COMPILER_DIR)/bin/aarch64-none-linux-gnu-
 
 export TOP_DIR CODE_DIR KERNEL_DIR UBOOT_DIR ROOT_DIR CROSS_COMPILER_PREFIX
 
-.PHONY: all prepare config uboot kernel busybox boot version \
-	uboot_clean kernel_clean busybox_clean clean
+.PHONY: all prepare config uboot kernel busybox boot user version \
+	uboot_clean kernel_clean busybox_clean user_clean clean
 
-all: prepare config uboot kernel busybox
+all: prepare config uboot kernel busybox user
 
 prepare:
 	./mkprepare.sh
 	make -C $(CODE_DIR)/user/buildversion
-	make -C $(CODE_DIR)/user/applications
-	make -C $(CODE_DIR)/user/applications install
 
 config:
 	rm -f $(KERNEL_DIR)/arch/arm64/configs/kernel_defconfig
@@ -59,10 +56,21 @@ busybox:
 busybox_clean:
 	make -C $(BUSYBOX_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
 
+user:
+	make -C $(CODE_DIR)/user/lib
+	make -C $(CODE_DIR)/user/lib install
+	make -C $(CODE_DIR)/user/applications
+	make -C $(CODE_DIR)/user/applications install
+
+user_clean:
+	make -C $(CODE_DIR)/user/lib clean
+	make -C $(CODE_DIR)/user/applications clean
+
 version:
 	$(UBOOT_DIR)/tools/mkimage -f $(SCRIPTS_DIR)/kernel.its $(TOP_DIR)/kernel.itb
 	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 $(ROOT_DIR)/lib/ -f
 	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib64/libc.so.6 $(ROOT_DIR)/lib64/ -f
+	cp $(CODE_DIR)/rsakeys/pzx.pub $(ROOT_DIR)/etc -f
 	find $(CODE_DIR)/linux/ -name *.ko -exec cp -f {} $(ROOT_DIR)/modules \;
 	./mkver.sh
 
@@ -86,6 +94,6 @@ clean:
 	make uboot_clean
 	make kernel_clean
 	make busybox_clean
+	make user_clean
 	make -C $(CODE_DIR)/user/buildversion clean
-	make -C $(APPLICATIONS_DIR) clean
 	rm -rf $(ROOT_DIR)/*

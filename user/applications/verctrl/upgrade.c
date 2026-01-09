@@ -6,9 +6,16 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <linux/errno.h>
+
+#include "mbedtls/pk.h"
+#include "mbedtls/md.h"
+#include "mbedtls/sha256.h"
+#include "mbedtls/error.h"
 #include "common/version_info.h"
 #include "common/version_header.h"
 #include "common/version_partition.h"
+
+#define PUBKEY_FILEPATH "/etc/pzx.pub"
 
 extern int get_value_from_verinfo(const char *name, char *valbuf, unsigned int bufsize);
 extern unsigned int pzx_crc32(const unsigned char *data, unsigned int length);
@@ -33,13 +40,45 @@ static int signature_header_check(const unsigned char *buf)
 
 static int upgrade_version_check(const unsigned char *buf, unsigned int size)
 {
-    bool ret = signature_header_check(buf);
+    int ret = signature_header_check(buf);
     if(!ret)
     {
         printf("upgrade file signature is invalid\n");
-        return false;
+        return -EPROTO;
     }
 
+    mbedtls_pk_context pk;
+    unsigned char hash[32];
+    const struct signature_header *sighead = (struct signature_header *)buf;
+
+    ret = mbedtls_sha256_ret(buf + VERSION_HEADER_OFFSET, size - VERSION_HEADER_OFFSET, hash, 0);
+    if(ret)
+    {
+        printf("sha256 calculation failed, ret %d\n", ret);
+        return ret;
+    }
+
+    mbedtls_pk_init(&pk);
+    ret = mbedtls_pk_parse_public_keyfile(&pk, PUBKEY_FILEPATH);
+    if(ret)
+    {
+        printf("failed get pub key from file %s, ret %d\n", PUBKEY_FILEPATH, ret);
+        mbedtls_pk_free(&pk);
+        return ret;
+    }
+
+    ret = mbedtls_pk_verify(&pk, MBEDTLS_MD_SHA256, hash, 0,
+        sighead->signature, sighead->sig_size);
+    if(ret)
+    {
+        printf("rsa verify failed, ret %d\n", ret);
+    }
+    else
+    {
+        printf("rsa verify success\n");
+    }
+
+    mbedtls_pk_free(&pk);
     return ret;
 }
 
@@ -101,7 +140,7 @@ int upgrade(char *upgfile_name)
     printf("read %u/0x%x bytes from file %s\n", ret, ret, upgfile_name);
     close(fd);
 
-    if(!upgrade_version_check(verbuf, upg_stat.st_size))
+    if(upgrade_version_check(verbuf, upg_stat.st_size))
     {
         printf("check version failed\n");
         free(verbuf);
