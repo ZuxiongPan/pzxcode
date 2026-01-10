@@ -24,7 +24,7 @@ static struct boot_param parameter;
 
 static void parse_version_header(int index, void *vaddr);
 
-extern unsigned int pzx_crc32(const unsigned char *data, unsigned int length);
+extern uint32_t pzx_crc32(const uint8_t *data, uint32_t length);
 extern int rsa_verify_with_keynode(struct image_sign_info *info,
 			const void *hash, uint8_t *sig, uint sig_len, int node);
 
@@ -111,11 +111,11 @@ void set_partition_table(void)
 {
     struct part_info {
         char name[32];
-        unsigned int size;  // in MiB
+        uint32_t size;  // in MiB
     };
     char partstr[4096] = {0};
-    unsigned int kpart0_size = 0, kpart1_size = 0;
-    unsigned int rpart0_size = 0, rpart1_size = 0;
+    uint32_t kpart0_size = 0, kpart1_size = 0;
+    uint32_t rpart0_size = 0, rpart1_size = 0;
 
     if(parameter.valid_mask & 0x1)
     {

@@ -15,7 +15,7 @@
 #include "common/version_partition.h"
 #include "common/version_header.h"
 
-extern unsigned int pzx_crc32(const unsigned char *data, unsigned int length);
+extern uint32_t pzx_crc32(const uint8_t *data, uint32_t length);
 
 int rsa_sign(char *filepath, char *keypath)
 {
@@ -23,11 +23,11 @@ int rsa_sign(char *filepath, char *keypath)
     EVP_PKEY *pkey = NULL;
     EVP_PKEY_CTX *ckey = NULL;
     EVP_MD_CTX *context = NULL;
-    unsigned int sign_size = 0;
+    uint32_t sign_size = 0;
     size_t sig_size = 0;
-    unsigned char *buf = NULL;
-    unsigned char *sig = NULL;
-    unsigned char headbuf[STORDEV_PHYSICAL_BLKSIZE];
+    uint8_t *buf = NULL;
+    uint8_t *sig = NULL;
+    uint8_t headbuf[STORDEV_PHYSICAL_BLKSIZE];
     struct signature_header *sighead = (struct signature_header *)headbuf;
 
     int ret = OPENSSL_init_ssl(0, NULL);

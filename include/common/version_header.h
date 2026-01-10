@@ -1,6 +1,8 @@
 #ifndef __VERSION_HEADER_H__
 #define __VERSION_HEADER_H__
 
+#include "data_type.h"
+
 #define VERSION_HEADER_MAGIC0 0x53524556  // 'VERS'
 #define VERSION_HEADER_MAGIC1 0x534e4f49  // 'IONS'
 
@@ -20,27 +22,27 @@
 #define RSASIGN_NAME "sha256,rsa2048"
 
 struct version_header {
-    unsigned int magic[2];
+    uint32_t magic[2];
 
-    unsigned int header_version;
-    unsigned int kpart_size;
-    unsigned int kernel_size;
-    unsigned int rpart_size;
-    unsigned int rootfs_size;
+    uint32_t header_version;
+    uint32_t kpart_size;
+    uint32_t kernel_size;
+    uint32_t rpart_size;
+    uint32_t rootfs_size;
 
     char build_date[16];    // according to date decide boot version
     char soft_version[32];
 };
 
 struct signature_header {
-    unsigned int magic[2];
+    uint32_t magic[2];
 
-    unsigned int header_version;
-    unsigned int signed_size;
-    unsigned int sig_size;
-    unsigned char signature[256];
+    uint32_t header_version;
+    uint32_t signed_size;
+    uint32_t sig_size;
+    uint8_t signature[256];
 
-    unsigned int header_crc;    // do not calculate crc
+    uint32_t header_crc;    // do not calculate crc
 };
 
 #endif

@@ -1,7 +1,7 @@
 CC := gcc
 
 CFLAGS := -Wall -Wextra -O2
-CFLAGS += -I../../include -lcrypto -lssl
+CFLAGS += -I$(CODE_DIR)/include -lcrypto -lssl
 
 SRCS := $(wildcard *.c)
 

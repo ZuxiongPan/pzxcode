@@ -16,10 +16,10 @@ char version_filepath[FILEPATH_MAXLEN] = {0};
 char upgrade_filepath[FILEPATH_MAXLEN] = {0};
 char rsakey_filepath[FILEPATH_MAXLEN] = {0};
 
-int get_options(int argc, char *const *argv);
-void print_usage(void);
-int build_upgrade_file(void);
-int build_version_file(void);
+static int get_options(int argc, char *const *argv);
+static void print_usage(void);
+static int build_upgrade_file(void);
+static int build_version_file(void);
 
 extern int rsa_sign(char *filepath, char *keypath);
 
@@ -90,9 +90,9 @@ int build_upgrade_file(void)
     FILE *upgrade = NULL;
     FILE *kernel = NULL;
     FILE *rootfs = NULL;
-    unsigned int file_size = 0;
-    unsigned char *buf = NULL;
-    unsigned char headbuf[STORDEV_PHYSICAL_BLKSIZE];
+    uint32_t file_size = 0;
+    uint8_t *buf = NULL;
+    uint8_t headbuf[STORDEV_PHYSICAL_BLKSIZE];
     memset(headbuf, 0xff, sizeof(headbuf));
     struct version_header *pheader = (struct version_header *)headbuf;
     version_header_init(pheader);
@@ -182,9 +182,9 @@ int build_version_file(void)
 {
     FILE *version = NULL;
     FILE *upgrade = NULL;
-    unsigned char *buf = NULL;
-    unsigned int upgrade_size = VERSION_PARTITION_SIZE;
-    unsigned int rdsize = 0;
+    uint8_t *buf = NULL;
+    uint32_t upgrade_size = VERSION_PARTITION_SIZE;
+    uint32_t rdsize = 0;
 
     upgrade = fopen(upgrade_filepath, "rb");
     if(NULL == upgrade)

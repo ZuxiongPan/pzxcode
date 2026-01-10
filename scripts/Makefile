@@ -18,7 +18,7 @@ all: prepare config uboot kernel busybox user
 
 prepare:
 	./mkprepare.sh
-	make -C $(CODE_DIR)/user/buildversion
+	make -C $(CODE_DIR)/host/buildversion
 
 config:
 	rm -f $(KERNEL_DIR)/arch/arm64/configs/kernel_defconfig
@@ -95,5 +95,5 @@ clean:
 	make kernel_clean
 	make busybox_clean
 	make user_clean
-	make -C $(CODE_DIR)/user/buildversion clean
+	make -C $(CODE_DIR)/host/buildversion clean
 	rm -rf $(ROOT_DIR)/*

@@ -1,6 +1,8 @@
 #define CRC32_POLYNOMIAL 0xedb88320
 #define CRC32_TABLE_SIZE 256
 
+#include "common/data_type.h"
+
 /**
  * crc32 table generator
 
@@ -20,7 +22,7 @@ void generate_crc32_table()
 
 */
 
-static const unsigned int crc32_table[CRC32_TABLE_SIZE] = {
+static const uint32_t crc32_table[CRC32_TABLE_SIZE] = {
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
     0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988, 0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91,
     0x1db71064, 0x6ab020f2, 0xf3b97148, 0x84be41de, 0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7,
@@ -55,19 +57,19 @@ static const unsigned int crc32_table[CRC32_TABLE_SIZE] = {
     0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d,
 };
 
-unsigned int pzx_crc32(const unsigned char *data, unsigned int length)
+uint32_t pzx_crc32(const uint8_t *data, uint32_t length)
 {
-    unsigned int crc = 0xffffffff;
-    for(unsigned int i = 0; i < length; i++)
+    uint32_t crc = 0xffffffff;
+    for(uint32_t i = 0; i < length; i++)
         crc = (crc >> 8) ^ crc32_table[(crc & 0xff) ^ data[i]];
 
     return ~crc;
 }
 
-unsigned int pzx_crc32_segment(const unsigned char *data, unsigned int length, unsigned int crc)
+uint32_t pzx_crc32_segment(const uint8_t *data, uint32_t length, uint32_t crc)
 {
     crc = ~crc;
-    for(unsigned int i = 0; i < length; i++)
+    for(uint32_t i = 0; i < length; i++)
         crc = (crc >> 8) ^ crc32_table[(crc & 0xff) ^ data[i]];
 
     return ~crc;

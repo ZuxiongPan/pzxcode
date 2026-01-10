@@ -18,11 +18,11 @@
 #define PUBKEY_FILEPATH "/etc/pzx.pub"
 
 extern int get_value_from_verinfo(const char *name, char *valbuf, unsigned int bufsize);
-extern unsigned int pzx_crc32(const unsigned char *data, unsigned int length);
+extern uint32_t pzx_crc32(const uint8_t *data, uint32_t length);
 
-static int signature_header_check(const unsigned char *buf)
+static int signature_header_check(const uint8_t *buf)
 {
-    unsigned int crc = 0;
+    uint32_t crc = 0;
     const struct signature_header *sighead = (struct signature_header *)buf;
 
     if(SIGN_HEADER_MAGIC0 != sighead->magic[0] || SIGN_HEADER_MAGIC1 != sighead->magic[1])
@@ -32,13 +32,13 @@ static int signature_header_check(const unsigned char *buf)
         return false;
     }
 
-    crc = pzx_crc32(buf, sizeof(struct signature_header) - sizeof(unsigned int));
+    crc = pzx_crc32(buf, sizeof(struct signature_header) - sizeof(uint32_t));
     printf("signature header crc is 0x%x, calculated crc is 0x%x\n", sighead->header_crc, crc);
 
     return (crc == sighead->header_crc);
 }
 
-static int upgrade_version_check(const unsigned char *buf, unsigned int size)
+static int upgrade_version_check(const uint8_t *buf, uint32_t size)
 {
     int ret = signature_header_check(buf);
     if(!ret)
@@ -87,7 +87,7 @@ int upgrade(char *upgfile_name)
     int ret = 0;
     int fd = 0;
     char buf[16] = {0};
-    unsigned char *verbuf = NULL;
+    uint8_t *verbuf = NULL;
     unsigned int offset = 0;
     struct stat upg_stat = {0};
 
