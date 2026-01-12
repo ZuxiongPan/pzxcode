@@ -12,7 +12,7 @@
 // version header numbers 0xrrMMmmpp
 // r-reserved M-Major m-minor p-patch
 #define VERSION_HEADER_VERNUM 0x00010000
-#define SIGN_HEADER_VERNUM 0x00010000
+#define SIGN_HEADER_VERNUM 0x00020000
 #define VERNUM_RESERVE(vernum) (((vernum) & 0xff000000) >> 24)
 #define VERNUM_MAJOR(vernum) (((vernum) & 0x00ff0000) >> 16)
 #define VERNUM_MINOR(vernum) (((vernum) & 0x0000ff00) >> 8)
@@ -41,6 +41,7 @@ struct signature_header {
     uint32_t signed_size;
     uint32_t sig_size;
     uint8_t signature[256];
+    uint8_t aes_iv[16];
 
     uint32_t header_crc;    // do not calculate crc
 };

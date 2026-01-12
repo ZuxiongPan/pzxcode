@@ -1,0 +1,11 @@
+#ifndef __PZX_CONFIG__
+#define __PZX_CONFIG__
+
+#define CONFIG_UPGRADE_FRAGMENT
+#ifdef CONFIG_UPGRADE_FRAGMENT
+#define FRAGMENT_SIZE 0x100000
+#endif
+
+#define CONFIG_VERHEADER_ENCRYPT
+
+#endif

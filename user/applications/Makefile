@@ -1,5 +1,5 @@
 CC := $(CROSS_COMPILER_PREFIX)gcc
-CFLAGS := -Wall -Wextra -O2
+CFLAGS := -Wall -Wextra -O2 -include $(CODE_DIR)/include/pzx_config.h
 LDFLAGS := 
 
 export CC CFLAGS LDFLAGS
@@ -14,15 +14,15 @@ dirs-y += verctrl/
 
 all:
 	for dir in $(dirs-y); do \
-		make -C $$dir; \
+		$(MAKE) -C $$dir; \
 	done
 
 install:
 	for dir in $(dirs-y); do \
-		make -C $$dir install; \
+		$(MAKE) -C $$dir install; \
 	done
 
 clean:
 	for dir in $(dirs-y); do \
-		make -C $$dir clean; \
+		$(MAKE) -C $$dir clean; \
 	done

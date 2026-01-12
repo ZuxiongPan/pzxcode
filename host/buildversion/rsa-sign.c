@@ -157,7 +157,7 @@ int rsa_sign(char *filepath, char *keypath)
     sighead->sig_size = sig_size;
     memcpy(sighead->signature, sig, sig_size);
     free(sig);
-    sighead->header_crc = pzx_crc32(headbuf, sizeof(struct signature_header) - sizeof(unsigned int));
+    sighead->header_crc = pzx_crc32(headbuf, sizeof(struct signature_header) - sizeof(uint32_t));
 
     // write signature header to upgrade file
     fp = fopen(filepath, "r+");

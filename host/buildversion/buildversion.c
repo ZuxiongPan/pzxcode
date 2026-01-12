@@ -6,6 +6,9 @@
 #include <ctype.h>
 #include <linux/errno.h>
 
+#ifdef CONFIG_VERHEADER_ENCRYPT
+#include "pzx_aes.h"
+#endif
 #include "common/version_partition.h"
 #include "common/version_header.h"
 #define FILEPATH_MAXLEN 256
@@ -162,6 +165,10 @@ int build_upgrade_file(void)
         pheader->rootfs_size);
     fclose(rootfs);
     free(buf);
+
+#ifdef CONFIG_VERHEADER_ENCRYPT
+
+#endif
 
     fseek(upgrade, VERSION_HEADER_OFFSET, SEEK_SET);
     fwrite(headbuf, 1, STORDEV_PHYSICAL_BLKSIZE, upgrade);

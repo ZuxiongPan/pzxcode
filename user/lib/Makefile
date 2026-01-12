@@ -12,15 +12,15 @@ dirs-y += mbedtls-2.28.10/
 
 all:
 	for dir in $(dirs-y); do \
-		make -C $$dir; \
+		$(MAKE) -C $$dir; \
 	done
 
 install:
 	for dir in $(dirs-y); do \
-		make -C $$dir install; \
+		$(MAKE) -C $$dir install; \
 	done
 
 clean:
 	for dir in $(dirs-y); do \
-		make -C $$dir clean; \
+		$(MAKE) -C $$dir clean; \
 	done

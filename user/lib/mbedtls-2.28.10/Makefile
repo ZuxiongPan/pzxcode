@@ -7,4 +7,4 @@ clean:
 	$(MAKE) -C library clean
 
 install:
-	cp library/libmbedcrypto* -af $(ROOT_DIR)/lib64/
+	cp library/libmbedcrypto.so* -af $(ROOT_DIR)/lib64/

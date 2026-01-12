@@ -258,7 +258,7 @@ int pzx_rsa_check(void *sighead_addr, void *sigdata_addr)
         return 0;
     }
 
-    crc = pzx_crc32(sighead_addr, sizeof(struct signature_header) - sizeof(unsigned int));
+    crc = pzx_crc32(sighead_addr, sizeof(struct signature_header) - sizeof(uint32_t));
     if(crc != sighead->header_crc)
     {
         pzxboot_error("header crc is invalid, need 0x%08x, real 0x%08x\n", crc, sighead->header_crc);
@@ -275,7 +275,7 @@ int pzx_rsa_check(void *sighead_addr, void *sigdata_addr)
         VERNUM_MINOR(sighead->header_version), VERNUM_PATCH(sighead->header_version),
         sighead->signed_size, sighead->sig_size);
     
-    for(unsigned int i = 0; i < sighead->sig_size; i++)
+    for(uint32_t i = 0; i < sighead->sig_size; i++)
     {
         printf("%02x", sighead->signature[i]);
     }

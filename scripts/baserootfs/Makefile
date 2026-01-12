@@ -4,4 +4,4 @@ initramfs:
 
 rootfsimg:
 	rm -f ../rootfs.img
-	mkfs.ext4 -F -b 1024 -d $(PWD) ../rootfs.img 0xC000
+	mkfs.ext4 -F -b $(ROOTFS_BLKSIZE) -d $(PWD) ../rootfs.img $(ROOTFS_BLKCOUNT)
