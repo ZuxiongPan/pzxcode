@@ -5,6 +5,35 @@
 #include <linux/errno.h>
 #include "common/version_info.h"
 
+#ifdef CONFIG_VERHEADER_ENCRYPT
+#include "common/aes_key.h"
+#include "mbedtls/aes.h"
+
+int aes256_cbc_decrypt(uint8_t *data, unsigned int datalen, uint8_t *iv)
+{
+    mbedtls_aes_context aes_ctx;
+    int ret = 0;
+
+    mbedtls_aes_init(&aes_ctx);
+    ret = mbedtls_aes_setkey_dec(&aes_ctx, aes_key, 256);
+    if(ret)
+    {
+        printf("set aes key failed, ret %d\n", ret);
+        mbedtls_aes_free(&aes_ctx);
+        return ret;
+    }
+
+    ret = mbedtls_aes_crypt_cbc(&aes_ctx, MBEDTLS_AES_DECRYPT, datalen,
+        iv, data, data);
+    
+    mbedtls_aes_free(&aes_ctx);
+    printf("%s decrypt ret %d\n", __FUNCTION__, ret);
+
+    return ret;
+}
+#endif
+
+
 #define LINE_BUFSIZE 256
 #define KEY_BUFSIZE 128
 #define VALUE_BUFSIZE 128

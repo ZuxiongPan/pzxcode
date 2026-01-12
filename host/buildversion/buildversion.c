@@ -2,12 +2,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <time.h>
 #include <ctype.h>
 #include <linux/errno.h>
 
 #ifdef CONFIG_VERHEADER_ENCRYPT
-#include "pzx_aes.h"
+#include <openssl/evp.h>
+#include <openssl/aes.h>
+#include "common/aes_key.h"
 #endif
 #include "common/version_partition.h"
 #include "common/version_header.h"
@@ -23,6 +26,11 @@ static int get_options(int argc, char *const *argv);
 static void print_usage(void);
 static int build_upgrade_file(void);
 static int build_version_file(void);
+#ifdef CONFIG_VERHEADER_ENCRYPT
+static uint8_t aes_iv[16];
+static int aes256_cbc_encrypt_header(uint8_t *data, int data_len);
+const uint8_t* get_aes_iv(void);
+#endif
 
 extern int rsa_sign(char *filepath, char *keypath);
 
@@ -88,14 +96,75 @@ static void version_header_init(struct version_header *pheader)
     return ;
 }
 
-int build_upgrade_file(void)
+#ifdef CONFIG_VERHEADER_ENCRYPT
+static int aes256_cbc_encrypt_header(uint8_t *data, int data_len)
+{
+    // init aes iv
+    int ret = 0, len = 0, out_len = 0;
+    EVP_CIPHER_CTX *ctx = NULL;
+    int fd = open("/dev/urandom", O_RDONLY);
+    if(fd < 0)
+    {
+        printf("cannot set init vector\n");
+        return -ENOENT;
+    }
+
+    ret = read(fd, aes_iv, sizeof(aes_iv));
+    printf("read %d bytes from /dev/urandom\n", ret);
+    close(fd);
+
+    for(int i = 0; i < 16; i++)
+    {
+        printf("0x%02x ", aes_iv[i]);
+    }
+    printf("\n");
+
+    ctx = EVP_CIPHER_CTX_new();
+    if(NULL == ctx)
+    {
+        printf("init aes ctx failed\n");
+        return -ENOMEM;
+    }
+
+    ret = EVP_CipherInit_ex(ctx, EVP_aes_256_cbc(), NULL, aes_key, aes_iv, 1);  // 1 means encrypt
+    if(!ret)
+    {
+        printf("encrypt init failed, ret %d\n", ret);
+        EVP_CIPHER_CTX_free(ctx);
+        return -EBADR;
+    }
+
+    EVP_CIPHER_CTX_set_padding(ctx, 0);
+
+    ret = EVP_CipherUpdate(ctx, data, &out_len, data, data_len);
+    if(!ret)
+    {
+        printf("encrypt failed, ret %d\n", ret);
+        EVP_CIPHER_CTX_free(ctx);
+        return -EBADR;
+    }
+
+    ret = EVP_CipherFinal_ex(ctx, data + out_len, &len);
+    if(!ret)
+    {
+        printf("encrypt failed, ret %d\n", ret);
+        EVP_CIPHER_CTX_free(ctx);
+        return -EBADR;
+    }
+
+    EVP_CIPHER_CTX_free(ctx);
+    return 0;
+}
+#endif
+
+static int build_upgrade_file(void)
 {
     FILE *upgrade = NULL;
     FILE *kernel = NULL;
     FILE *rootfs = NULL;
     uint32_t file_size = 0;
     uint8_t *buf = NULL;
-    uint8_t headbuf[STORDEV_PHYSICAL_BLKSIZE];
+    uint8_t headbuf[HEADER_SIZE];
     memset(headbuf, 0xff, sizeof(headbuf));
     struct version_header *pheader = (struct version_header *)headbuf;
     version_header_init(pheader);
@@ -166,26 +235,32 @@ int build_upgrade_file(void)
     fclose(rootfs);
     free(buf);
 
-#ifdef CONFIG_VERHEADER_ENCRYPT
-
-#endif
-
-    fseek(upgrade, VERSION_HEADER_OFFSET, SEEK_SET);
-    fwrite(headbuf, 1, STORDEV_PHYSICAL_BLKSIZE, upgrade);
-
-    fclose(upgrade);
     // until here, the first 512Bytes of version.bin is empty
     file_size = KERNEL_OFFSET + pheader->kernel_size + pheader->rootfs_size;
     if(file_size > VERSION_PARTITION_SIZE)
     {
         printf("upgrade file size is %u, larger than partition\n", file_size);
+        fclose(upgrade);
         return -EINVAL;
     }
 
+#ifdef CONFIG_VERHEADER_ENCRYPT
+    if(aes256_cbc_encrypt_header(headbuf, HEADER_SIZE))
+    {
+        printf("version header encrypt failed\n");
+        fclose(upgrade);
+        return -EBADMSG;
+    }
+#endif
+
+    fseek(upgrade, VERSION_HEADER_OFFSET, SEEK_SET);
+    fwrite(headbuf, 1, HEADER_SIZE, upgrade);
+
+    fclose(upgrade);
     return 0;
 }
 
-int build_version_file(void)
+static int build_version_file(void)
 {
     FILE *version = NULL;
     FILE *upgrade = NULL;
@@ -239,7 +314,14 @@ int build_version_file(void)
     return 0;
 }
 
-int get_options(int argc, char *const *argv)
+#ifdef CONFIG_VERHEADER_ENCRYPT
+const uint8_t* get_aes_iv(void)
+{
+    return aes_iv;
+}
+#endif
+
+static int get_options(int argc, char *const *argv)
 {
     extern char *optarg;
     extern int optopt;
@@ -283,7 +365,7 @@ int get_options(int argc, char *const *argv)
     return ret;
 }
 
-void print_usage(void)
+static void print_usage(void)
 {
     printf("buildversion help\n");
     printf("  -k <kernel image>   : specify kernel image filepath\n");

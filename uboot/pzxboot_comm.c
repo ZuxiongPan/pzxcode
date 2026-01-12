@@ -15,6 +15,11 @@
 #include "pzxboot.h"
 #include "common/version_info.h"
 
+#ifdef CONFIG_VERHEADER_ENCRYPT
+#include "common/aes_key.h"
+#include <uboot_aes.h>
+#endif
+
 #ifdef CONFIG_USB_STORAGE
 #include <usb.h>
 #endif
@@ -99,6 +104,16 @@ int version_check(int index)
         return -EKEYEXPIRED;
     }
 
+#ifdef CONFIG_VERHEADER_ENCRYPT
+    struct signature_header *sighead = (struct signature_header *)vaddr;
+    u8 exp_key[AES256_EXPAND_KEY_LENGTH];
+    u8 aes_key_bak[32];
+    memcpy(aes_key_bak, aes_key, 32);
+    aes_expand_key(aes_key_bak, AES256_KEY_LENGTH, exp_key);
+    aes_cbc_decrypt_blocks(AES256_KEY_LENGTH, exp_key, sighead->aes_iv,
+        vaddr + VERSION_HEADER_OFFSET, vaddr + VERSION_HEADER_OFFSET,
+        HEADER_SIZE / AES_BLOCK_LENGTH);
+#endif
     // 2. parse headers
     parse_version_header(index, vaddr + VERSION_HEADER_OFFSET);
 

@@ -16,6 +16,9 @@
 #include "common/version_header.h"
 
 extern uint32_t pzx_crc32(const uint8_t *data, uint32_t length);
+#ifdef CONFIG_VERHEADER_ENCRYPT
+extern const uint8_t* get_aes_iv(void);
+#endif
 
 int rsa_sign(char *filepath, char *keypath)
 {
@@ -27,7 +30,7 @@ int rsa_sign(char *filepath, char *keypath)
     size_t sig_size = 0;
     uint8_t *buf = NULL;
     uint8_t *sig = NULL;
-    uint8_t headbuf[STORDEV_PHYSICAL_BLKSIZE];
+    uint8_t headbuf[HEADER_SIZE];
     struct signature_header *sighead = (struct signature_header *)headbuf;
 
     int ret = OPENSSL_init_ssl(0, NULL);
@@ -145,7 +148,7 @@ int rsa_sign(char *filepath, char *keypath)
     printf("\n");
 
     // construct version header
-    if(sig_size > 384)
+    if(sig_size > 256)
     {
         printf("this rsa sign type is invalid, please change\n");
         free(sig);
@@ -157,6 +160,9 @@ int rsa_sign(char *filepath, char *keypath)
     sighead->sig_size = sig_size;
     memcpy(sighead->signature, sig, sig_size);
     free(sig);
+#ifdef CONFIG_VERHEADER_ENCRYPT
+    memcpy(sighead->aes_iv, get_aes_iv(), 16);
+#endif
     sighead->header_crc = pzx_crc32(headbuf, sizeof(struct signature_header) - sizeof(uint32_t));
 
     // write signature header to upgrade file
@@ -167,7 +173,7 @@ int rsa_sign(char *filepath, char *keypath)
         return -ENOENT;
     }
     fseek(fp, SIGN_HEADER_OFFSET, SEEK_SET);
-    sign_size = fwrite(headbuf, 1, STORDEV_PHYSICAL_BLKSIZE, fp);
+    sign_size = fwrite(headbuf, 1, HEADER_SIZE, fp);
     fclose(fp);
     
     return 0;

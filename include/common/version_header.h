@@ -43,6 +43,7 @@ struct signature_header {
     uint8_t signature[256];
     uint8_t aes_iv[16];
 
+    uint8_t reserved[216]; // for expand
     uint32_t header_crc;    // do not calculate crc
 };
 

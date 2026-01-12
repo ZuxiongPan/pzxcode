@@ -5,17 +5,30 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <linux/errno.h>
+#include "common/data_type.h"
 #include "common/version_info.h"
 #include "common/version_header.h"
 #include "common/version_partition.h"
 
 extern int get_value_from_verinfo(const char *name, char *valbuf, unsigned int bufsize);
+#ifdef CONFIG_VERHEADER_ENCRYPT
+extern int aes256_cbc_decrypt(uint8_t *data, unsigned int datalen, uint8_t *iv);
+#endif
 
-static int simple_check_version(const unsigned char *buf)
+static int simple_check_version(const uint8_t *buf)
 {
     bool ret = false;
     struct signature_header *sighead = (struct signature_header *)buf;
+#ifdef CONFIG_VERHEADER_ENCRYPT
+    uint8_t data[HEADER_SIZE] = {0};
+    uint8_t iv[16] = {0};
+    memcpy(data, buf + VERSION_HEADER_OFFSET, HEADER_SIZE);
+    memcpy(iv, sighead->aes_iv, 16);
+    aes256_cbc_decrypt(data, HEADER_SIZE, iv);
+    struct version_header *verhead = (struct version_header *)data;
+#else
     struct version_header *verhead = (struct version_header *)(buf + VERSION_HEADER_OFFSET);
+#endif
 
     if(SIGN_HEADER_MAGIC0 == sighead->magic[0] && SIGN_HEADER_MAGIC1 == sighead->magic[1]
         && VERSION_HEADER_MAGIC0 == verhead->magic[0] && VERSION_HEADER_MAGIC1 == verhead->magic[1])
@@ -37,7 +50,7 @@ int version_sync(void)
     int ret = 0;
     int fd = 0;
     char buf[16] = {0};
-    unsigned char *verbuf = NULL;
+    uint8_t *verbuf = NULL;
     unsigned int curoff = 0;
     unsigned int backoff = 0;
 
