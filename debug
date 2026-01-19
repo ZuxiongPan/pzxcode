@@ -125,3 +125,10 @@ sfdisk -X gpt binfile << EOF
 41M,24M,L
 65M,60M,L
 EOF
+
+# combine bl31 and fip
+dd if=/dev/zero of=full.bin bs=1K count=256
+cat bl1.bin full.bin > bl1_new.bin
+dd if=bl1_new.bin of=bl1.bin bs=1K count=256
+cat bl1.bin fip.bin > combined.bin
+truncate -s 64M combined.bin

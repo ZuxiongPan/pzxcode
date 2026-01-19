@@ -40,7 +40,7 @@ static int download_upgrade_file(const char *upgrade_filename)
     }
 
 #ifdef CONFIG_CMD_TFTPBOOT
-    snprintf(buf, sizeof(buf), "tftp 0x%x %s", KERNEL_MEMADDRESS, upgrade_filename);
+    snprintf(buf, sizeof(buf), "tftp 0x%x %s", CONFIG_SYS_LOAD_ADDR, upgrade_filename);
     ret = run_command(buf, 0);
 #endif
 
@@ -69,7 +69,7 @@ static int write_upgrade_to_storage(unsigned int filesize)
 
     ulong write_blks = filesize / stor_desc->blksz, count = 0;
     lbaint_t start_blk = VERSION0_PARTITION_OFFSET / stor_desc->blksz;
-    count = blk_dwrite(stor_desc, start_blk, write_blks, (void *)KERNEL_MEMADDRESS);
+    count = blk_dwrite(stor_desc, start_blk, write_blks, (void *)CONFIG_SYS_LOAD_ADDR);
     if(count != write_blks)
     {
         pzxboot_error("write upgrade file from offset 0x%08x in [%s]-[%s] device failed\n",
@@ -94,7 +94,7 @@ static int do_upgrade(struct cmd_tbl *cmdtp, int flag, int argc, char *const arg
         return ret;
     }
 
-    ret = pzx_rsa_check((void *)KERNEL_MEMADDRESS, (void *)(KERNEL_MEMADDRESS + VERSION_HEADER_OFFSET));
+    ret = pzx_rsa_check((void *)CONFIG_SYS_LOAD_ADDR, (void *)(CONFIG_SYS_LOAD_ADDR + VERSION_HEADER_OFFSET));
     if(ret != 1)
     {
         pzxboot_error("rsa sign check for upgrade file failed\n");
