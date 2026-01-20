@@ -201,12 +201,12 @@ int select_boot_version(void)
     if(parameter.bootidx == 0)
     {
         snprintf(parameter.bootargs, sizeof(parameter.bootargs), 
-            "init=/linuxrc root=%s rootwait ro console=ttyAMA0,115200", VERSION0_ROOTFS_PARTITION);
+            "init=/linuxrc root=%s rootwait ro console=ttyAMA0,115200 earlycon", VERSION0_ROOTFS_PARTITION);
     }
     else if(parameter.bootidx == 1)
     {
         snprintf(parameter.bootargs, sizeof(parameter.bootargs), 
-            "init=/linuxrc root=%s rootwait ro console=ttyAMA0,115200", VERSION1_ROOTFS_PARTITION);
+            "init=/linuxrc root=%s rootwait ro console=ttyAMA0,115200 earlycon", VERSION1_ROOTFS_PARTITION);
     }
 
     return parameter.bootidx;
@@ -236,9 +236,6 @@ void boot_kernel(void)
     unmap_sysmem(vaddr);
 
     // jump to kernel
-    snprintf(bootcmd, sizeof(bootcmd), "iminfo 0x%08x", KERNEL_MEMADDRESS);
-    run_command(bootcmd, 0);
-
     snprintf(bootcmd, sizeof(bootcmd), "bootm 0x%08x", KERNEL_MEMADDRESS);
     pzxboot_info("run command: %s\n", bootcmd);
     run_command(bootcmd, 0);

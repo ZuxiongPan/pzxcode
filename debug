@@ -132,3 +132,6 @@ cat bl1.bin full.bin > bl1_new.bin
 dd if=bl1_new.bin of=bl1.bin bs=1K count=256
 cat bl1.bin fip.bin > combined.bin
 truncate -s 64M combined.bin
+
+# need modify memory size, minus optee reserved size
+aarch64/u-boot-2024.10/lib/fdtdec.c

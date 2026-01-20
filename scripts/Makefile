@@ -46,8 +46,7 @@ tfa:
 		BL32=$(OPTEE_DIR)/out/arm-plat-vexpress/core/tee-header_v2.bin \
 		BL32_EXTRA1=$(OPTEE_DIR)/out/arm-plat-vexpress/core/tee-pager_v2.bin \
 		BL32_EXTRA2=$(OPTEE_DIR)/out/arm-plat-vexpress/core/tee-pageable_v2.bin \
-		BL32_BASE=0x47000000 SPD=opteed DEBUG=1 QEMU_USE_GIC_DRIVER=QEMU_GICV3 \
-		NT_FW_CONFIG=$(UBOOT_DIR)//arch/arm/dts/qemu-arm64.dtb all fip
+		BL32_BASE=0x47000000 SPD=opteed DEBUG=1 QEMU_USE_GIC_DRIVER=QEMU_GICV3 all fip
 	cp $(TFA_DIR)/build/qemu/debug/bl1.bin $(TOP_DIR) -f
 	cp $(TFA_DIR)/build/qemu/debug/fip.bin $(TOP_DIR) -f
 

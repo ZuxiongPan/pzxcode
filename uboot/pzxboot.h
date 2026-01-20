@@ -10,7 +10,7 @@
 
 #define PZXBOOTSTRS_MAXLEN 256
 
-#define KERNEL_MEMADDRESS 0x43000000
+#define KERNEL_MEMADDRESS 0x42000000
 
 #define pzxboot_debug(fmt, ...) \
     printf("[%s](Debug)@%d# " fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__)

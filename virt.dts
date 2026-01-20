@@ -12,7 +12,7 @@
 		cpu_on = <0xc4000003>;
 		cpu_off = <0x84000002>;
 		cpu_suspend = <0xc4000001>;
-		method = "hvc";
+		method = "smc";
 		compatible = "arm,psci-1.0", "arm,psci-0.2", "arm,psci";
 	};
 
@@ -27,8 +27,20 @@
 		ranges;
 
 		optee_core@47000000 {
-			reg = <0x0 0x47000000 0x0 0x1000000>;
+			reg = <0x0 0x47000000 0x0 0xf00000>;
 			no-map;
+		};
+		optee_shm@47f00000 {
+			reg = <0x0 0x47f00000 0x0 0x100000>;
+			no-map;
+		};
+	};
+
+	firmware {
+		optee {
+			interrupts = <0x00 0xbb 0x01>;
+			method = "smc";
+			compatible = "linaro,optee-tz";
 		};
 	};
 
@@ -268,26 +280,6 @@
 		interrupts = <0x00 0x2f 0x01>;
 		reg = <0x00 0xa003e00 0x00 0x200>;
 		compatible = "virtio,mmio";
-	};
-
-	gpio-keys {
-		compatible = "gpio-keys";
-
-		poweroff {
-			gpios = <&pl061 0x03 0x00>;
-			linux,code = <0x74>;
-			label = "GPIO Key Poweroff";
-		};
-	};
-
-	pl061: pl061@9030000 {
-		clock-names = "apb_pclk";
-		clocks = <&apb_pclk>;
-		interrupts = <0x00 0x07 0x04>;
-		gpio-controller;
-		#gpio-cells = <0x02>;
-		compatible = "arm,pl061", "arm,primecell";
-		reg = <0x00 0x9030000 0x00 0x1000>;
 	};
 
 	pcie@10000000 {
