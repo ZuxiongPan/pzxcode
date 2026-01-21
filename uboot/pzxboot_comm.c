@@ -6,7 +6,7 @@
 #include <command.h>
 #include <bootm.h>
 #include <image.h>
-#include <stdint.h>
+#include <part.h>
 #include <asm/global_data.h>
 #include <linux/string.h>
 #include <linux/libfdt.h>
@@ -14,6 +14,7 @@
 #include <u-boot/rsa.h>
 #include "pzxboot.h"
 #include "common/version_info.h"
+#include "boot/partition_info.h"
 
 #ifdef CONFIG_VERHEADER_ENCRYPT
 #include "common/aes_key.h"
@@ -124,50 +125,62 @@ int version_check(int index)
 
 void set_partition_table(void)
 {
-    struct part_info {
-        char name[32];
-        uint32_t size;  // in MiB
-    };
     char partstr[4096] = {0};
-    uint32_t kpart0_size = 0, kpart1_size = 0;
-    uint32_t rpart0_size = 0, rpart1_size = 0;
+    struct disk_partition partinfo = {0};
+    bool change = false;
+    int i = 0;
 
+    // modify simple_partitions table
     if(parameter.valid_mask & 0x1)
     {
-        kpart0_size = parameter.headers[0].kpart_size;
-        rpart0_size = parameter.headers[0].rpart_size;
+        simple_partitions[0].size = parameter.headers[0].kpart_size / 0x100000;
+        simple_partitions[1].size = parameter.headers[0].rpart_size / 0x100000;
     }
-    else
-    {
-        kpart0_size = KERNEL_PARTITION_SIZE;
-        rpart0_size = ROOTFS_PARTITION_SIZE;
-    }
-
     if(parameter.valid_mask & 0x2)
     {
-        kpart1_size = parameter.headers[1].kpart_size;
-        rpart1_size = parameter.headers[1].rpart_size;
+        simple_partitions[2].size = parameter.headers[1].kpart_size / 0x100000;
+        simple_partitions[3].size = parameter.headers[1].rpart_size / 0x100000;
     }
-    else
+
+    // last partition do not check
+    for(i = 0; i < part_nums - 1; i++)
     {
-        kpart1_size = KERNEL_PARTITION_SIZE;
-        rpart1_size = ROOTFS_PARTITION_SIZE;
+        if(part_get_info(parameter.stor_desc, i + 1, &partinfo) != 0)
+        {
+            pzxboot_warn("get GPT partition %d failed, need change GPT table\n", i);
+            change = true;
+            break;
+        }
+
+        if(strcmp(partinfo.name, simple_partitions[i].name) != 0)
+        {
+            pzxboot_warn("partition %d name %s is invalid, need change GPT table\n", i, partinfo.name);
+            change = true;
+            break;
+        }
+
+        lbaint_t partsize = partinfo.size * partinfo.blksz;
+        if(partsize != (simple_partitions[i].size * 0x100000))
+        {
+            pzxboot_warn("partition %d size %lx is invalid, need change GPT table\n", i, partinfo.size);
+            change = true;
+            break;
+        }
     }
 
-    struct part_info parts[] = {
-        { "kernel0", kpart0_size / 0x100000 },
-        { "rootfs0", rpart0_size / 0x100000 },
-        { "kernel1", kpart1_size / 0x100000 },
-        { "rootfs1", rpart1_size / 0x100000 },
-    };
+    pzxboot_info("%s GPT table\n", change ? "CHANGE" : "NO CHANGE");
+    if(change)
+    {
+        int writelen = snprintf(partstr, 4096, "gpt write usb 0 ");
+        for(i = 0; i < part_nums; i++)
+        {
+            writelen += snprintf(partstr + writelen, 4096 - writelen, "name=%s,size=%uMiB\\;",
+                simple_partitions[i].name, simple_partitions[i].size);
+        }
+        pzxboot_info("gpt command length %d, content:\n[%s]\n", writelen, partstr);
+        run_command(partstr, 0);
+    }
 
-    snprintf(partstr, 4096,"gpt write %s %d " "name=%s,size=%uMiB\\;name=%s,size=%uMiB\\;"
-        "name=%s,size=%uMiB\\;name=%s,size=%uMiB\\;name=remainder,size=0",
-        "usb", 0, parts[0].name, parts[0].size, parts[1].name, parts[1].size,
-        parts[2].name, parts[2].size, parts[3].name, parts[3].size);
-
-    pzxboot_info("gpt command %s\n", partstr);
-    run_command(partstr, 0);
     return ;
 }
 
@@ -180,11 +193,11 @@ int select_boot_version(void)
             parameter.bootidx = -1;
             break;
         case 1:
-            pzxboot_error("version 0 is ok, version 1 is bad\n");
+            pzxboot_warn("version 0 is ok, version 1 is bad\n");
             parameter.bootidx = 0;
             break;
         case 2:
-            pzxboot_error("version 0 is bad, version 1 is ok\n");
+            pzxboot_warn("version 0 is bad, version 1 is ok\n");
             parameter.bootidx = 1;
             break;
         case 3:
@@ -310,7 +323,7 @@ int pzx_rsa_check(void *sighead_addr, void *sigdata_addr)
     if(info.required_keynode < 0 || NULL == info.checksum || NULL == info.crypto || NULL == info.padding)
     {
         pzxboot_error("pubkey/checksum/crypto/padding is invalid\n");
-        return 0;
+        return false;
     }
 
     unsigned char hash[info.crypto->key_len];
@@ -318,7 +331,7 @@ int pzx_rsa_check(void *sighead_addr, void *sigdata_addr)
     if(ret < 0)
     {
         pzxboot_error("calculate image hash failed\n");
-        return 0;
+        return false;
     }
 
     ret = rsa_verify_with_keynode(&info, hash, sighead->signature, sighead->sig_size, info.required_keynode);

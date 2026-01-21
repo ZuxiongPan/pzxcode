@@ -10,12 +10,13 @@
 #define ROOTFS_PARTITION_SIZE 0x03000000
 #define VERSION_PARTITION_SIZE (KERNEL_PARTITION_SIZE + ROOTFS_PARTITION_SIZE)
 
-/** GPT part table
- * block0 protect MBR
- * block1 GPT header
- * block2-block33 main partition table
- * ...
- * last 34 block save backup partitiontable and backup GPT header
+/** GPT part table, there is n Logical Block Addresses(LBA) in storage device
+ * LBA(0)               protective MBR
+ * LBA(1)               primary GPT header
+ * LBA(2)~LBA(33)       partition table
+ * ...                  user data
+ * LBA(n-33)~LBA(n-2)   backup partition table
+ * LBA(n-1)             backup GPT header
 */
 
 // header is at the beginning of the partition

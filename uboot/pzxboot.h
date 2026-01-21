@@ -16,6 +16,8 @@
     printf("[%s](Debug)@%d# " fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define pzxboot_info(fmt, ...) \
     printf("[%s](Info)@%d# " fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#define pzxboot_warn(fmt, ...) \
+    printf("[%s](Warn)@%d# " fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define pzxboot_error(fmt, ...) \
     printf("[%s](Error)@%d# " fmt, __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define pzxboot_emergency(fmt, ...) \
