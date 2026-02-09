@@ -53,17 +53,10 @@ static int write_upgrade_to_storage(unsigned int filesize)
 #ifdef CONFIG_USB_STORAGE
     struct blk_desc *stor_desc = NULL;
 
-    int usb_storage = usb_stor_scan(1);
-    if(usb_storage < 0)
-    {
-        pzxboot_error("no usb storage device found\n");
-        return -ENODEV;
-    }
-
-    ret = blk_get_desc(UCLASS_USB, usb_storage, &stor_desc);
+    ret = blk_get_desc(UCLASS_USB, 0, &stor_desc);
     if(ret || (NULL == stor_desc))
     {
-        pzxboot_error("get usb storage device %d failed\n", usb_storage);
+        pzxboot_error("get usb storage device %d failed\n", 0);
         return -EBADFD;
     }
 
@@ -131,6 +124,6 @@ static int do_upgrade(struct cmd_tbl *cmdtp, int flag, int argc, char *const arg
 
 U_BOOT_CMD(
     upgrade, 1, 0, do_upgrade,
-    "upgrade file by tftp protocol, filename must bd upgrade.bin",
+    "upgrade file by tftp protocol, filename must be upgrade.bin",
     "upgrade"
 );

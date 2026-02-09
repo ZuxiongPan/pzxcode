@@ -41,18 +41,11 @@ int boot_parameter_init(void)
     parameter.bootidx = -1;
 
 #ifdef CONFIG_USB_STORAGE
-    int usb_storage = usb_stor_scan(1);
-    if(usb_storage < 0)
-    {
-        pzxboot_error("no usb storage device found\n");
-        return -ENODEV;
-    }
-    pzxboot_info("boot from usb storage device, dev number %d\n", usb_storage);
     //blk_common_cmd(argc, argv, UCLASS_USB, &usb_storage);
-    ret = blk_get_desc(UCLASS_USB, usb_storage, &parameter.stor_desc);
+    ret = blk_get_desc(UCLASS_USB, 0, &parameter.stor_desc);
     if(ret || (NULL == parameter.stor_desc))
     {
-        pzxboot_error("get usb storage device %d failed\n", usb_storage);
+        pzxboot_error("get usb storage device 0 failed\n");
         return -EBADFD;
     }
     pzxboot_info("current block size of this storage device is 0x%08lx\n", parameter.stor_desc->blksz);
@@ -133,13 +126,13 @@ void set_partition_table(void)
     // modify simple_partitions table
     if(parameter.valid_mask & 0x1)
     {
-        simple_partitions[0].size = parameter.headers[0].kpart_size / 0x100000;
-        simple_partitions[1].size = parameter.headers[0].rpart_size / 0x100000;
+        simple_partitions[0].size = parameter.headers[0].kpart_size / MEGABYTES;
+        simple_partitions[1].size = parameter.headers[0].rpart_size / MEGABYTES;
     }
     if(parameter.valid_mask & 0x2)
     {
-        simple_partitions[2].size = parameter.headers[1].kpart_size / 0x100000;
-        simple_partitions[3].size = parameter.headers[1].rpart_size / 0x100000;
+        simple_partitions[2].size = parameter.headers[1].kpart_size / MEGABYTES;
+        simple_partitions[3].size = parameter.headers[1].rpart_size / MEGABYTES;
     }
 
     // last partition do not check
@@ -160,9 +153,17 @@ void set_partition_table(void)
         }
 
         lbaint_t partsize = partinfo.size * partinfo.blksz;
-        if(partsize != (simple_partitions[i].size * 0x100000))
+        if(partsize != (simple_partitions[i].size * MEGABYTES))
         {
             pzxboot_warn("partition %d size %lx is invalid, need change GPT table\n", i, partinfo.size);
+            change = true;
+            break;
+        }
+
+        lbaint_t partstart = partinfo.start * partinfo.blksz;
+        if(partstart != (simple_partitions[i].start * MEGABYTES))
+        {
+            pzxboot_warn("partition %d start %lx is invalid, need change GPT table\n", i, partinfo.start);
             change = true;
             break;
         }
@@ -174,8 +175,8 @@ void set_partition_table(void)
         int writelen = snprintf(partstr, 4096, "gpt write usb 0 ");
         for(i = 0; i < part_nums; i++)
         {
-            writelen += snprintf(partstr + writelen, 4096 - writelen, "name=%s,size=%uMiB\\;",
-                simple_partitions[i].name, simple_partitions[i].size);
+            writelen += snprintf(partstr + writelen, 4096 - writelen, "name=%s,size=%uM,start=%uM\\;",
+                simple_partitions[i].name, simple_partitions[i].size , simple_partitions[i].start);
         }
         pzxboot_info("gpt command length %d, content:\n[%s]\n", writelen, partstr);
         run_command(partstr, 0);

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <cli.h>
 #include <errno.h>
+#include <command.h>
 #include <linux/delay.h>
 #include "pzxboot.h"
 
@@ -69,3 +70,13 @@ void pzxboot(void)
 
     return ;
 }
+
+static int do_pzxboot(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
+{
+    pzxboot();
+    return 0;
+}
+
+U_BOOT_CMD(pzxboot, 1, 0, do_pzxboot,
+    "pzxboot command, try to boot kernel",
+    "custom boot");
