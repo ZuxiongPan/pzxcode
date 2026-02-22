@@ -135,3 +135,17 @@ truncate -s 64M combined.bin
 
 # need modify memory size, minus optee reserved size
 aarch64/u-boot-2024.10/lib/fdtdec.c
+
+# encrypt
+# 1. generate ramdom hex key (512bit for cryptsetup --key-size arg)
+cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 64 | head -n 1
+#281057432b2ee1a738268a3629e61912c4349884d307ebb28aefb9f76949407e
+# prepare
+cp rootfs.img rootfs.enc
+sudo losetup -f --show rootfs.enc
+# /dev/loop5
+
+echo -n "281057432b2ee1a738268a3629e61912c4349884d307ebb28aefb9f76949407e" | sudo cryptsetup open --type plain --cipher "aes-xts-plain64" --key-size 256 /dev/loop5 my_encrypt -d -
+sudo dd if=rootfs.img of=/dev/mapper/my_encrypt bs=1M status=progress
+sudo cryptsetup close my_encrypt
+sudo losetup -d /dev/loop5

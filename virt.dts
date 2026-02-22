@@ -34,6 +34,26 @@
 			reg = <0x0 0x47f00000 0x0 0x100000>;
 			no-map;
 		};
+
+		mblkrsv: memblkrsv@45000000 {
+			reg = <0x0 0x45000000 0x0 0x800000>;
+			no-map;
+		};
+
+		mblkencrsv: memblk_encrsv@45800000 {
+			reg = <0x0 0x45800000 0x0 0x800000>;
+			no-map;
+		};
+	};
+
+	memblk {
+		compatible = "pzx,memblk";
+		memory-region = <&mblkrsv>;
+	};
+
+	memblkenc {
+		compatible = "pzx,memblkenc";
+		memory-region = <&mblkencrsv>;
 	};
 
 	firmware {

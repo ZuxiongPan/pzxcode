@@ -64,6 +64,7 @@ uboot_clean:
 kernel:
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) kernel_defconfig
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) -j32
+	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) modules
 	$(KERNEL_DIR)/scripts/dtc/dtc -I dts -O dtb $(CODE_DIR)/virt.dts \
 		-o $(TOP_DIR)/virt.dtb
 
@@ -112,7 +113,7 @@ tfa_boot:
 		-device usb-storage,drive=usbdisk,bus=xhci.0 \
 		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version.bin,format=raw \
 		-netdev user,id=net0,tftp=$(TOP_DIR),hostfwd=tcp::2222-:23 \
-		-device virtio-net-device,netdev=net0 \
+		-device virtio-net-pci,netdev=net0 \
 		-device edu,dma_mask=32 \
     	-nographic -no-reboot
 
