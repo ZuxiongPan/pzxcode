@@ -4,6 +4,9 @@
 #include <linux/platform_device.h>
 #include <linux/of_address.h>
 #include <linux/of_reserved_mem.h>
+#include <crypto/skcipher.h>
+#include <linux/scatterlist.h>
+#include <linux/crypto.h>
 
 #define MEMBLKENC_DEVICE_NAME "memblkenc"
 
@@ -13,39 +16,75 @@ struct memblkenc_device {
     resource_size_t memsize;
     int major;
     struct gendisk *disk;
+    struct crypto_skcipher *tfm;
 };
 
 static struct memblkenc_device *memblkenc = NULL;
+const char *key = "0123456789abcdef0123456789abcdef";
+
+static int do_aes_crypt(struct memblkenc_device *mbed, void *data, size_t len, sector_t sector, bool encry)
+{
+    struct skcipher_request *req;
+    struct scatterlist sg;
+    int ret = 0;
+    u8 tweak[16];
+
+    DECLARE_CRYPTO_WAIT(wait);
+    memset(tweak, 0, 16);
+    *(sector_t *)tweak = sector;
+
+    req = skcipher_request_alloc(mbed->tfm, GFP_ATOMIC);
+    if(NULL == req)
+    {
+        return -ENOMEM;
+    }
+
+    sg_init_one(&sg, data, len);
+
+    skcipher_request_set_callback(req, CRYPTO_TFM_REQ_MAY_BACKLOG, crypto_req_done, &wait);
+    skcipher_request_set_crypt(req, &sg, &sg, len, (void *)tweak);
+    ret = encry ? crypto_skcipher_encrypt(req) : crypto_skcipher_decrypt(req);
+    ret = crypto_wait_req(ret, &wait);
+
+    skcipher_request_free(req);
+    return ret;
+}
 
 static void memblkenc_submit_bio(struct bio *bio)
 {
     struct memblkenc_device *mbed = bio->bi_bdev->bd_disk->private_data;
     struct bio_vec bvec;
     struct bvec_iter biter;
-    sector_t sector = bio->bi_iter.bi_sector;
-    size_t offset = sector << SECTOR_SHIFT;
+    sector_t iter_sector = bio->bi_iter.bi_sector;
 
     bio_for_each_segment(bvec, bio, biter)
     {
         void *addr = kmap_atomic(bvec.bv_page) + bvec.bv_offset;
+        size_t bvec_len = bvec.bv_len;
+        void *curr_addr = addr;
 
-        if(unlikely(offset + bvec.bv_len > mbed->memsize))
+        while(bvec_len > 0)
         {
-            kunmap_atomic(addr);
-            bio_io_error(bio);
-            return ;
+            size_t chunk_len = min_t(size_t, bvec_len, SECTOR_SIZE);
+            size_t disk_offset = iter_sector << SECTOR_SHIFT;
+
+            if(WRITE == bio_data_dir(bio))
+            {
+                do_aes_crypt(mbed, curr_addr, chunk_len, iter_sector, true);
+                memcpy_toio(mbed->vaddr + disk_offset, curr_addr, chunk_len);
+                do_aes_crypt(mbed, curr_addr, chunk_len, iter_sector, false);
+            }
+            else
+            {
+                memcpy_fromio(curr_addr, mbed->vaddr + disk_offset, chunk_len);
+                do_aes_crypt(mbed, curr_addr, chunk_len, iter_sector, false);
+            }
+
+            curr_addr += chunk_len;
+            bvec_len -= chunk_len;
+            iter_sector += (chunk_len >> SECTOR_SHIFT);
         }
 
-        if(WRITE == bio_data_dir(bio))
-        {
-            memcpy(mbed->vaddr + offset, addr, bvec.bv_len);
-        }
-        else
-        {
-            memcpy(addr, mbed->vaddr + offset, bvec.bv_len);
-        }
-
-        offset += bvec.bv_len;
         kunmap_atomic(addr);
     }
 
@@ -102,10 +141,26 @@ static int memblkenc_probe(struct platform_device *pdev)
         return -ENOMEM;
     }
 
+    memblkenc->tfm = crypto_alloc_skcipher("xts(aes)", 0, 0);
+    if(IS_ERR(memblkenc->tfm))
+    {
+        pr_err("cannot alloc aes-cbc crypto skcipher\n");
+        return PTR_ERR(memblkenc->tfm);
+    }
+
+    ret = crypto_skcipher_setkey(memblkenc->tfm, key, 32);
+    if(ret < 0)
+    {
+        pr_err("failed to set aes key \n");
+        crypto_free_skcipher(memblkenc->tfm);
+        return ret;
+    }
+
     memblkenc->major = register_blkdev(0, MEMBLKENC_DEVICE_NAME);
     if(memblkenc->major < 0)
     {
         pr_err("register %s block device failed\n", MEMBLKENC_DEVICE_NAME);
+        crypto_free_skcipher(memblkenc->tfm);
         return -ENODEV;
     }
 
@@ -114,6 +169,7 @@ static int memblkenc_probe(struct platform_device *pdev)
     {
         pr_err("failed to allocate disk for %s\n", MEMBLKENC_DEVICE_NAME);
         unregister_blkdev(memblkenc->major, MEMBLKENC_DEVICE_NAME);
+        crypto_free_skcipher(memblkenc->tfm);
         return PTR_ERR(memblkenc->disk);
     }
 
@@ -132,6 +188,7 @@ static int memblkenc_probe(struct platform_device *pdev)
         pr_err("add %s disk failed\n", MEMBLKENC_DEVICE_NAME);
         put_disk(memblkenc->disk);
         unregister_blkdev(memblkenc->major, MEMBLKENC_DEVICE_NAME);
+        crypto_free_skcipher(memblkenc->tfm);
         return ret;
     }
 
@@ -145,6 +202,7 @@ static void memblkenc_remove(struct platform_device *pdev)
     del_gendisk(memblkenc->disk);
     put_disk(memblkenc->disk);
     unregister_blkdev(memblkenc->major, MEMBLKENC_DEVICE_NAME);
+    crypto_free_skcipher(memblkenc->tfm);
     pr_info("memory block disk released\n");
 
     return ;
