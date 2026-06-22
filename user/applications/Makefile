@@ -7,6 +7,7 @@ export CC CFLAGS LDFLAGS
 dirs-y :=
 
 dirs-y += uevent_receiver/
+dirs-y += daemon/
 #dirs-y += eduapp/
 dirs-y += verctrl/
 
