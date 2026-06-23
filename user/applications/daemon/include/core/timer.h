@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef void (*timer_cb_f)(void *arg);
+#include "common.h"
 
 typedef struct dtimer {
     uint64_t timer_id;
@@ -12,13 +12,13 @@ typedef struct dtimer {
     uint64_t interval_ms;
     bool repeat;
     int heap_idx;
-    timer_cb_f cb;
-    void *arg;
+    uint32_t msg_id;
+    char mod_name[STRUCT_INNER_NAME_LEN];
 } dtimer_t;
 
 int timer_init(void);
 uint64_t timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat, 
-    timer_cb_f cb, void *arg);
+    uint32_t msg_id, const char *mod_name);
 int timer_del(uint64_t timer_id);
 
 #endif

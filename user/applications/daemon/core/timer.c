@@ -1,10 +1,12 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
 #include <sys/timerfd.h>
 #include <sys/epoll.h>
 
+#include "core/bus.h"
 #include "core/timer.h"
 #include "core/evloop.h"
 
@@ -161,9 +163,9 @@ static void timerfd_expired_process(void)
         }
 
         heap_pop();
-        if (timer->cb != NULL)
+        if (timer->msg_id != 0)
         {
-            timer->cb(timer->arg);
+            bus_post_msg("timer", timer->mod_name, timer->msg_id, 0, NULL);
         }
 
         if (timer->repeat)
@@ -202,7 +204,7 @@ int timer_init(void)
 }
 
 uint64_t timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat, 
-    timer_cb_f cb, void *arg)
+    uint32_t msg_id, const char *mod_name)
 {
     dtimer_t *timer = calloc(1, sizeof(dtimer_t));
     if (timer == NULL)
@@ -213,8 +215,8 @@ uint64_t timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat,
     timer->expire_ms = get_current_ms() + timeout_ms;
     timer->interval_ms = interval_ms;
     timer->repeat = repeat;
-    timer->cb = cb;
-    timer->arg = arg;
+    timer->msg_id = msg_id;
+    snprintf(timer->mod_name, sizeof(timer->mod_name), "%s", mod_name);
     heap_push(timer);
     timerfd_reprogram();
     return timer->timer_id;

@@ -5,10 +5,13 @@
 
 #include "core/timer.h"
 #include "core/module.h"
+#include "modules/msg_id.h"
 
-static void cpumem_info_cb(void *arg)
+#define MSG_ID_CPUMEM_INFO (MSG_TYPE_TIMER_START + 0x0001)
+#define MSG_ID_TEST_TICK (MSG_TYPE_TIMER_START + 0x0002)
+
+static void cpumem_info()
 {
-    (void)arg;
     struct sysinfo info = { 0 };
     if(sysinfo(&info) != 0)
     {
@@ -23,9 +26,8 @@ static void cpumem_info_cb(void *arg)
     return ;
 }
 
-static void test_tick_cb(void *arg)
+static void test_tick()
 {
-    (void)arg;
     printf("test tick\n");
 
     return ;
@@ -34,8 +36,24 @@ static void test_tick_cb(void *arg)
 static int cpumem_init(struct module *m)
 {
     (void)m;
-    timer_add(0, 5000, true, cpumem_info_cb, NULL);
-    timer_add(0, 10000, true, test_tick_cb, NULL);
+    timer_add(0, 5000, true, MSG_ID_CPUMEM_INFO, "cpumem");
+    timer_add(0, 10000, true, MSG_ID_TEST_TICK, "cpumem");
+
+    return 0;
+}
+
+static int cpumem_on_msg(struct module *m, const message_t *msg)
+{
+    (void)m;
+
+    if (msg->msg_id == MSG_ID_CPUMEM_INFO)
+    {
+        cpumem_info();
+    }
+    else if (msg->msg_id == MSG_ID_TEST_TICK)
+    {
+        test_tick();
+    }
 
     return 0;
 }
@@ -44,7 +62,7 @@ static const mod_ops_t cpumem_ops = {
     .init = cpumem_init,
     .start = NULL,
     .stop = NULL,
-    .on_msg = NULL,
+    .on_msg = cpumem_on_msg,
 };
 
 module_t cpumem_mod = {

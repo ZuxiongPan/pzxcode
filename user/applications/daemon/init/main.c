@@ -23,13 +23,6 @@ int main(/*int argc, const char *argv[]*/)
         return -1;
     }
 
-    ret = bus_init();
-    if(ret != 0)
-    {
-        perror("bus_init");
-        return -1;
-    }
-
     ret = timer_init();
     if(ret != 0)
     {

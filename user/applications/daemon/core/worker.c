@@ -6,7 +6,7 @@
 #include "core/bus.h"
 #include "core/worker.h"
 
-#define MSG_QUEUE_SIZE 128
+#define MSG_QUEUE_SIZE 1024
 
 typedef struct msg_queue {
     message_t *msgs[MSG_QUEUE_SIZE];
@@ -75,7 +75,7 @@ static void* worker_thread(void* arg)
         }
 
         __sync_fetch_and_add(&g_busy_cnt, 1);
-        bus_dispatch_msg(msg);
+        bus_router_msg(msg);
         msg_destroy(msg);
         __sync_fetch_and_sub(&g_busy_cnt, 1);
     }
@@ -123,4 +123,14 @@ void worker_destroy(void)
 int worker_busy_count(void)
 {
     return g_busy_cnt;
+}
+
+int worker_queue_msgs(void)
+{
+    int count = -1;
+    pthread_mutex_lock(&g_queue.lock);
+    count = g_queue.count;
+    pthread_mutex_unlock(&g_queue.lock);
+    
+    return count;
 }
