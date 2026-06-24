@@ -7,7 +7,7 @@ MOD_OBJS := modules/cpumem.o
 
 OBJS := init/main.o $(CORE_OBJS) $(MOD_OBJS)
 
-CFLAGS += -I$/include
+CFLAGS += -I./include
 LDFLAGS += -lpthread
 
 all: $(TARGET)

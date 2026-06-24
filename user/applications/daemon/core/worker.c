@@ -117,12 +117,23 @@ void worker_destroy(void)
     }
     free(g_workers);
 
+    while(g_queue.count > 0)
+    {
+        message_t *msg = g_queue.msgs[g_queue.head];
+        g_queue.head = (g_queue.head + 1) % MSG_QUEUE_SIZE;
+        g_queue.count--;
+        if (msg != NULL)
+        {
+            msg_destroy(msg);
+        }
+    }
+
     return ;
 }
 
 int worker_busy_count(void)
 {
-    return g_busy_cnt;
+    return __sync_fetch_and_add(&g_busy_cnt, 0);
 }
 
 int worker_queue_msgs(void)

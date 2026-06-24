@@ -15,7 +15,7 @@
 message_t* msg_create(uint32_t msg_id, const char* src_name, const char* dst_name, 
     int payload_len, const void* payload)
 {
-    message_t *msg = calloc(1, sizeof(message_t));
+    message_t *msg = calloc(1, sizeof(message_t) + payload_len);
     if (msg == NULL)
     {
         return NULL;
@@ -34,12 +34,6 @@ message_t* msg_create(uint32_t msg_id, const char* src_name, const char* dst_nam
     msg->payload_len = payload_len;
     if (payload_len > 0 && payload != NULL)
     {
-        msg->payload = calloc(1, payload_len);
-        if (msg->payload == NULL)
-        {
-            free(msg);
-            return NULL;
-        }
         memcpy(msg->payload, payload, payload_len);
     }
 
@@ -53,10 +47,6 @@ void msg_destroy(message_t *msg)
         return;
     }
 
-    if (msg->payload != NULL)
-    {
-        free(msg->payload);
-    }
     free(msg);
 }
 

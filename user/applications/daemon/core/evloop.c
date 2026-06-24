@@ -2,9 +2,13 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <unistd.h>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 
 #include "core/evloop.h"
+#include "core/timer.h"
+#include "modules/msg_id.h"
 
 typedef struct fd_event {
     int fd;
@@ -43,18 +47,10 @@ int evloop_add(int fd, uint32_t events, fd_event_f cb, void *arg)
     return epoll_ctl(g_epfd, EPOLL_CTL_ADD, fd, &ev);
 }
 
-int evloop_mod(int fd, uint32_t events)
-{
-    struct epoll_event ev;
-    memset(&ev, 0, sizeof(ev));
-    ev.events = events;
-    ev.data.fd = fd;
-    return epoll_ctl(g_epfd, EPOLL_CTL_MOD, fd, &ev);
-}
-
 int evloop_del(int fd)
 {
     return epoll_ctl(g_epfd, EPOLL_CTL_DEL, fd, NULL);
+    // fev in evloop_add is not released
 }
 
 int evloop_run(void)
@@ -88,5 +84,6 @@ int evloop_run(void)
 int evloop_stop(void)
 {
     g_running = false;
+    timer_add(0, 0, false, MSG_SYSTEM_EXIT, "self");
     return 0;
 }

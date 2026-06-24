@@ -8,7 +8,7 @@ typedef struct message {
     char src_name[STRUCT_INNER_NAME_LEN];
     char dst_name[STRUCT_INNER_NAME_LEN];
     int payload_len;
-    char *payload;
+    char payload[0];    // flexible array member
 } message_t;
 
 message_t* msg_create(uint32_t msg_id, const char* src_name, const char* dst_name, 
