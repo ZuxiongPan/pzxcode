@@ -10,12 +10,6 @@
 #include "core/timer.h"
 #include "modules/msg_id.h"
 
-typedef struct fd_event {
-    int fd;
-    fd_event_f cb;
-    void *arg;
-} fd_event_t;
-
 static int g_epfd = -1;
 static volatile bool g_running = false;
 
@@ -30,27 +24,26 @@ int evloop_init(void)
     return g_epfd < 0 ? -1 : 0;
 }
 
-int evloop_add(int fd, uint32_t events, fd_event_f cb, void *arg)
+int evloop_add(uint32_t events, fd_event_t *fev)
 {
-    struct epoll_event ev;
-    fd_event_t *fev = calloc(1, sizeof(fd_event_t));
     if (fev == NULL)
     {
         return -1;
     }
-    fev->fd = fd;
-    fev->cb = cb;
-    fev->arg = arg;
 
+    struct epoll_event ev;
     ev.events = events;
     ev.data.ptr = (void *)fev;
-    return epoll_ctl(g_epfd, EPOLL_CTL_ADD, fd, &ev);
+    return epoll_ctl(g_epfd, EPOLL_CTL_ADD, fev->fd, &ev);
 }
 
-int evloop_del(int fd)
+int evloop_del(fd_event_t *fev)
 {
-    return epoll_ctl(g_epfd, EPOLL_CTL_DEL, fd, NULL);
-    // fev in evloop_add is not released
+    if (fev == NULL)
+    {
+        return -1;
+    }
+    return epoll_ctl(g_epfd, EPOLL_CTL_DEL, fev->fd, NULL);
 }
 
 int evloop_run(void)

@@ -12,10 +12,12 @@
 
 #define MAX_TIMER_COUNT 1024
 
-static dtimer_t *g_timer_heap[MAX_TIMER_COUNT];
-static int g_heap_size = 0;
-static int g_timerfd = -1;
-static uint64_t g_next_timer_id = 0;
+struct dtimer_mgr {
+    fd_event_t fev;
+    dtimer_t *heap;
+    int count;
+    uint64_t next_tid;
+} g_timer_mgr;
 
 static uint64_t get_current_ms(void)
 {
@@ -91,24 +93,24 @@ static int heap_push(dtimer_t *timer)
 
 static dtimer_t* heap_top(void)
 {
-    if (g_heap_size == 0)
+    if (g_timer_mgr.count == 0)
     {
         return NULL;
     }
 
-    return g_timer_heap[0];
+    return g_timer_mgr.heap[0];
 }
 
 static dtimer_t* heap_pop(void)
 {
-    if (g_heap_size == 0)
+    if (g_timer_mgr.count == 0)
     {
         return NULL;
     }
 
-    dtimer_t *top = g_timer_heap[0];
-    heap_swap(0, g_heap_size - 1);
-    g_heap_size--;
+    dtimer_t *top = g_timer_mgr.heap[0];
+    heap_swap(0, g_timer_mgr.count - 1);
+    g_timer_mgr.count--;
     siftdown(0);
 
     return top;
@@ -194,13 +196,33 @@ static void timerfd_ep_callback(int fd, uint32_t events, void *arg)
 
 int timer_init(void)
 {
-    g_timerfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
-    if (g_timerfd < 0)
+    g_timer_mgr.count = 0;
+    g_timer_mgr.next_tid = 0;
+    g_timer_mgr.heap = calloc(MAX_TIMER_COUNT, sizeof(dtimer_t));
+    if (g_timer_mgr.heap == NULL)
     {
+        perror("calloc");
         return -1;
     }
 
-    return evloop_add(g_timerfd, EPOLLIN, timerfd_ep_callback, NULL);
+    g_timer_mgr.fev.cb = timerfd_ep_callback;
+    g_timer_mgr.fev.arg = NULL;
+    g_timer_mgr.fev.fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+    if (g_timer_mgr.fev.fd < 0)
+    {
+        free(g_timer_mgr.heap);
+        return -1;
+    }
+
+    if (evloop_add(EPOLLIN, &g_timer_mgr.fev) < 0)
+    {
+        perror("evloop_add");
+        close(g_timer_mgr.fev.fd);
+        free(g_timer_mgr.heap);
+        return -1;
+    }
+
+    return 0;
 }
 
 uint64_t timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat, 
