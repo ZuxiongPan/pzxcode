@@ -36,8 +36,8 @@ static void test_tick()
 static int cpumem_init(struct module *m)
 {
     (void)m;
-    timer_add(0, 5000, true, MSG_ID_CPUMEM_INFO, "cpumem");
-    timer_add(0, 10000, true, MSG_ID_TEST_TICK, "cpumem");
+    timer_add(5000, 5000, true, MSG_ID_CPUMEM_INFO, "cpumem");
+    timer_add(10000, 10000, true, MSG_ID_TEST_TICK, "cpumem");
 
     return 0;
 }

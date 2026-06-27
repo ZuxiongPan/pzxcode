@@ -11,14 +11,13 @@ typedef struct dtimer {
     uint64_t expire_ms;
     uint64_t interval_ms;
     bool repeat;
-    int heap_idx;
     uint32_t msg_id;
-    char mod_name[STRUCT_INNER_NAME_LEN];
+    char dst_mod[STRUCT_INNER_NAME_LEN];
 } dtimer_t;
 
 int timer_init(void);
 uint64_t timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat, 
-    uint32_t msg_id, const char *mod_name);
+    uint32_t msg_id, const char *dst_mod);
 int timer_del(uint64_t timer_id);
 
 #endif

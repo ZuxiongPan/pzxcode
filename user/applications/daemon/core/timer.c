@@ -14,7 +14,7 @@
 
 struct dtimer_mgr {
     fd_event_t fev;
-    dtimer_t *heap;
+    dtimer_t **heap;
     int count;
     uint64_t next_tid;
 } g_timer_mgr;
@@ -29,11 +29,9 @@ static uint64_t get_current_ms(void)
 
 static void heap_swap(int i, int j)
 {
-    dtimer_t *tmp = g_timer_heap[i];
-    g_timer_heap[i] = g_timer_heap[j];
-    g_timer_heap[j] = tmp;
-    g_timer_heap[i]->heap_idx = i;
-    g_timer_heap[j]->heap_idx = j;
+    dtimer_t *tmp = g_timer_mgr.heap[i];
+    g_timer_mgr.heap[i] = g_timer_mgr.heap[j];
+    g_timer_mgr.heap[j] = tmp;
 }
 
 static void siftup(int idx)
@@ -42,7 +40,7 @@ static void siftup(int idx)
     while (idx > 0)
     {
         parent = (idx - 1) / 2;
-        if (g_timer_heap[idx]->expire_ms >= g_timer_heap[parent]->expire_ms)
+        if (g_timer_mgr.heap[idx]->expire_ms >= g_timer_mgr.heap[parent]->expire_ms)
         {
             break;
         }
@@ -59,11 +57,13 @@ static void siftdown(int idx)
         left = idx * 2 + 1;
         right = idx * 2 + 2;
         smallest = idx;
-        if (left < g_heap_size && g_timer_heap[left]->expire_ms < g_timer_heap[smallest]->expire_ms)
+        if (left < g_timer_mgr.count && 
+            g_timer_mgr.heap[left]->expire_ms < g_timer_mgr.heap[smallest]->expire_ms)
         {
             smallest = left;
         }
-        if (right < g_heap_size && g_timer_heap[right]->expire_ms < g_timer_heap[smallest]->expire_ms)
+        if (right < g_timer_mgr.count && 
+            g_timer_mgr.heap[right]->expire_ms < g_timer_mgr.heap[smallest]->expire_ms)
         {
             smallest = right;
         }
@@ -78,15 +78,14 @@ static void siftdown(int idx)
 
 static int heap_push(dtimer_t *timer)
 {
-    if (g_heap_size >= MAX_TIMER_COUNT)
+    if (g_timer_mgr.count >= MAX_TIMER_COUNT)
     {
         return -1;
     }
 
-    timer->heap_idx = g_heap_size;
-    g_timer_heap[g_heap_size] = timer;
-    g_heap_size++;
-    siftup(timer->heap_idx);
+    g_timer_mgr.heap[g_timer_mgr.count] = timer;
+    g_timer_mgr.count++;
+    siftup(g_timer_mgr.count - 1);
 
     return 0;
 }
@@ -101,32 +100,18 @@ static dtimer_t* heap_top(void)
     return g_timer_mgr.heap[0];
 }
 
-static dtimer_t* heap_pop(void)
+static void heap_pop(void)
 {
     if (g_timer_mgr.count == 0)
     {
-        return NULL;
+        return ;
     }
-
-    dtimer_t *top = g_timer_mgr.heap[0];
+    
     heap_swap(0, g_timer_mgr.count - 1);
     g_timer_mgr.count--;
     siftdown(0);
 
-    return top;
-}
-
-static void heap_remove(dtimer_t *timer)
-{
-    if (timer == NULL)
-    {
-        return;
-    }
-
-    int idx = timer->heap_idx;
-    heap_swap(idx, g_heap_size - 1);
-    g_heap_size--;
-    siftdown(idx);
+    return ;
 }
 
 static void timerfd_reprogram(void)
@@ -138,7 +123,7 @@ static void timerfd_reprogram(void)
 
     if (top == NULL)
     {
-        timerfd_settime(g_timerfd, 0, &its, NULL);
+        timerfd_settime(g_timer_mgr.fev.fd, 0, &its, NULL);
         return ;
     }
 
@@ -148,7 +133,7 @@ static void timerfd_reprogram(void)
     its.it_value.tv_nsec = (diff % 1000) * 1000000;
     its.it_interval.tv_sec = 0;
     its.it_interval.tv_nsec = 0;
-    timerfd_settime(g_timerfd, 0, &its, NULL);
+    timerfd_settime(g_timer_mgr.fev.fd, 0, &its, NULL);
 }
 
 static void timerfd_expired_process(void)
@@ -167,7 +152,7 @@ static void timerfd_expired_process(void)
         heap_pop();
         if (timer->msg_id != 0)
         {
-            bus_post_msg("timer", timer->mod_name, timer->msg_id, 0, NULL);
+            bus_post_msg("timer", timer->dst_mod, timer->msg_id, 0, NULL);
         }
 
         if (timer->repeat)
@@ -198,7 +183,7 @@ int timer_init(void)
 {
     g_timer_mgr.count = 0;
     g_timer_mgr.next_tid = 0;
-    g_timer_mgr.heap = calloc(MAX_TIMER_COUNT, sizeof(dtimer_t));
+    g_timer_mgr.heap = calloc(MAX_TIMER_COUNT, sizeof(dtimer_t*));
     if (g_timer_mgr.heap == NULL)
     {
         perror("calloc");
@@ -226,19 +211,19 @@ int timer_init(void)
 }
 
 uint64_t timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat, 
-    uint32_t msg_id, const char *mod_name)
+    uint32_t msg_id, const char *dst_mod)
 {
     dtimer_t *timer = calloc(1, sizeof(dtimer_t));
     if (timer == NULL)
     {
         return 0;
     }
-    timer->timer_id = g_next_timer_id++;
+    timer->timer_id = g_timer_mgr.next_tid++;
     timer->expire_ms = get_current_ms() + timeout_ms;
     timer->interval_ms = interval_ms;
     timer->repeat = repeat;
     timer->msg_id = msg_id;
-    snprintf(timer->mod_name, sizeof(timer->mod_name), "%s", mod_name);
+    snprintf(timer->dst_mod, sizeof(timer->dst_mod), "%s", dst_mod);
     heap_push(timer);
     timerfd_reprogram();
     return timer->timer_id;
@@ -247,16 +232,21 @@ uint64_t timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat,
 int timer_del(uint64_t timer_id)
 {
     dtimer_t *timer = NULL;
-    for (int i = 0; i < g_heap_size; i++)
+    for (int i = 0; i < g_timer_mgr.count; i++)
     {
-        timer = g_timer_heap[i];
+        timer = g_timer_mgr.heap[i];
         if (timer->timer_id == timer_id)
         {
-            heap_remove(timer);
+            heap_swap(i, g_timer_mgr.count - 1);
+            g_timer_mgr.count--;
+            siftdown(i);
             free(timer);
-            timerfd_reprogram();
-            return 0;
+            if (g_timer_mgr.count == 0 || i == 0)
+            {
+                timerfd_reprogram();
+            }
+            break;
         }
     }
-    return -1;
+    return 0;
 }
