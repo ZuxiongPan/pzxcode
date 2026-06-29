@@ -2,10 +2,11 @@ TARGET := armd
 
 DAEMON_DIR := daemon
 
-CORE_OBJS := core/bus.o core/evloop.o core/module.o core/timer.o core/worker.o
+CORE_OBJS := core/bus.o core/evloop.o core/module.o core/worker.o
+EVSRC_OBJS := evsrc/common/timer.o evsrc/common/uevent.o
 MOD_OBJS := modules/cpumem.o
 
-OBJS := init/main.o $(CORE_OBJS) $(MOD_OBJS)
+OBJS := init/main.o $(CORE_OBJS) $(EVSRC_OBJS) $(MOD_OBJS)
 
 CFLAGS += -I./include
 LDFLAGS += -lpthread

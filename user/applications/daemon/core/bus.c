@@ -58,7 +58,13 @@ int bus_post_msg(const char *src, const char *dst, uint32_t msg_id, int payload_
         return -1;
     }
 
-    return worker_push_msg(msg);
+    if (worker_push_msg(msg) < 0)
+    {
+        msg_destroy(msg);
+        return -1;
+    }
+    
+    return 0;
 }
 
 int bus_router_msg(message_t *msg)

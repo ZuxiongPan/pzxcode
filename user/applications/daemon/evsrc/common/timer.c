@@ -3,21 +3,24 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <limits.h>
 #include <sys/timerfd.h>
 #include <sys/epoll.h>
 
 #include "core/bus.h"
-#include "core/timer.h"
 #include "core/evloop.h"
+#include "evsrc/timer.h"
 
-#define MAX_TIMER_COUNT 1024
+#define MAX_TIMER_COUNT 512
 
 struct dtimer_mgr {
     fd_event_t fev;
     dtimer_t **heap;
     int count;
     uint64_t next_tid;
-} g_timer_mgr;
+};
+
+static struct dtimer_mgr g_timer_mgr;
 
 static uint64_t get_current_ms(void)
 {
@@ -224,7 +227,11 @@ uint64_t timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat,
     timer->repeat = repeat;
     timer->msg_id = msg_id;
     snprintf(timer->dst_mod, sizeof(timer->dst_mod), "%s", dst_mod);
-    heap_push(timer);
+    if(heap_push(timer) < 0)
+    {
+        free(timer);
+        return UINT64_MAX;
+    }
     timerfd_reprogram();
     return timer->timer_id;
 }

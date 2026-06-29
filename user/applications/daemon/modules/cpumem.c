@@ -3,8 +3,8 @@
 #include <stdbool.h>
 #include <sys/sysinfo.h>
 
-#include "core/timer.h"
 #include "core/module.h"
+#include "evsrc/timer.h"
 #include "modules/msg_id.h"
 
 #define MSG_ID_CPUMEM_INFO (MSG_TYPE_TIMER_START + 0x0001)

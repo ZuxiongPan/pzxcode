@@ -7,8 +7,9 @@
 #include "core/bus.h"
 #include "core/evloop.h"
 #include "core/worker.h"
-#include "core/timer.h"
 #include "core/module.h"
+#include "evsrc/timer.h"
+#include "evsrc/uevent.h"
 
 extern int module_register_cpumem(void);
 
@@ -27,6 +28,13 @@ int main(/*int argc, const char *argv[]*/)
     if(ret != 0)
     {
         perror("timer_init");
+        return -1;
+    }
+
+    ret = uevent_init();
+    if(ret != 0)
+    {
+        perror("uevent_init");
         return -1;
     }
 
