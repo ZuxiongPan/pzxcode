@@ -4,11 +4,8 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <sys/epoll.h>
-#include <sys/eventfd.h>
 
 #include "core/evloop.h"
-#include "evsrc/timer.h"
-#include "modules/msg_id.h"
 
 static int g_epfd = -1;
 static volatile bool g_running = false;
@@ -77,6 +74,5 @@ int evloop_run(void)
 int evloop_stop(void)
 {
     g_running = false;
-    timer_add(0, 0, false, MSG_SYSTEM_EXIT, "self");
     return 0;
 }

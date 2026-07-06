@@ -8,8 +8,9 @@
 #include "core/evloop.h"
 #include "core/worker.h"
 #include "core/module.h"
-#include "evsrc/timer.h"
-#include "evsrc/uevent.h"
+#include "channel/uds.h"
+#include "channel/timer.h"
+#include "channel/uevent.h"
 
 extern int module_register_cpumem(void);
 
@@ -38,6 +39,13 @@ int main(/*int argc, const char *argv[]*/)
         return -1;
     }
 
+    ret = uds_init();
+    if(ret != 0)
+    {
+        perror("uds_init");
+        return -1;
+    }
+    
     ret = worker_init(WORKER_MAX_CNT);
     if(ret != 0)
     {
@@ -45,7 +53,7 @@ int main(/*int argc, const char *argv[]*/)
         return -1;
     }
 
-    ret = module_register_cpumem();
+    //ret = module_register_cpumem();
 
     module_start_all();
 

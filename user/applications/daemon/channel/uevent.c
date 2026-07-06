@@ -7,9 +7,10 @@
 #include <sys/socket.h>
 #include <linux/netlink.h>
 
+#include "common.h"
 #include "core/bus.h"
 #include "core/evloop.h"
-#include "evsrc/uevent.h"
+#include "channel/uevent.h"
 
 static fd_event_t g_uevent_fev;
 
@@ -30,19 +31,30 @@ static void print_uevent(char *buf, ssize_t size)
 static void uevent_ep_callback(int fd, uint32_t events, void *arg)
 {
     char buf[UEVENT_RECV_BUF_SIZE];
+    memset(buf, 0, sizeof(buf));
     ssize_t len = 0;
+    int batch = 0;
 
     (void)events;
     (void)arg;
 
-    len = recv(fd, buf, sizeof(buf), 0);
-    if(len < 0)
+    while (batch < NET_MSG_MAX_BATCH)
     {
-        perror("receive uevent message");
-        return;
-    }
+        len = recv(fd, buf, sizeof(buf), 0);
+        if (len < 0)
+        {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                printf("uevent message is empty, recv batch: %d\n", batch);
+                break;
+            }
 
-    print_uevent(buf, len);
+            perror("receive uevent message");
+            return;
+        }
+        print_uevent(buf, len);
+        batch++;
+    }
 }
 
 int uevent_init(void)
@@ -63,7 +75,7 @@ int uevent_init(void)
 
     addr.nl_family = AF_NETLINK;
     addr.nl_pid = getpid();
-    addr.nl_groups = -1;
+    addr.nl_groups = 1;
     if (bind(g_uevent_fev.fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
         perror("bind uevent");
