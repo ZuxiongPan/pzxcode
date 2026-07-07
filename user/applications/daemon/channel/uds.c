@@ -57,7 +57,7 @@ int uds_init(void)
 
     if (evloop_add(EPOLLIN, &g_uds_fev) < 0)
     {
-        perror("evloop_add");
+        printf("evloop_add failed\n");
         close(g_uds_fev.fd);
         return -1;
     }

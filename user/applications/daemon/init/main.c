@@ -9,6 +9,7 @@
 #include "core/worker.h"
 #include "core/module.h"
 #include "channel/uds.h"
+#include "channel/tcp.h"
 #include "channel/timer.h"
 #include "channel/uevent.h"
 
@@ -46,6 +47,13 @@ int main(/*int argc, const char *argv[]*/)
         return -1;
     }
     
+    ret = tcp_init();
+    if(ret != 0)
+    {
+        perror("tcp_init");
+        return -1;
+    }
+
     ret = worker_init(WORKER_MAX_CNT);
     if(ret != 0)
     {

@@ -5,7 +5,7 @@
 
 #include "core/module.h"
 #include "evsrc/timer.h"
-#include "modules/msg_id.h"
+#include "modules/msgid.h"
 
 #define MSG_ID_CPUMEM_INFO (MSG_TYPE_TIMER_START + 0x0001)
 #define MSG_ID_TEST_TICK (MSG_TYPE_TIMER_START + 0x0002)

@@ -3,7 +3,7 @@ TARGET := armd
 DAEMON_DIR := daemon
 
 CORE_OBJS := core/bus.o core/evloop.o core/module.o core/worker.o
-EVSRC_OBJS := channel/timer.o channel/uevent.o channel/uds.o
+EVSRC_OBJS := channel/timer.o channel/uevent.o channel/server.o channel/client.o channel/uds.o
 MOD_OBJS := 
 
 OBJS := init/main.o $(CORE_OBJS) $(EVSRC_OBJS) $(MOD_OBJS)

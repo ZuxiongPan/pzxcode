@@ -85,7 +85,7 @@ int uevent_init(void)
 
     if (evloop_add(EPOLLIN, &g_uevent_fev) < 0)
     {
-        perror("evloop_add");
+        printf("evloop_add failed\n");
         close(g_uevent_fev.fd);
         return -1;
     }

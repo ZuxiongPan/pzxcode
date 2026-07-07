@@ -204,7 +204,7 @@ int timer_init(void)
 
     if (evloop_add(EPOLLIN, &g_timer_mgr.fev) < 0)
     {
-        perror("evloop_add");
+        printf("evloop_add failed\n");
         close(g_timer_mgr.fev.fd);
         free(g_timer_mgr.heap);
         return -1;
