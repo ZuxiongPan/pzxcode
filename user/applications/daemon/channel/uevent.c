@@ -10,23 +10,10 @@
 #include "common.h"
 #include "core/bus.h"
 #include "core/evloop.h"
+#include "modules/msgid.h"
 #include "channel/uevent.h"
 
 static fd_event_t g_uevent_fev;
-
-static void print_uevent(char *buf, ssize_t size)
-{
-    ssize_t len = 0;
-
-    printf("------ uevent message ------\n");
-    while(len < size)
-    {
-        printf("\t%s\n", buf + len);
-        len += strlen(buf + len) + 1;
-    }
-
-    printf("----------------------\n");
-}
 
 static void uevent_ep_callback(int fd, uint32_t events, void *arg)
 {
@@ -52,7 +39,7 @@ static void uevent_ep_callback(int fd, uint32_t events, void *arg)
             perror("receive uevent message");
             return;
         }
-        print_uevent(buf, len);
+        bus_post_msg("uevent", "parser", MSG_UEVENT, len, buf);
         batch++;
     }
 }

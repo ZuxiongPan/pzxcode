@@ -4,9 +4,10 @@ DAEMON_DIR := daemon
 
 CORE_OBJS := core/bus.o core/evloop.o core/module.o core/worker.o
 EVSRC_OBJS := channel/timer.o channel/uevent.o channel/server.o channel/client.o channel/uds.o
-MOD_OBJS := 
+PROTO_OBJS := protocol/uevent_proto.o
+MOD_OBJS := modules/net_parser.o
 
-OBJS := init/main.o $(CORE_OBJS) $(EVSRC_OBJS) $(MOD_OBJS)
+OBJS := init/main.o $(CORE_OBJS) $(EVSRC_OBJS) $(PROTO_OBJS) $(MOD_OBJS)
 
 CFLAGS += -I./include
 LDFLAGS += -lpthread

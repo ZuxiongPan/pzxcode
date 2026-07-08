@@ -12,6 +12,7 @@
 #include "channel/tcp.h"
 #include "channel/timer.h"
 #include "channel/uevent.h"
+#include "modules/mod_init.h"
 
 extern int module_register_cpumem(void);
 
@@ -61,7 +62,7 @@ int main(/*int argc, const char *argv[]*/)
         return -1;
     }
 
-    //ret = module_register_cpumem();
+    ret = module_register_parser();
 
     module_start_all();
 
