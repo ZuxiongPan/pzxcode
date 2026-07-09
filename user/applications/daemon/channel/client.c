@@ -10,56 +10,25 @@
 
 #include "core/evloop.h"
 #include "core/bus.h"
+#include "modules/msgid.h"
 #include "channel/dnet.h"
 
 typedef struct tcp_connect {
+    uint16_t tid;
     fd_event_t fev;
     char buf[DNET_RECV_BUF_SIZE];
     int len;
+    struct tcp_connect *next;
 } tcp_connect_t;
+
+static tcp_connect_t *tcp_conn_list = NULL;
+static uint16_t tcp_conn_tid = 0;
 
 static int set_option(int fd)
 {
     int flags = fcntl(fd, F_GETFL, 0);
     if (flags < 0) return -1;
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK | O_CLOEXEC);
-}
-
-static void http_send(int fd, const char *body)
-{
-    char resp[1024];
-
-    int len = snprintf(resp, sizeof(resp),
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Type: text/plain\r\n"
-        "Content-Length: %zu\r\n"
-        "Connection: close\r\n"
-        "\r\n"
-        "%s",
-        strlen(body),
-        body);
-
-    send(fd, resp, len, 0);
-}
-
-static void http_handle_request(int fd, const char *req)
-{
-    if (strncmp(req, "GET /cpu", 8) == 0)
-    {
-        http_send(fd, "cpu: 12%");
-    }
-    else if (strncmp(req, "GET /mem", 8) == 0)
-    {
-        http_send(fd, "mem: 45%");
-    }
-    else if (strncmp(req, "GET /", 5) == 0)
-    {
-        http_send(fd, "armd http server running");
-    }
-    else
-    {
-        http_send(fd, "404 not found");
-    }
 }
 
 static void tcp_client_cb(int fd, uint32_t events, void *arg)
@@ -85,18 +54,32 @@ static void tcp_client_cb(int fd, uint32_t events, void *arg)
 
         conn->len += n;
         conn->buf[conn->len] = '\0';
-
-        if (strstr(conn->buf, "\r\n\r\n"))
-        {
-            printf("HTTP REQ:\n%s\n", conn->buf);
-
-            http_handle_request(fd, conn->buf);
-
-            close(fd);
-            free(conn);
-            return ;
-        }
+        bus_post_msg("tcp", "parser", MSG_TYPE_TCP_START + conn->tid, conn->len, conn->buf);
     }
+}
+
+int tcp_send(const message_t *msg)
+{
+    tcp_connect_t *conn = tcp_conn_list;
+    uint16_t tid = msg_event(msg->msg_id);
+
+    while(conn != NULL)
+    {
+        if (conn->tid == tid)
+        {
+            break;
+        }
+        conn = conn->next;
+    }
+
+    if (conn == NULL)
+    {
+        printf("tcp_send: tid %d not found\n", tid);
+        return -1;
+    }
+
+    return send(conn->fev.fd, msg->payload, msg->payload_len, 0);
+
 }
 
 bool tcp_add_new_client(int fd)
@@ -110,6 +93,7 @@ bool tcp_add_new_client(int fd)
     }
 
     set_option(fd);
+    conn->tid = tcp_conn_tid++;
     conn->fev.fd = fd;
     conn->fev.cb = tcp_client_cb;
     conn->fev.arg = conn;
@@ -121,6 +105,8 @@ bool tcp_add_new_client(int fd)
         free(conn);
         return false;
     }
+    conn->next = tcp_conn_list;
+    tcp_conn_list = conn;
 
     return true;
 }

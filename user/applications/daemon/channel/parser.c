@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/sysinfo.h>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
 
 #include "core/module.h"
@@ -29,7 +30,21 @@ static int parser_on_msg(struct module *m, const message_t *msg)
             ret = uevent_parser(msg->payload, msg->payload_len);
             break;
         default:
-            printf("parser: unknown msg_id 0x%x\n", msg->msg_id);
+            if (msg_type(msg->msg_id) == msg_type(MSG_TYPE_TCP_START))
+            {
+                if (strncmp(msg->src_name, "tcp", 3) == 0)
+                {   // this is a message from outer
+                    ret = tcp_parser(msg);
+                }
+                else
+                {
+                    ret = tcp_send(msg);
+                }
+            }
+            else
+            {
+                printf("parser: unknown msg_id 0x%x\n", msg->msg_id);
+            }
             break;
     }
 

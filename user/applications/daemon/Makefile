@@ -4,7 +4,7 @@ DAEMON_DIR := daemon
 
 CORE_OBJS := core/bus.o core/evloop.o core/module.o core/worker.o
 CHNL_OBJS := channel/timer.o channel/uevent.o channel/server.o channel/client.o channel/uds.o channel/parser.o
-PROTO_OBJS := protocol/uevent_proto.o protocol/uds_proto.o
+PROTO_OBJS := protocol/uevent_proto.o protocol/uds_proto.o protocol/tcp_proto.o
 MOD_OBJS := 
 
 OBJS := init/main.o $(CORE_OBJS) $(CHNL_OBJS) $(PROTO_OBJS) $(MOD_OBJS)

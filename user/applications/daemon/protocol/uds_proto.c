@@ -5,7 +5,7 @@
 
 int uds_parser(const char *buf, ssize_t size)
 {
-    ssize_t len = 0;
+    (void)size;
 
     printf("------ uds message ------\n");
     printf("%s\n", buf);
