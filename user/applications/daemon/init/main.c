@@ -8,10 +8,8 @@
 #include "core/evloop.h"
 #include "core/worker.h"
 #include "core/module.h"
-#include "channel/uds.h"
-#include "channel/tcp.h"
-#include "channel/timer.h"
-#include "channel/uevent.h"
+#include "channel/dnet.h"
+#include "channel/dtimer.h"
 #include "modules/mod_init.h"
 
 extern int module_register_cpumem(void);

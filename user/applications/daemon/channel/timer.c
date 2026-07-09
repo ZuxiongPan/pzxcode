@@ -9,7 +9,7 @@
 
 #include "core/bus.h"
 #include "core/evloop.h"
-#include "channel/timer.h"
+#include "channel/dtimer.h"
 
 #define MAX_TIMER_COUNT 512
 

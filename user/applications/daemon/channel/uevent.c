@@ -11,13 +11,13 @@
 #include "core/bus.h"
 #include "core/evloop.h"
 #include "modules/msgid.h"
-#include "channel/uevent.h"
+#include "channel/dnet.h"
 
 static fd_event_t g_uevent_fev;
 
 static void uevent_ep_callback(int fd, uint32_t events, void *arg)
 {
-    char buf[UEVENT_RECV_BUF_SIZE];
+    char buf[DNET_RECV_BUF_SIZE];
     memset(buf, 0, sizeof(buf));
     ssize_t len = 0;
     int batch = 0;

@@ -10,11 +10,11 @@
 
 #include "core/evloop.h"
 #include "core/bus.h"
-#include "channel/tcp.h"
+#include "channel/dnet.h"
 
 typedef struct tcp_connect {
     fd_event_t fev;
-    char buf[TCP_RECV_BUF_SIZE];
+    char buf[DNET_RECV_BUF_SIZE];
     int len;
 } tcp_connect_t;
 

@@ -1,12 +1,18 @@
+/**
+ * this is a parser, the parser should run in different channel code,
+ * such as uevent/uds/client, which will make channel become slow,
+ * for efficiency, the parser designed as a module, it will not block the channel message receive.
+ */
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <sys/sysinfo.h>
+#include <sys/sysinfo.h>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
 
 #include "core/module.h"
 #include "modules/msgid.h"
-#include "protocol/uevent_proto.h"
+#include "protocol/parser.h"
 
 static int parser_on_msg(struct module *m, const message_t *msg)
 {
@@ -17,8 +23,7 @@ static int parser_on_msg(struct module *m, const message_t *msg)
     switch (msg->msg_id)
     {
         case MSG_UDS:
-            break;
-        case MSG_TCP:
+            ret = uds_parser(msg->payload, msg->payload_len);
             break;
         case MSG_UEVENT:
             ret = uevent_parser(msg->payload, msg->payload_len);

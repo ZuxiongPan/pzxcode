@@ -1,5 +1,5 @@
-#ifndef _TIMER_H_
-#define _TIMER_H_
+#ifndef _DTIMER_H_
+#define _DTIMER_H_
 
 #include <stdint.h>
 #include <stdbool.h>

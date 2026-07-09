@@ -6,8 +6,10 @@
 #include <sys/socket.h>
 #include <sys/epoll.h>
 
+#include "core/bus.h"
 #include "core/evloop.h"
-#include "channel/uds.h"
+#include "channel/dnet.h"
+#include "modules/msgid.h"
 
 static fd_event_t g_uds_fev;
 
@@ -15,7 +17,7 @@ static void uds_server_ep_callback(int fd, uint32_t events, void *arg)
 {
     (void)events;
     (void)arg;
-    char buf[UDS_RECV_BUF_SIZE];
+    char buf[DNET_RECV_BUF_SIZE];
     memset(buf, 0, sizeof(buf));
     ssize_t len = recvfrom(fd, buf, sizeof(buf) - 1, 0, NULL, NULL);
     if (len < 0)
@@ -25,7 +27,7 @@ static void uds_server_ep_callback(int fd, uint32_t events, void *arg)
     }
 
     buf[len] = '\0';
-    printf("uds receive message: %s\n", buf);
+    bus_post_msg("uds", "parser", MSG_UDS, len, buf);
 
     return ;
 }

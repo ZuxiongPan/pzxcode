@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 
 #include "core/evloop.h"
-#include "channel/tcp.h"
+#include "channel/dnet.h"
 
 static fd_event_t g_server_fev;
 
