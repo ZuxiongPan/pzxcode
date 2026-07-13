@@ -1,27 +1,28 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "dlog.h"
+#include "dcommon.h"
+#include "core/context.h"
 #include "core/module.h"
-
-static module_t* g_modules[MAX_MODULE_COUNT];
-static int g_mod_cnt = 0;
 
 int module_register(module_t *mod)
 {
-    if (g_mod_cnt >= MAX_MODULE_COUNT || mod == NULL)
+    if (mod == NULL || mod->id >= MOD_MAX)
     {
-        return -1;
+        derror("module_register fail, mod is invalid\n");
+        return Fail;
     }
 
-    g_modules[g_mod_cnt] = mod;
-    g_mod_cnt++;
+    dctx_t *ctx = dctx_instance();
+    module_mgr_t *mgr = ctx->mod_mgr;
 
-    if (mod->ops != NULL && mod->ops->init != NULL)
-    {
-        return mod->ops->init(mod);
-    }
+    pthread_rwlock_wrlock(&mgr->rwlock);
+    mgr->modules[mod->id] = mod;
+    mgr->mod_cnt++;
+    pthread_rwlock_unlock(&mgr->rwlock);
 
-    return 0;
+    return Success;
 }
 
 module_t* module_find(const char *name)
@@ -69,4 +70,36 @@ int module_stop_all(void)
     }
 
     return 0;
+}
+
+int module_manager_init(struct daemon_context *ctx)
+{
+    // here we shoule check ctx is valid, but this is a key init, ctx must be valid
+
+    module_mgr_t *mgr = &ctx->mod_mgr;
+    mgr->head = NULL;
+    pthread_rwlock_init(&mgr->rwlock, NULL);
+
+    return Success;
+}
+
+void module_manager_destroy(struct daemon_context *ctx)
+{
+    module_mgr_t *mgr = &ctx->mod_mgr;
+    
+    pthread_wrlock_wrlock(&mgr->rwlock);
+    for (int i = 0; i < mgr->mod_cnt; i++)
+    {
+        if (mgr->modules[i] != NULL && mgr->modules[i]->ops != NULL
+            && mgr->modules[i]->ops->stop != NULL)
+        {
+            mgr->modules[i]->ops->stop(mgr->modules[i]);
+            mgr->modules[i] = NULL;
+        }
+    }
+    free(mgr->modules);
+    mgr->mod_cnt = 0;
+    pthread_rwlock_unlock(&mgr->rwlock);
+
+    return ;
 }
