@@ -1,19 +1,24 @@
-#ifndef _EVLOOP_H_
-#define _EVLOOP_H_
+#ifndef _DCHANNEL_H_
+#define _DCHANNEL_H_
 
+#include "core/dcontext.h"
 #include <stdint.h>
 
-typedef void (*fd_event_f)(int fd, uint32_t events, void *arg);
+struct daemon_channel;
 
-struct fd_event {
+typedef void (*dchannel_cb_f)(struct daemon_channel *ch);
+typedef int (*dchannel_init_f)(void);
+typedef void (*dchannel_exit_f)(void);
+
+struct daemon_channel {
+    dcomp_t dcomp;
     int fd;
-    fd_event_f cb;
-    void *arg;
+    dchannel_cb_f cb;
+    void *priv;
 };
-typedef struct fd_event fd_event_t;
+typedef struct daemon_channel dchannel_t;
 
-int evloop_add(uint32_t events, fd_event_t *fev);
-int evloop_del(fd_event_t *fev);
-int evloop_run(void);
+int dchannel_register(uint32_t events, dchannel_t *ch);
+void dchannel_unregister(dchannel_t *ch);
 
 #endif

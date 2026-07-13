@@ -1,64 +1,65 @@
 #include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include <unistd.h>
 #include <sys/epoll.h>
 
-#include "dcommon.h"
+#include "dlog.h"
 #include "core/context.h"
-#include "core/evloop.h"
+#include "core/dchannel.h"
 
-int evloop_add(uint32_t events, fd_event_t *fev)
+int dchannel_register(uint32_t events, dchannel_t *ch)
 {
-    if (fev == NULL)
+    if (ch == NULL)
     {
+        derror("dchannel_register: channel is NULL\n");
         return Fail;
     }
 
-    struct epoll_event ev;
+    int ret = dcomponent_record_add(&ch->dcomp);
+    if (ret != Success)
+    {
+        derror("dchannel_register: failed to add channel[%s] to record\n",
+            ch->dcomp.name == NULL ? "no name" : ch->dcomp.name);
+        return Fail;
+    }
+
     dctx_t *ctx = dctx_instance();
+    struct epoll_event ev;
     ev.events = events;
-    ev.data.ptr = (void *)fev;
-    return epoll_ctl(ctx->epfd, EPOLL_CTL_ADD, fev->fd, &ev);
+    ev.data.ptr = (void *)ch;
+
+    ret = epoll_ctl(ctx->epfd, EPOLL_CTL_ADD, ch->fd, &ev);
+    if (ret != 0)
+    {
+        derror("dchannel_register: failed to add channel[%s] to epoll\n",
+            ch->dcomp.name == NULL ? "no name" : ch->dcomp.name);
+        dcomponent_record_del(&ch->dcomp);
+        return Fail;
+    }
+
+    return Success;
 }
 
-int evloop_del(fd_event_t *fev)
+void dchannel_unregister(dchannel_t *ch)
 {
-    if (fev == NULL)
+    if (ch == NULL)
     {
-        return Fail;
+        derror("dchannel_unregister: channel is NULL\n");
+        return;
     }
-
     
     dctx_t *ctx = dctx_instance();
-    return epoll_ctl(ctx->epfd, EPOLL_CTL_DEL, fev->fd, NULL);
+    dcomponent_record_del(&ch->dcomp);
+    epoll_ctl(ctx->epfd, EPOLL_CTL_DEL, ch->fd, NULL);
 }
 
-int evloop_run(void)
+void dchannel_handle(void *arg)
 {
-    struct epoll_event events[EPOLL_EVENTS];
-    dctx_t *ctx = dctx_instance();
-
-    while (atomic_load(&ctx->status))
+    dchannel_t *ch = (dchannel_t *)arg;
+    if (ch == NULL)
     {
-        int nfds = epoll_wait(ctx->epfd, events, EPOLL_EVENTS, -1);
-        if (nfds < 0)
-        {
-            perror("epoll_wait");
-            continue;
-        }
-
-        for (int i = 0; i < nfds; i++)
-        {
-            fd_event_t *fev = (fd_event_t *)events[i].data.ptr;
-            if (fev == NULL)
-            {
-                continue;
-            }
-            fev->cb(fev->fd, events[i].events, fev->arg);
-        }
+        return ;
     }
 
-    return 0;
+    ch->cb(ch);
+
+    return ;
 }

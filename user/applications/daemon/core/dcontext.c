@@ -8,6 +8,8 @@
 #include "core/dworker.h"
 #include "core/dcontext.h"
 
+extern void dchannel_handle(void *arg);
+
 static dctx_t g_ctx;
 
 dctx_t* dctx_instance(void)
@@ -53,6 +55,29 @@ int daemon_context_init(void)
     return ret;
 }
 
+int daemon_context_run(void)
+{
+    int nfds = 0;
+    struct epoll_event events[EPOLL_EVENTS];
+
+    while (atomic_load(&g_ctx.status))
+    {
+        nfds = epoll_wait(g_ctx.epfd, events, EPOLL_EVENTS, -1);
+        if (nfds <= 0)
+        {
+            derror("epoll_wait failed, retcode: %d\n", nfds);
+            continue;
+        }
+        
+        for (int i = 0; i < nfds; i++)
+        {
+            dchannel_handle(events[i].data.ptr);
+        }
+    }
+
+    return Success;
+}
+
 void daemon_context_destroy(void)
 {
     atomic_store(&g_ctx.status, false);
@@ -71,39 +96,53 @@ void daemon_context_destroy(void)
     return ;
 }
 
-// void dobject_insert(dobj_t *obj, dobj_type_e type, const char *name)
-// {
-//     if (obj == NULL || name == NULL || type >= ObjType_Unknown)
-//     {
-//         derror("dobject_init: object is invalid\n");
-//         return ;
-//     }
+void dcomponent_init(dcomp_t *comp, dlayer_e layer, const char *name)
+{
+    if (comp == NULL || name == NULL || layer >= Layer_Unknown)
+    {
+        derror("dcomponent_init: component is invalid\n");
+        return ;
+    }
 
-//     obj->type = type;
-//     obj->name = name;
+    comp->layer = layer;
+    comp->name = name;
+    comp->prev = comp;
+    comp->next = comp;
+}
 
-//     pthread_rwlock_wrlock(&g_ctx.obj_rec.lock);
-//     dobj_t *sentinel = &g_ctx.obj_rec.record[type];
-//     obj->prev = sentinel;
-//     obj->next = sentinel->next;
-//     sentinel->next->prev = obj;
-//     sentinel->next = obj;
-//     pthread_rwlock_unlock(&g_ctx.obj_rec.lock);
-// }
+int dcomponent_record_add(dcomp_t *comp)
+{
+    if (comp == NULL || comp->layer >= Layer_Unknown)
+    {
+        derror("dcomponent_register: component is invalid\n");
+        return Fail;
+    }
 
-// void dobject_remove(dobj_t *obj)
-// {
-//     if (obj == NULL || obj->type >= ObjType_Unknown)
-//     {
-//         derror("dobject_remove: object is invalid\n");
-//         return ;
-//     }
+    pthread_rwlock_wrlock(&g_ctx.records[comp->layer].rwlock);
+    dcomp_t *sentinel = &g_ctx.records[comp->layer].sentinel;
+    comp->prev = sentinel;
+    comp->next = sentinel->next;
+    sentinel->next->prev = comp;
+    sentinel->next = comp;
+    pthread_rwlock_unlock(&g_ctx.records[comp->layer].rwlock);
 
-//     pthread_rwlock_wrlock(&g_ctx.obj_rec.lock);
-//     dobj_t *sentinel = &g_ctx.obj_rec.record[obj->type];
-//     obj->prev->next = obj->next;
-//     obj->next->prev = obj->prev;
-//     obj->prev = NULL;
-//     obj->next = NULL;
-//     pthread_rwlock_unlock(&g_ctx.obj_rec.lock);
-// }
+    return Success;
+}
+
+void dcomponent_record_del(dcomp_t *comp)
+{
+    if (comp == NULL || comp->layer >= Layer_Unknown)
+    {
+        derror("dcomponent_unregister: component is invalid\n");
+        return ;
+    }
+
+    pthread_rwlock_wrlock(&g_ctx.records[comp->layer].rwlock);
+    comp->prev->next = comp->next;
+    comp->next->prev = comp->prev;
+    comp->prev = comp;
+    comp->next = comp;
+    pthread_rwlock_unlock(&g_ctx.records[comp->layer].rwlock);
+
+    return ;
+}
