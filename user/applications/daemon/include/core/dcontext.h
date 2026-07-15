@@ -4,6 +4,9 @@
 #include <stdatomic.h>
 #include <pthread.h>
 
+typedef int (*dcomponent_init_f)(void);
+typedef void (*dcomponent_exit_f)(void);
+
 struct daemon_worker_manager;
 
 enum daemon_layer {

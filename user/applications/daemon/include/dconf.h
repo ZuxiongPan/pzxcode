@@ -8,8 +8,8 @@
 
 #define EPOLL_EVENTS 256
 
-#define MSGBUF_SIZE 1024
-#define MSGQUEUE_SIZE 128
-#define WORKER_MAXNUM 8
+#define TASK_QUEUE_BYTES (2 * 1024 * 1024)
+#define TASK_DATA_MAXSIZE 4096  // limit task data size
+#define WORKER_MAXNUM 16
 
 #endif

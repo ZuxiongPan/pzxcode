@@ -35,7 +35,7 @@ int daemon_context_init(void)
     for (int i = Layer_Channel; i < Layer_Unknown; i++)
     {
         pthread_rwlock_init(&g_ctx.records[i].rwlock, NULL);
-        g_ctx.records[i].sentinel.type = i;
+        g_ctx.records[i].sentinel.layer = i;
         g_ctx.records[i].sentinel.name = "sentinel";
         g_ctx.records[i].sentinel.prev = &g_ctx.records[i].sentinel;
         g_ctx.records[i].sentinel.next = &g_ctx.records[i].sentinel;

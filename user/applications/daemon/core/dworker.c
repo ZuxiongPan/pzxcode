@@ -6,19 +6,17 @@
 #include "core/dworker.h"
 #include "core/dcontext.h"
 
-const int payload_max_len = MSGBUF_SIZE - sizeof(dmsg_t);
-
-static inline dmsg_t* get_msg_addr(dmsg_queue_t *queue, int idx)
+static inline dtask_t* get_task_addr(task_queue_t *queue, unsigned int offset)
 {
-    return (dmsg_t *)((char *)queue->msgs + idx * MSGBUF_SIZE);
+    return (dtask_t *)(queue->tasks + offset);
 }
 
 static void* worker_thread(void* arg)
 {
     (void)arg;
     dctx_t *ctx = dctx_instance();
-    dmsg_t *msg = NULL;
-    dmsg_queue_t *queue = &ctx->worker_mgr->queue;
+    dtask_t *task = NULL;
+    task_queue_t *queue = &ctx->worker_mgr->queue;
 
     while (true)
     {
@@ -32,45 +30,88 @@ static void* worker_thread(void* arg)
             pthread_mutex_unlock(&queue->mutex);
             break;
         }
-        msg = get_msg_addr(queue, queue->head);
-        queue->head = (queue->head + 1) % MSGQUEUE_SIZE;
+        task = get_task_addr(queue, queue->first_offset);
+        queue->first_offset = task->next_offset;
         queue->count--;
         pthread_mutex_unlock(&queue->mutex);
         /**
-         * todo: module process message
+         * todo: worker process task
          */
-        atomic_fetch_sub(&msg->refcnt, 1);
     }
 
     return NULL;
 }
 
-int message_enqueue(uint32_t msgid, int src, int dst,
-    int payload_len, void *payload)
+int task_enqueue(unsigned int data_size, void *data)
 {
     dctx_t *ctx = dctx_instance();
-    dmsg_queue_t *queue = &ctx->worker_mgr->queue;
+    task_queue_t *queue = &ctx->worker_mgr->queue;
 
-    pthread_mutex_lock(&queue->mutex);
-    queue->total++;
-    dmsg_t *msg = get_msg_addr(queue, queue->tail);
-    if (queue->count >= MSGQUEUE_SIZE || atomic_load(&msg->refcnt) > 0
-        || payload_len > payload_max_len)
+    if (data_size > TASK_DATA_MAXSIZE)
     {
+        pthread_mutex_lock(&queue->mutex);
+        queue->total++;
         queue->drop++;
         pthread_mutex_unlock(&queue->mutex);
-        derror("message_enqueue: no space for new message\n");
+        derror("task_enqueue: data_size %d is too large\n", data_size);
         return Fail;
     }
 
-    msg->msgid = msgid;
-    msg->src_mid = src;
-    msg->dst_mid = dst;
-    atomic_init(&msg->refcnt, 1);
-    msg->payload_len = payload_len;
-    memcpy(msg->payload, payload, payload_len);
-    queue->tail = (queue->tail + 1) % MSGQUEUE_SIZE;
+    unsigned int aligned = (data_size + 7) & ~7;    // 8 bytes align
+    unsigned int required = sizeof(dtask_t) + aligned;
+    dtask_t *last_task = NULL;
+    dtask_t *new_task = NULL;
+    pthread_mutex_lock(&queue->mutex);
+    queue->total++;
+
+    if (queue->count == 0)
+    {
+        queue->first_offset = 0;
+        queue->last_offset = 0;
+        queue->idle_offset = 0;
+    }
+    
+    unsigned int target_offset = queue->idle_offset;
+    
+    if (queue->idle_offset >= queue->first_offset)
+    {
+        if ((TASK_QUEUE_BYTES - queue->idle_offset) < required)
+        {
+            if (queue->first_offset < required)
+            {
+                derror("task_enqueue: there is no space for new task\n");
+                queue->drop++;
+                pthread_mutex_unlock(&queue->mutex);
+                return Fail;
+            }
+            target_offset = 0;
+        }
+    }
+    else
+    {
+        if ((queue->first_offset - queue->idle_offset) < required)
+        {
+            derror("task_enqueue: there is no space for new task\n");
+            queue->drop++;
+            pthread_mutex_unlock(&queue->mutex);
+            return Fail;
+        }
+    }
+
+    if (queue->count > 0)
+    {
+        last_task = get_task_addr(queue, queue->last_offset);
+        last_task->next_offset = target_offset;
+    }
+
+    new_task = get_task_addr(queue, target_offset);
+    new_task->data_size = data_size;
+    new_task->next_offset = target_offset + required;
+    memcpy(new_task->data, data, data_size);
+    queue->last_offset = target_offset;
+    queue->idle_offset = new_task->next_offset;
     queue->count++;
+
     pthread_cond_signal(&queue->cond);
     pthread_mutex_unlock(&queue->mutex);
 
@@ -81,20 +122,23 @@ int worker_manager_init(dworker_mgr_t* mgr)
 {
     // here we shoule check mgr is valid, but this is a key init, mgr must be valid
     int tmp = 0, inner_ret = 0;
-    dmsg_queue_t *queue = &mgr->queue;
+    task_queue_t *queue = &mgr->queue;
 
-    // 1. init message queue, first version we use a fixed-size array
+    // 1. init task queue, first version we use a fixed-size array
     pthread_mutex_init(&queue->mutex, NULL);
     pthread_cond_init(&queue->cond, NULL);
-    queue->count = 0;
-    queue->head = 0;
-    queue->tail = 0;
-    queue->msgs = calloc(MSGQUEUE_SIZE, MSGBUF_SIZE);
-    if (queue->msgs == NULL)
+    queue->tasks = calloc(1, TASK_QUEUE_BYTES);
+    if (queue->tasks == NULL)
     {
-        derror("worker_init: failed to malloc message queue\n");
+        derror("worker_init: failed to malloc task queue\n");
         return Fail;
     }
+    queue->first_offset = 0;
+    queue->last_offset = 0;
+    queue->idle_offset = 0;
+    queue->count = 0;
+    queue->total = 0;
+    queue->drop = 0;
 
     // 2. init worker threads
     atomic_init(&mgr->busy, 0);
@@ -128,9 +172,9 @@ void worker_manager_destroy(dworker_mgr_t* mgr)
         }
     }
     
-    if (mgr->queue.msgs != NULL)
+    if (mgr->queue.tasks != NULL)
     {
-        free(mgr->queue.msgs);
+        free(mgr->queue.tasks);
     }
     
     return ;

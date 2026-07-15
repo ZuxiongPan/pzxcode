@@ -5,19 +5,19 @@
 #include "core/context.h"
 #include "core/dchannel.h"
 
-int dchannel_register(uint32_t events, dchannel_t *ch)
+int dchannel_register(uint32_t events, dchannel_t *chnl)
 {
-    if (ch == NULL)
+    if (chnl == NULL)
     {
         derror("dchannel_register: channel is NULL\n");
         return Fail;
     }
 
-    int ret = dcomponent_record_add(&ch->dcomp);
+    int ret = dcomponent_record_add(&chnl->dcomp);
     if (ret != Success)
     {
         derror("dchannel_register: failed to add channel[%s] to record\n",
-            ch->dcomp.name == NULL ? "no name" : ch->dcomp.name);
+            chnl->dcomp.name == NULL ? "no name" : chnl->dcomp.name);
         return Fail;
     }
 
@@ -26,40 +26,40 @@ int dchannel_register(uint32_t events, dchannel_t *ch)
     ev.events = events;
     ev.data.ptr = (void *)ch;
 
-    ret = epoll_ctl(ctx->epfd, EPOLL_CTL_ADD, ch->fd, &ev);
+    ret = epoll_ctl(ctx->epfd, EPOLL_CTL_ADD, chnl->fd, &ev);
     if (ret != 0)
     {
         derror("dchannel_register: failed to add channel[%s] to epoll\n",
-            ch->dcomp.name == NULL ? "no name" : ch->dcomp.name);
-        dcomponent_record_del(&ch->dcomp);
+            chnl->dcomp.name == NULL ? "no name" : chnl->dcomp.name);
+        dcomponent_record_del(&chnl->dcomp);
         return Fail;
     }
 
     return Success;
 }
 
-void dchannel_unregister(dchannel_t *ch)
+void dchannel_unregister(dchannel_t *chnl)
 {
-    if (ch == NULL)
+    if (chnl == NULL)
     {
         derror("dchannel_unregister: channel is NULL\n");
         return;
     }
     
     dctx_t *ctx = dctx_instance();
-    dcomponent_record_del(&ch->dcomp);
-    epoll_ctl(ctx->epfd, EPOLL_CTL_DEL, ch->fd, NULL);
+    dcomponent_record_del(&chnl->dcomp);
+    epoll_ctl(ctx->epfd, EPOLL_CTL_DEL, chnl->fd, NULL);
 }
 
 void dchannel_handle(void *arg)
 {
-    dchannel_t *ch = (dchannel_t *)arg;
-    if (ch == NULL)
+    dchannel_t *chnl = (dchannel_t *)arg;
+    if (chnl == NULL)
     {
         return ;
     }
 
-    ch->cb(ch);
+    chnl->cb(chnl);
 
     return ;
 }
