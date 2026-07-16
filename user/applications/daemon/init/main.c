@@ -5,19 +5,13 @@
 
 int main(/*int argc, const char *argv[]*/)
 {
-    int ret = Success;
-
     daemon_context_init();
     dchannel_init();
 
-    ret = timer_add(5000, 5000, true);
-    dprint("timer_add: %d\n", ret);
-
-    ret = timer_add(3000, 3000, true);
-    dprint("timer_add: %d\n", ret);
-
     daemon_context_run();
 
+    dchannel_exit();
+    daemon_context_exit();
     ddebug("the event loop ended\n");
 
     return Success;

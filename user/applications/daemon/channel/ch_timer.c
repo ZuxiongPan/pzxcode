@@ -232,7 +232,7 @@ int ch_timer_init(void)
         return Fail;
     }
 
-    dprint("ch_timer_init: dtimer fd = %d\n", timer_chnl.fd);
+    dprint("ch_timer_init: dtimer channel fd = %d\n", timer_chnl.fd);
     return Success;
 }
 
@@ -260,7 +260,7 @@ void ch_timer_exit(void)
     pthread_mutex_unlock(&dtimer_mgr.lock);
     pthread_mutex_destroy(&dtimer_mgr.lock);
 
-    dprint("ch_timer_exit: dtimer fd = %d\n", timer_chnl.fd);
+    dprint("ch_timer_exit: dtimer channel fd = %d\n", timer_chnl.fd);
 }
 
 int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat)
@@ -274,7 +274,7 @@ int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat)
     timer->expire_ms = get_current_ms() + timeout_ms;
     timer->interval_ms = interval_ms;
     timer->repeat = repeat;
-    if(heap_push(timer) < 0)
+    if (heap_push(timer) < 0)
     {
         free(timer);
         return Fail;
@@ -296,7 +296,22 @@ void timer_del(int timer_id)
         {
             heap_swap(i, dtimer_mgr.count - 1);
             dtimer_mgr.count--;
-            siftdown(i);
+            if (i == 0)
+            {
+                siftdown(i);
+            }
+            else
+            {
+                int parent = (i - 1) / 2;
+                if (dtimer_mgr.heap[parent]->expire_ms > dtimer_mgr.heap[i]->expire_ms)
+                {
+                    siftup(i);
+                }
+                else
+                {
+                    siftdown(i);
+                }
+            }
             free(timer);
             if (dtimer_mgr.count == 0 || i == 0)
             {

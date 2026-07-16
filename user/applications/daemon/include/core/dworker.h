@@ -6,7 +6,17 @@
 #include <stdatomic.h>
 #include <pthread.h>
 
+enum daemon_task_type {
+    TaskInvalid = 0,
+    TaskDecode,
+    TaskEncode,
+    TaskInnerMsg,   // module pass message
+};
+typedef enum daemon_task_type ttype_e;
+
 struct daemon_task {
+    ttype_e type;
+    void *src_comp; // source component of task
     unsigned int next_offset;
     unsigned int data_size;
     char data[0];    // flexible array member

@@ -16,6 +16,7 @@ static void* worker_thread(void* arg)
     (void)arg;
     dctx_t *ctx = dctx_instance();
     dtask_t *task = NULL;
+    dcomp_t *src_comp = NULL;
     task_queue_t *queue = &ctx->worker_mgr->queue;
 
     while (true)
@@ -30,6 +31,7 @@ static void* worker_thread(void* arg)
             pthread_mutex_unlock(&queue->mutex);
             break;
         }
+        atomic_add(&ctx->worker_mgr->busy, 1);
         task = get_task_addr(queue, queue->first_offset);
         queue->first_offset = task->next_offset;
         queue->count--;
@@ -37,6 +39,7 @@ static void* worker_thread(void* arg)
         /**
          * todo: worker process task
          */
+        atomic_sub(&ctx->worker_mgr->busy, 1);
     }
 
     return NULL;

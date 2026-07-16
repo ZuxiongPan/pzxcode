@@ -3,7 +3,7 @@ TARGET := armd
 DAEMON_DIR := daemon
 
 CORE_OBJS := core/dcontext.o core/dworker.o core/dchannel.o
-CHNL_OBJS := channel/ch_timer.o channel/chnl_calls.o
+CHNL_OBJS := channel/ch_timer.o channel/chnl_calls.o channel/ch_uevent.o
 PROTO_OBJS := 
 MOD_OBJS := 
 
