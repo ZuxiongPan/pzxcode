@@ -4,8 +4,8 @@
 #include <stdatomic.h>
 #include <pthread.h>
 
-typedef int (*dcomponent_init_f)(void);
-typedef void (*dcomponent_exit_f)(void);
+typedef int (*dcomp_init_f)(void);
+typedef void (*dcomp_exit_f)(void);
 
 struct daemon_worker_manager;
 
@@ -40,8 +40,8 @@ struct daemon_context {
 typedef struct daemon_context dctx_t;
 
 dctx_t* dctx_instance(void);
-int daemon_context_init(void);
-int daemon_context_run(void);
+void daemon_context_init(void);
+void daemon_context_run(void);
 void daemon_context_destroy(void);
 void dcomponent_init(dcomp_t *comp, dlayer_e layer, const char *name);
 int dcomponent_record_add(dcomp_t *comp);

@@ -5,15 +5,17 @@
 
 struct daemon_proto;
 
-typedef int (*dproto_encode_f)(struct daemon_proto *proto, void *outbuf,
-    const void *data, unsigned int data_size);
-typedef int (*dproto_decode_f)(struct daemon_proto *proto, void *inbuf,
-    const void *data, unsigned int data_size);
+struct proto_ops {
+    int (*encode)(const struct daemon_proto *proto, void *outbuf,
+        const void *data, unsigned int data_size);
+    int (*decode)(const struct daemon_proto *proto, void *inbuf,
+        const void *data, unsigned int data_size);
+};
+typedef struct proto_ops proto_ops_t;
 
 struct daemon_proto {
     dcomp_t dcomp;
-    const dproto_encode_f encode;
-    const dproto_decode_f decode;
+    const proto_ops_t *ops;
     void *priv;
 };
 typedef struct daemon_proto dproto_t;

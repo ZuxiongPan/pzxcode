@@ -27,7 +27,7 @@ static inline void context_init_check(int retcode)
     }
 }
 
-int daemon_context_init(void)
+void daemon_context_init(void)
 {
     int ret = Success;
     memset(&g_ctx, 0, sizeof(dctx_t));
@@ -52,10 +52,10 @@ int daemon_context_init(void)
     atomic_store(&g_ctx.status, true);
     
     dprint("context init success\n");
-    return ret;
+    return ;
 }
 
-int daemon_context_run(void)
+void daemon_context_run(void)
 {
     int nfds = 0;
     struct epoll_event events[EPOLL_EVENTS];
@@ -74,8 +74,6 @@ int daemon_context_run(void)
             dchannel_handle(events[i].data.ptr);
         }
     }
-
-    return Success;
 }
 
 void daemon_context_destroy(void)

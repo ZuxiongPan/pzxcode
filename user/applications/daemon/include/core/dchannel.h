@@ -6,12 +6,15 @@
 
 struct daemon_channel;
 
-typedef void (*dchannel_cb_f)(struct daemon_channel *ch);
+struct channel_ops{
+    int (*callback)(struct daemon_channel *ch);
+};
+typedef struct channel_ops channel_ops_t;
 
 struct daemon_channel {
     dcomp_t dcomp;
     int fd;
-    const dchannel_cb_f cb;
+    const channel_ops_t *ops;
     void *priv;
 };
 typedef struct daemon_channel dchannel_t;

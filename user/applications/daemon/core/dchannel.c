@@ -2,7 +2,8 @@
 #include <sys/epoll.h>
 
 #include "dlog.h"
-#include "core/context.h"
+#include "dconf.h"
+#include "core/dcontext.h"
 #include "core/dchannel.h"
 
 int dchannel_register(uint32_t events, dchannel_t *chnl)
@@ -24,7 +25,7 @@ int dchannel_register(uint32_t events, dchannel_t *chnl)
     dctx_t *ctx = dctx_instance();
     struct epoll_event ev;
     ev.events = events;
-    ev.data.ptr = (void *)ch;
+    ev.data.ptr = (void *)chnl;
 
     ret = epoll_ctl(ctx->epfd, EPOLL_CTL_ADD, chnl->fd, &ev);
     if (ret != 0)
@@ -59,7 +60,7 @@ void dchannel_handle(void *arg)
         return ;
     }
 
-    chnl->cb(chnl);
+    chnl->ops->callback(chnl);
 
     return ;
 }

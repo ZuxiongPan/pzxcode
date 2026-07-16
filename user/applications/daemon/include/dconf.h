@@ -12,4 +12,6 @@
 #define TASK_DATA_MAXSIZE 4096  // limit task data size
 #define WORKER_MAXNUM 16
 
+#define MAX_DTIMER_COUNT 512
+
 #endif
