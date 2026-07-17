@@ -6,17 +6,22 @@
 #include <stdatomic.h>
 #include <pthread.h>
 
+#define DCOMPID_NONE 0xFFFFFFFF
+
+struct daemon_component;
+
 enum daemon_task_type {
     TaskInvalid = 0,
-    TaskDecode,
-    TaskEncode,
-    TaskInnerMsg,   // module pass message
+    TaskChnlToProto,   // task between channel and protocol
+    TaskModToProto,    // task between protocol and module
+    TaskInnerMod,       // task between module and module
 };
 typedef enum daemon_task_type ttype_e;
 
 struct daemon_task {
     ttype_e type;
-    void *src_comp; // source component of task
+    int src_compid; // source component of task
+    int dst_compid; // destination component of task
     unsigned int next_offset;
     unsigned int data_size;
     char data[0];    // flexible array member
@@ -51,5 +56,7 @@ typedef struct daemon_worker_manager dworker_mgr_t;
 
 int worker_manager_init(dworker_mgr_t* mgr);
 void worker_manager_destroy(dworker_mgr_t* mgr);
+int task_enqueue(ttype_e type, int src, int dst,
+    unsigned int data_size, const char *data);
 
 #endif

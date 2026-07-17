@@ -3,6 +3,8 @@
 
 #include "dlog.h"
 #include "dconf.h"
+#include "core/dproto.h"
+#include "core/dworker.h"
 #include "core/dcontext.h"
 #include "core/dchannel.h"
 
@@ -14,13 +16,14 @@ int dchannel_register(uint32_t events, dchannel_t *chnl)
         return Fail;
     }
 
-    int ret = dcomponent_record_add(&chnl->dcomp);
+    int ret = dcomponent_record_add(&chnl->dcomp, Layer_Channel);
     if (ret != Success)
     {
         derror("dchannel_register: failed to add channel[%s] to record\n",
             chnl->dcomp.name == NULL ? "no name" : chnl->dcomp.name);
         return Fail;
     }
+    dprint("dchannel_register: channel[%s] id[0x%x]\n", chnl->dcomp.name ? chnl->dcomp.name : "no name", chnl->dcomp.dcomp_id);
 
     dctx_t *ctx = dctx_instance();
     struct epoll_event ev;
@@ -32,7 +35,7 @@ int dchannel_register(uint32_t events, dchannel_t *chnl)
     {
         derror("dchannel_register: failed to add channel[%s] to epoll\n",
             chnl->dcomp.name == NULL ? "no name" : chnl->dcomp.name);
-        dcomponent_record_del(&chnl->dcomp);
+        dcomponent_record_del(&chnl->dcomp, Layer_Channel);
         return Fail;
     }
 
@@ -48,8 +51,33 @@ void dchannel_unregister(dchannel_t *chnl)
     }
     
     dctx_t *ctx = dctx_instance();
-    dcomponent_record_del(&chnl->dcomp);
+    dcomponent_record_del(&chnl->dcomp, Layer_Channel);
     epoll_ctl(ctx->epfd, EPOLL_CTL_DEL, chnl->fd, NULL);
+}
+
+void dchannel_create_task(dchannel_t *chnl, unsigned int data_size, const char *data)
+{
+    if (chnl == NULL || data == NULL)
+    {
+        derror("dchannel_create_task: channel/data is invalid\n");
+        return ;
+    }
+    
+    int ret = Success;
+    const dpdata_t *pdata = (dpdata_t *)data;
+    switch (pdata->op)
+    {
+        case PROTO_OP_DECODE:
+            ret = task_enqueue(TaskChnlToProto, chnl->dcomp.dcomp_id, DCOMPID_NONE,
+                data_size, (char *)pdata);
+            break;
+        default:
+            derror("dchannel_create_task: unknown op %d\n", pdata->op);
+            ret = Fail;
+            break;
+    }
+
+    dprint("dchannel_create_task: ret = %d\n", ret);
 }
 
 void dchannel_handle(void *arg)

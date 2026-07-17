@@ -8,6 +8,7 @@
 
 #include "dlog.h"
 #include "dconf.h"
+#include "core/dproto.h"
 #include "core/dchannel.h"
 
 static dchannel_t uevent_chnl;
@@ -17,8 +18,9 @@ static int uevent_chnl_callback(dchannel_t *chnl)
     char buf[NETCHNL_RECV_BUF_SIZE];
     memset(buf, 0, sizeof(buf));
     ssize_t len = 0;
+    dpdata_t *pdata = (dpdata_t *)buf;
 
-    len = recv(chnl->fd, buf, sizeof(buf), 0);
+    len = recv(chnl->fd, pdata->data, sizeof(buf) - sizeof(dpdata_t), 0);
     if (len < 0)
     {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -33,14 +35,16 @@ static int uevent_chnl_callback(dchannel_t *chnl)
         return Fail;
     }
 
-    ssize_t i = 0;
-    dprint("---------- uevent message ----------\n");
-    while (i < len)
-    {
-        printf("\t%s\n", buf + i);
-        i += strlen(buf + i) + 1;
-    }
-    dprint("---------- uevent message ----------\n");
+    pdata->op = PROTO_OP_DECODE;
+    dchannel_create_task(chnl, len + sizeof(dpdata_t), buf);
+    // ssize_t i = 0;
+    // dprint("---------- uevent message ----------\n");
+    // while (i < len)
+    // {
+    //     printf("\t%s\n", buf + i);
+    //     i += strlen(buf + i) + 1;
+    // }
+    // dprint("---------- uevent message ----------\n");
 
     return Success;
 }
@@ -56,6 +60,7 @@ int ch_uevent_init(void)
 
     memset(&addr, 0, sizeof(addr));
     memset(&uevent_chnl, 0, sizeof(dchannel_t));
+    dcomponent_init(&uevent_chnl.dcomp, "duevent");
     uevent_chnl.ops = &uevent_chnl_ops;
     uevent_chnl.fd = socket(AF_NETLINK, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC,
         NETLINK_KOBJECT_UEVENT);

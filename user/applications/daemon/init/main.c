@@ -11,7 +11,7 @@ int main(/*int argc, const char *argv[]*/)
     daemon_context_run();
 
     dchannel_exit();
-    daemon_context_exit();
+    daemon_context_destroy();
     ddebug("the event loop ended\n");
 
     return Success;

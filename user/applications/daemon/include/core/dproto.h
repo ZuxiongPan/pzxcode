@@ -3,6 +3,9 @@
 
 #include "core/dcontext.h"
 
+#define PROTO_OP_ENCODE 0
+#define PROTO_OP_DECODE 1
+
 struct daemon_proto;
 
 struct proto_ops {
@@ -19,6 +22,12 @@ struct daemon_proto {
     void *priv;
 };
 typedef struct daemon_proto dproto_t;
+
+struct dproto_data {
+    int op;
+    char data[0];
+};
+typedef struct dproto_data dpdata_t;
 
 int dproto_register(dproto_t *proto);
 void dproto_unregister(dproto_t *proto);

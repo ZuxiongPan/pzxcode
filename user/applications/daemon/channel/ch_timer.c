@@ -203,7 +203,7 @@ int ch_timer_init(void)
     memset(&dtimer_mgr, 0, sizeof(dtimer_mgr_t));
     memset(&timer_chnl, 0, sizeof(dchannel_t));
 
-    dcomponent_init(&timer_chnl.dcomp, Layer_Channel, "dtimer");
+    dcomponent_init(&timer_chnl.dcomp, "dtimer");
     pthread_mutex_init(&dtimer_mgr.lock, NULL);
     dtimer_mgr.count = 0;
     dtimer_mgr.next_tid = 0;

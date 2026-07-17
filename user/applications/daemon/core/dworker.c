@@ -31,21 +31,22 @@ static void* worker_thread(void* arg)
             pthread_mutex_unlock(&queue->mutex);
             break;
         }
-        atomic_add(&ctx->worker_mgr->busy, 1);
+        atomic_fetch_add(&ctx->worker_mgr->busy, 1);
         task = get_task_addr(queue, queue->first_offset);
         queue->first_offset = task->next_offset;
         queue->count--;
         pthread_mutex_unlock(&queue->mutex);
         /**
-         * todo: worker process task
+         * todo: process task
          */
-        atomic_sub(&ctx->worker_mgr->busy, 1);
+        atomic_fetch_sub(&ctx->worker_mgr->busy, 1);
     }
 
     return NULL;
 }
 
-int task_enqueue(unsigned int data_size, void *data)
+int task_enqueue(ttype_e type, int src, int dst,
+    unsigned int data_size, const char *data)
 {
     dctx_t *ctx = dctx_instance();
     task_queue_t *queue = &ctx->worker_mgr->queue;
@@ -108,6 +109,9 @@ int task_enqueue(unsigned int data_size, void *data)
     }
 
     new_task = get_task_addr(queue, target_offset);
+    new_task->type = type;
+    new_task->src_compid = src;
+    new_task->dst_compid = dst;
     new_task->data_size = data_size;
     new_task->next_offset = target_offset + required;
     memcpy(new_task->data, data, data_size);

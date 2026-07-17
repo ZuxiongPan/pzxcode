@@ -21,5 +21,6 @@ typedef struct daemon_channel dchannel_t;
 
 int dchannel_register(uint32_t events, dchannel_t *chnl);
 void dchannel_unregister(dchannel_t *chnl);
+void dchannel_create_task(dchannel_t *chnl, unsigned int data_size, const char *data);
 
 #endif

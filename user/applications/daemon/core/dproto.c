@@ -1,6 +1,7 @@
 #include <stdlib.h>
 
 #include "dlog.h"
+#include "dconf.h"
 #include "core/dcontext.h"
 #include "core/dproto.h"
 
