@@ -22,7 +22,6 @@ static void* worker_thread(void* arg)
     char buffer[task_max_needed];
     dctx_t *ctx = dctx_instance();
     dtask_t *task = NULL;
-    dcomp_t *src_comp = NULL;
     task_queue_t *queue = &ctx->worker_mgr->queue;
 
     while (true)

@@ -12,6 +12,9 @@ static dproto_t uevent_proto;
 static int uevent_proto_decode(const struct daemon_proto *proto, void *inbuf,
     unsigned int inbuf_size, void *data)
 {
+    (void)proto;
+    (void)inbuf;
+    (void)inbuf_size;
     dpdata_t *pdata = (dpdata_t *)data;
     char *raw_data = pdata->data;
     ssize_t len = 0;

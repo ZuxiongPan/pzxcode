@@ -5,10 +5,26 @@
 
 struct daemon_module;
 
+enum dmodule_id {
+    ModUnused = 0,
+    ModBlock,
+    ModInvalid,
+};
+typedef enum dmodule_id dmod_id_e;
+
+struct daemon_message {
+    int src_compid;
+    int dst_compid;
+    unsigned int msgid;
+    unsigned int content_size;
+    char content[0];
+};
+typedef struct daemon_message dmsg_t;
+
 struct mod_ops {
     int (*start)(struct daemon_module *m);
     int (*stop)(struct daemon_module *m);
-    int (*on_msg)(struct daemon_module *m, const message_t *msg);
+    int (*on_msg)(struct daemon_module *m, const dmsg_t *msg);
 };
 typedef struct mod_ops mod_ops_t;
 
@@ -21,5 +37,7 @@ typedef struct daemon_module dmod_t;
 
 int dmodule_register(dmod_t *mod);
 void dmodule_unregister(dmod_t *mod);
+const char *dmodule_get_name(dmod_id_e modid);
+int dmodule_handle(void *arg);
 
 #endif

@@ -3,15 +3,15 @@
 
 #include "core/dcontext.h"
 
-#define PROTO_OP_ENCODE  0
-#define PROTO_OP_DECODE  1
+#define PROTO_OP_ENCODE 0
+#define PROTO_OP_DECODE 1
 
 struct daemon_proto;
 
 enum dproto_type {
-    ProtoInvalid = 0,
+    ProtoUnused = 0,
     ProtoUevent,
-    ProtoMax,
+    ProtoInvalid,
 };
 typedef enum dproto_type dproto_type_e;
 

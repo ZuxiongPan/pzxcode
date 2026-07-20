@@ -7,16 +7,16 @@
 #include "core/dworker.h"
 
 static const char *dproto_name[] = {
-    [ProtoInvalid] = "invalid",
+    [ProtoUnused] = "unused",
     [ProtoUevent] = "duevent",
 };
 
 const char *dproto_get_name(dproto_type_e proto)
 {
-    if (proto >= ProtoMax)
+    if (proto >= ProtoInvalid)
     {
         derror("dproto_get_name: invalid proto type\n");
-        proto = ProtoInvalid;
+        proto = ProtoUnused;
     }
     
     return dproto_name[proto];
