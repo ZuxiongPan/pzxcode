@@ -8,18 +8,15 @@
 
 #define DCOMPID_NONE 0xFFFFFFFF
 
-struct daemon_component;
-
-enum daemon_task_type {
+enum dtask_type {
     TaskInvalid = 0,
-    TaskChnlToProto,   // task between channel and protocol
-    TaskModToProto,    // task between protocol and module
-    TaskInnerMod,       // task between module and module
+    TaskCodec,  // task encode/decode
+    TaskInform,       // task inner module message
 };
-typedef enum daemon_task_type ttype_e;
+typedef enum dtask_type dtask_type_e;
 
 struct daemon_task {
-    ttype_e type;
+    dtask_type_e type;
     int src_compid; // source component of task
     int dst_compid; // destination component of task
     unsigned int next_offset;
@@ -56,7 +53,7 @@ typedef struct daemon_worker_manager dworker_mgr_t;
 
 int worker_manager_init(dworker_mgr_t* mgr);
 void worker_manager_destroy(dworker_mgr_t* mgr);
-int task_enqueue(ttype_e type, int src, int dst,
+int task_enqueue(dtask_type_e type, int src, int dst,
     unsigned int data_size, const char *data);
 
 #endif

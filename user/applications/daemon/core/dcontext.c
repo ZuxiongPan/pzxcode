@@ -47,9 +47,9 @@ void daemon_context_init(void)
     g_ctx.epfd = epoll_create1(EPOLL_CLOEXEC);
     context_init_check(g_ctx.epfd > 0 ? Success : Fail);
 
+    atomic_store(&g_ctx.status, true);
     ret = worker_manager_init(g_ctx.worker_mgr);
     context_init_check(ret);
-    atomic_store(&g_ctx.status, true);
     
     dprint("context init success\n");
     return ;
@@ -145,3 +145,52 @@ void dcomponent_record_del(dcomp_t *comp, dlayer_e layer)
 
     return ;
 }
+
+dcomp_t* find_dcomponent_by_id(int compid, dlayer_e layer)
+{
+    if (layer >= Layer_Unknown || compid < 0)
+    {
+        derror("find_dcomponent_by_id: invalid layer or compid\n");
+        return NULL;
+    }
+
+    dcomp_t *comp = NULL;
+    pthread_rwlock_rdlock(&g_ctx.records[layer].rwlock);
+    comp = g_ctx.records[layer].sentinel.next;
+    while (comp != &g_ctx.records[layer].sentinel)
+    {
+        if (comp->dcomp_id == compid)
+        {
+            break;
+        }
+        comp = comp->next;
+    }
+    pthread_rwlock_unlock(&g_ctx.records[layer].rwlock);
+
+    return (comp == &g_ctx.records[layer].sentinel) ? NULL : comp;
+}
+
+dcomp_t* find_dcomponent_by_name(const char *name, dlayer_e layer)
+{
+    if (layer >= Layer_Unknown || name == NULL)
+    {
+        derror("find_dcomponent_by_name: invalid layer or name\n");
+        return NULL;
+    }
+
+    dcomp_t *comp = NULL;
+    pthread_rwlock_rdlock(&g_ctx.records[layer].rwlock);
+    comp = g_ctx.records[layer].sentinel.next;
+    while (comp != &g_ctx.records[layer].sentinel)
+    {
+        if (strcmp(comp->name, name) == 0)
+        {
+            break;
+        }
+        comp = comp->next;
+    }
+    pthread_rwlock_unlock(&g_ctx.records[layer].rwlock);
+
+    return (comp == &g_ctx.records[layer].sentinel) ? NULL : comp;
+}
+

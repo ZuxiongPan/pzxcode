@@ -47,5 +47,7 @@ void daemon_context_destroy(void);
 void dcomponent_init(dcomp_t *comp, const char *name);
 int dcomponent_record_add(dcomp_t *comp, dlayer_e layer);
 void dcomponent_record_del(dcomp_t *comp, dlayer_e layer);
+dcomp_t* find_dcomponent_by_id(int compid, dlayer_e layer);
+dcomp_t* find_dcomponent_by_name(const char *name, dlayer_e layer);
 
 #endif

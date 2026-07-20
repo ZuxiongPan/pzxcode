@@ -35,7 +35,9 @@ static int uevent_chnl_callback(dchannel_t *chnl)
         return Fail;
     }
 
+    pdata->type = ProtoUevent;
     pdata->op = PROTO_OP_DECODE;
+    pdata->data_size = len;
     dchannel_create_task(chnl, len + sizeof(dpdata_t), buf);
     // ssize_t i = 0;
     // dprint("---------- uevent message ----------\n");
@@ -60,7 +62,7 @@ int ch_uevent_init(void)
 
     memset(&addr, 0, sizeof(addr));
     memset(&uevent_chnl, 0, sizeof(dchannel_t));
-    dcomponent_init(&uevent_chnl.dcomp, "duevent");
+    dcomponent_init(&uevent_chnl.dcomp, dproto_get_name(ProtoUevent));
     uevent_chnl.ops = &uevent_chnl_ops;
     uevent_chnl.fd = socket(AF_NETLINK, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC,
         NETLINK_KOBJECT_UEVENT);

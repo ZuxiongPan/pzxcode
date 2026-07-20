@@ -65,18 +65,9 @@ void dchannel_create_task(dchannel_t *chnl, unsigned int data_size, const char *
     
     int ret = Success;
     const dpdata_t *pdata = (dpdata_t *)data;
-    switch (pdata->op)
-    {
-        case PROTO_OP_DECODE:
-            ret = task_enqueue(TaskChnlToProto, chnl->dcomp.dcomp_id, DCOMPID_NONE,
-                data_size, (char *)pdata);
-            break;
-        default:
-            derror("dchannel_create_task: unknown op %d\n", pdata->op);
-            ret = Fail;
-            break;
-    }
-
+    ret = task_enqueue(TaskCodec, chnl->dcomp.dcomp_id, DCOMPID_NONE,
+            data_size, (char *)pdata);
+    
     dprint("dchannel_create_task: ret = %d\n", ret);
 }
 

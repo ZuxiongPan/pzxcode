@@ -5,6 +5,10 @@
 #include "dconf.h"
 #include "core/dworker.h"
 #include "core/dcontext.h"
+#include "core/dproto.h"
+
+static const int task_max_needed = TASK_DATA_MAXSIZE + sizeof(dtask_t);
+static int process_task(char *buffer);
 
 static inline dtask_t* get_task_addr(task_queue_t *queue, unsigned int offset)
 {
@@ -14,6 +18,8 @@ static inline dtask_t* get_task_addr(task_queue_t *queue, unsigned int offset)
 static void* worker_thread(void* arg)
 {
     (void)arg;
+    int inner_ret = Success;
+    char buffer[task_max_needed];
     dctx_t *ctx = dctx_instance();
     dtask_t *task = NULL;
     dcomp_t *src_comp = NULL;
@@ -21,6 +27,7 @@ static void* worker_thread(void* arg)
 
     while (true)
     {
+        memset(buffer, 0, sizeof(buffer));
         pthread_mutex_lock(&queue->mutex);
         while (queue->count == 0 && atomic_load(&ctx->status))
         {
@@ -34,24 +41,30 @@ static void* worker_thread(void* arg)
         atomic_fetch_add(&ctx->worker_mgr->busy, 1);
         task = get_task_addr(queue, queue->first_offset);
         queue->first_offset = task->next_offset;
+        /** here we use temporary buffer to store task data
+         *  to avoid after unlock queue the data is polluted
+        */
+        memcpy(buffer, task, sizeof(dtask_t) + task->data_size);
         queue->count--;
         pthread_mutex_unlock(&queue->mutex);
-        /**
-         * todo: process task
-         */
+        /* process task */
+        inner_ret = process_task(buffer);
+        ddebug("worker_thread: process task ret %d\n", inner_ret);
         atomic_fetch_sub(&ctx->worker_mgr->busy, 1);
     }
 
     return NULL;
 }
 
-int task_enqueue(ttype_e type, int src, int dst,
+int task_enqueue(dtask_type_e type, int src, int dst,
     unsigned int data_size, const char *data)
 {
     dctx_t *ctx = dctx_instance();
     task_queue_t *queue = &ctx->worker_mgr->queue;
+    unsigned int aligned = (data_size + 7) & ~7;    // 8 bytes align
+    unsigned int required = sizeof(dtask_t) + aligned;
 
-    if (data_size > TASK_DATA_MAXSIZE)
+    if (required > task_max_needed)
     {
         pthread_mutex_lock(&queue->mutex);
         queue->total++;
@@ -61,8 +74,6 @@ int task_enqueue(ttype_e type, int src, int dst,
         return Fail;
     }
 
-    unsigned int aligned = (data_size + 7) & ~7;    // 8 bytes align
-    unsigned int required = sizeof(dtask_t) + aligned;
     dtask_t *last_task = NULL;
     dtask_t *new_task = NULL;
     pthread_mutex_lock(&queue->mutex);
@@ -185,4 +196,23 @@ void worker_manager_destroy(dworker_mgr_t* mgr)
     }
     
     return ;
+}
+
+static int process_task(char *buffer)
+{
+    int ret = Success;
+    dtask_t *task = (dtask_t *)buffer;
+
+    switch (task->type)
+    {
+        case TaskCodec:
+            ret = dproto_handle(task);
+            break;
+        default:
+            derror("process_task: unknown task type %d\n", task->type);
+            ret = Fail;
+            break;
+    }
+
+    return ret;
 }
