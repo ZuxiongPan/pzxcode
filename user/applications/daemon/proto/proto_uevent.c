@@ -7,25 +7,85 @@
 #include "core/dproto.h"
 #include "core/dworker.h"
 
+enum uevent_keys_id {
+    KeyAction = 0,
+    KeyDevpath,
+    KeySubsystem,
+    KeyDevname,
+    KeyDevtype,
+};
+
+typedef struct uevent_keyinfo {
+    const char *key;
+    int len;
+} keyinfo_t;
+
+static const keyinfo_t uevent_keys[] = {
+    [KeyAction] = { .key = "ACTION=", .len = 7 },
+    [KeyDevpath] = { .key = "DEVPATH=", .len = 8 },
+    [KeySubsystem] = { .key = "SUBSYSTEM=", .len = 10 },
+    [KeyDevname] = { .key = "DEVNAME=", .len = 8 },
+    [KeyDevtype] = { .key = "DEVTYPE=", .len = 8 },
+};
+
+typedef struct uevent_msg {
+    const char *action;
+    const char *devpath;
+    const char *subsystem;
+    const char *devname;
+    const char *devtype;
+} uevent_msg_t;
+
 static dproto_t uevent_proto;
 
 static int uevent_proto_decode(const struct daemon_proto *proto, void *inbuf,
     unsigned int inbuf_size, void *data)
 {
-    (void)proto;
     (void)inbuf;
     (void)inbuf_size;
     dpdata_t *pdata = (dpdata_t *)data;
-    char *raw_data = pdata->data;
-    ssize_t len = 0;
+    dtask_t *task = proto->task_tmp;
+    unsigned int data_size = task ? task->data_size : 0;
+    const char *ptr = pdata->data;
+    uevent_msg_t msg;
+    memset(&msg, 0, sizeof(uevent_msg_t));
 
-    dprint("------ uevent message ------\n");
-    while(len < pdata->data_size)
+    while(ptr < pdata->data + pdata->data_size)
     {
-        dprint("\t%s\n", raw_data + len);
-        len += strlen(raw_data + len) + 1;
+        if (strncmp(ptr, uevent_keys[KeyAction].key, uevent_keys[KeyAction].len) == 0)
+        {
+            msg.action = ptr + uevent_keys[KeyAction].len;
+        }
+        else if (strncmp(ptr, uevent_keys[KeyDevpath].key, uevent_keys[KeyDevpath].len) == 0)
+        {
+            msg.devpath = ptr + uevent_keys[KeyDevpath].len;
+        }
+        else if (strncmp(ptr, uevent_keys[KeySubsystem].key, uevent_keys[KeySubsystem].len) == 0)
+        {
+            msg.subsystem = ptr + uevent_keys[KeySubsystem].len;
+        }
+        else if (strncmp(ptr, uevent_keys[KeyDevname].key, uevent_keys[KeyDevname].len) == 0)
+        {
+            msg.devname = ptr + uevent_keys[KeyDevname].len;
+        }
+        else if (strncmp(ptr, uevent_keys[KeyDevtype].key, uevent_keys[KeyDevtype].len) == 0)
+        {
+            msg.devtype = ptr + uevent_keys[KeyDevtype].len;
+        }
+
+        ptr += strlen(ptr) + 1;
     }
-    dprint("---- uevent message end ----\n");
+
+    if (msg.subsystem != NULL && strcmp(msg.subsystem, "block") == 0)
+    {
+        dprint("------ uevent message ------\n");
+        dprint("\t[%u]action = %s\n", data_size, msg.action ? msg.action : "null");
+        dprint("\t[%u]devpath = %s\n", data_size, msg.devpath ? msg.devpath : "null");
+        dprint("\t[%u]subsystem = %s\n", data_size, msg.subsystem ? msg.subsystem : "null");
+        dprint("\t[%u]devname = %s\n", data_size, msg.devname ? msg.devname : "null");
+        dprint("\t[%u]devtype = %s\n", data_size, msg.devtype ? msg.devtype : "null");
+        dprint("---- uevent message end ----\n");
+    }
 
     return 0;
 }

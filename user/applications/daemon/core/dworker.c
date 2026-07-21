@@ -6,6 +6,7 @@
 #include "core/dworker.h"
 #include "core/dcontext.h"
 #include "core/dproto.h"
+#include "core/dmodule.h"
 
 static const int task_max_needed = TASK_DATA_MAXSIZE + sizeof(dtask_t);
 static int process_task(char *buffer);
@@ -206,6 +207,9 @@ static int process_task(char *buffer)
     {
         case TaskCodec:
             ret = dproto_handle(task);
+            break;
+        case TaskInform:
+            //ret = dmodule_handle(task);
             break;
         default:
             derror("process_task: unknown task type %d\n", task->type);

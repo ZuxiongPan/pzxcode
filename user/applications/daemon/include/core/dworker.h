@@ -11,7 +11,7 @@
 enum dtask_type {
     TaskInvalid = 0,
     TaskCodec,  // task encode/decode
-    TaskInform,       // task inner module message
+    TaskInform, // task inner module message
 };
 typedef enum dtask_type dtask_type_e;
 

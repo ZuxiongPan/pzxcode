@@ -39,14 +39,6 @@ static int uevent_chnl_callback(dchannel_t *chnl)
     pdata->op = PROTO_OP_DECODE;
     pdata->data_size = len;
     dchannel_create_task(chnl, len + sizeof(dpdata_t), buf);
-    // ssize_t i = 0;
-    // dprint("---------- uevent message ----------\n");
-    // while (i < len)
-    // {
-    //     printf("\t%s\n", buf + i);
-    //     i += strlen(buf + i) + 1;
-    // }
-    // dprint("---------- uevent message ----------\n");
 
     return Success;
 }
