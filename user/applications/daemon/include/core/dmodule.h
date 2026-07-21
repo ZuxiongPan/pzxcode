@@ -23,8 +23,8 @@ typedef struct daemon_message dmsg_t;
 
 struct mod_ops {
     int (*start)(struct daemon_module *m);
-    int (*stop)(struct daemon_module *m);
-    int (*on_msg)(struct daemon_module *m, const dmsg_t *msg);
+    void (*stop)(struct daemon_module *m);
+    int (*onmsg)(struct daemon_module *m, const dmsg_t *msg);
 };
 typedef struct mod_ops mod_ops_t;
 

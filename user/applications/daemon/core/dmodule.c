@@ -38,6 +38,7 @@ int dmodule_register(dmod_t *mod)
             mod->dcomp.name == NULL ? "no name" : mod->dcomp.name);
         return Fail;
     }
+    dprint("dmodule_register: module[%s] id[0x%x]\n", mod->dcomp.name ? mod->dcomp.name : "no name", mod->dcomp.dcomp_id);
 
     return Success;
 }
