@@ -149,3 +149,44 @@ echo -n "281057432b2ee1a738268a3629e61912c4349884d307ebb28aefb9f76949407e" | sud
 sudo dd if=rootfs.img of=/dev/mapper/my_encrypt bs=1M status=progress
 sudo cryptsetup close my_encrypt
 sudo losetup -d /dev/loop5
+
+# bare metal boot
+[Start.S]
+.global _start
+
+.text
+
+_start:
+    ldr x0, = 0x00300000
+    adr x1, hello
+
+1:
+    ldrb w2, [x1], #1
+    cbz w2, halt
+    str w2, [x0]
+
+    b 1b
+
+halt:
+    wfe
+    b halt
+
+.align 3
+hello:
+    .string "Hello World!\n\0"
+# compile
+gcc -nostdlib -nostartfiles -Ttext=0x0 Start.S -o start.elf
+objcopy -O binary start.elf start.bin
+xxd -i start.bin ##### this output is raw instruction code
+
+# qemu add new board
+path [qemu-x.x.x/hw/arm/pzx.c]
+# config
+# path [qemu-x.x.xhw/arm/Kconfig]
+config ARM_PZX
+    bool
+    select PL011
+# path [qemu-x.x.x/configs/devices/aarch64-softmmu/default.mak]
+CONFIG_ARM_PZX=y
+# path [qemu-x.x.x/hw/arm/meson.build]
+arm_ss.add(when: 'CONFIG_ARM_PZX', if_true: files('pzx.c'))
