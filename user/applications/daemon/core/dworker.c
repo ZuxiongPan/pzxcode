@@ -57,7 +57,7 @@ static void* worker_thread(void* arg)
 }
 
 int task_enqueue(dtask_type_e type, int src, int dst,
-    unsigned int data_size, const char *data)
+    unsigned int msgid, unsigned int data_size, const char *data)
 {
     dctx_t *ctx = dctx_instance();
     task_queue_t *queue = &ctx->worker_mgr->queue;
@@ -123,6 +123,7 @@ int task_enqueue(dtask_type_e type, int src, int dst,
     new_task->type = type;
     new_task->src_compid = src;
     new_task->dst_compid = dst;
+    new_task->msgid = msgid;
     new_task->data_size = data_size;
     new_task->next_offset = target_offset + required;
     memcpy(new_task->data, data, data_size);
@@ -209,7 +210,7 @@ static int process_task(char *buffer)
             ret = dproto_handle(task);
             break;
         case TaskInform:
-            //ret = dmodule_handle(task);
+            ret = dmodule_handle(task);
             break;
         default:
             derror("process_task: unknown task type %d\n", task->type);

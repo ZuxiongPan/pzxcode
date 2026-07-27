@@ -4,6 +4,7 @@
 #include "core/dcontext.h"
 
 struct daemon_module;
+struct daemon_task;
 
 enum dmodule_id {
     ModUnused = 0,
@@ -24,7 +25,7 @@ typedef struct daemon_message dmsg_t;
 struct mod_ops {
     int (*start)(struct daemon_module *m);
     void (*stop)(struct daemon_module *m);
-    int (*onmsg)(struct daemon_module *m, const dmsg_t *msg);
+    int (*onmsg)(struct daemon_module *m, const struct daemon_task *task);
 };
 typedef struct mod_ops mod_ops_t;
 
@@ -39,5 +40,7 @@ int dmodule_register(dmod_t *mod);
 void dmodule_unregister(dmod_t *mod);
 const char *dmodule_get_name(dmod_id_e modid);
 int dmodule_handle(void *arg);
+void dmodule_create_task(int src, int dst, unsigned int msgid,
+    unsigned int data_size, void *data);
 
 #endif

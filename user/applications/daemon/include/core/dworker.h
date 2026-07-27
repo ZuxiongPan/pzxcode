@@ -19,6 +19,7 @@ struct daemon_task {
     dtask_type_e type;
     int src_compid; // source component of task
     int dst_compid; // destination component of task
+    unsigned int msgid; // if this is an inform task, msgid is needed
     unsigned int next_offset;
     unsigned int data_size;
     char data[0];    // flexible array member
@@ -54,6 +55,6 @@ typedef struct daemon_worker_manager dworker_mgr_t;
 int worker_manager_init(dworker_mgr_t* mgr);
 void worker_manager_destroy(dworker_mgr_t* mgr);
 int task_enqueue(dtask_type_e type, int src, int dst,
-    unsigned int data_size, const char *data);
+    unsigned int msgid, unsigned int data_size, const char *data);
 
 #endif

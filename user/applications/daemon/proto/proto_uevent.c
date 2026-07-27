@@ -6,6 +6,11 @@
 #include "dconf.h"
 #include "core/dproto.h"
 #include "core/dworker.h"
+#include "core/dmodule.h"
+#include "core/dcontext.h"
+#include "module/mod_api.h"
+#include "module/dmsgid.h"
+#include "module/mod_data.h"
 
 enum uevent_keys_id {
     KeyAction = 0,
@@ -37,6 +42,8 @@ typedef struct uevent_msg {
 } uevent_msg_t;
 
 static dproto_t uevent_proto;
+
+static void translate_block_kernel_msg(const uevent_msg_t *msg);
 
 static int uevent_proto_decode(const struct daemon_proto *proto, void *inbuf,
     unsigned int inbuf_size, void *data)
@@ -78,6 +85,7 @@ static int uevent_proto_decode(const struct daemon_proto *proto, void *inbuf,
 
     if (msg.subsystem != NULL && strcmp(msg.subsystem, "block") == 0)
     {
+        translate_block_kernel_msg(&msg);
         dprint("------ uevent message ------\n");
         dprint("\t[%u]action = %s\n", data_size, msg.action ? msg.action : "null");
         dprint("\t[%u]devpath = %s\n", data_size, msg.devpath ? msg.devpath : "null");
@@ -117,4 +125,35 @@ void proto_uevent_exit(void)
 {
     dproto_unregister(&uevent_proto);
     dprint("proto_uevent_exit: uevent proto unregister done\n");
+}
+
+static void translate_block_kernel_msg(const uevent_msg_t *msg)
+{
+    blk_info_t data = { 0 };
+    unsigned int msgid = 0;
+    if (NULL != msg->action && !strcmp(msg->action, "add"))
+    {
+        msgid = MSGID_BLKDEV_ADD;
+    }
+    else if (NULL != msg->action && !strcmp(msg->action, "remove"))
+    {
+        msgid = MSGID_BLKDEV_REMOVE;
+    }
+
+    if (NULL != msg->devtype && !strcmp(msg->devtype, "disk"))
+    {
+        snprintf(data.blkdev_name, BLKDEV_NAME_MAXLEN, "%s", msg->devpath);
+        const dcomp_t *blk = find_dcomponent_by_name("dblock", Layer_Module);
+        if (NULL != blk)
+        {
+            dmodule_create_task(uevent_proto.dcomp.dcomp_id, blk->dcomp_id,
+                msgid, sizeof(data), &data);
+        }
+        else
+        {
+            derror("translate_block_kernel_msg: no target\n");
+        }
+    }
+
+    return ;
 }

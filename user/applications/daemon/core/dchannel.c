@@ -66,7 +66,7 @@ void dchannel_create_task(dchannel_t *chnl, unsigned int data_size, const char *
     int ret = Success;
     const dpdata_t *pdata = (dpdata_t *)data;
     ret = task_enqueue(TaskCodec, chnl->dcomp.dcomp_id, DCOMPID_NONE,
-            data_size, (char *)pdata);
+        0, data_size, (char *)pdata);
     
     dprint("dchannel_create_task: ret = %d\n", ret);
 }

@@ -57,9 +57,32 @@ void dmodule_unregister(dmod_t *mod)
 int dmodule_handle(void *arg)
 {
     int ret = Success;
-    char buf[TASK_DATA_MAXSIZE];
     dtask_t *task = (dtask_t *)arg;
-    dmsg_t *msg = (dmsg_t *)task->data;
+    dcomp_t *dst = find_dcomponent_by_id(task->dst_compid, Layer_Module);
+    if (NULL != dst)
+    {
+        dmod_t *mod = (dmod_t *)dst;
+        if (NULL != mod->ops->onmsg)
+        {
+            ret = mod->ops->onmsg(mod, task);
+            dprint("dmodule_handle ret %d\n", ret);
+        }
+    }
 
     return ret;
+}
+
+void dmodule_create_task(int src, int dst, unsigned int msgid,
+    unsigned int data_size, void *data)
+{
+    if (data == NULL)
+    {
+        derror("dmodule_create_task: data is invalid\n");
+        return ;
+    }
+    
+    int ret = task_enqueue(TaskInform, src, dst,
+        msgid, data_size, (char *)data);
+    
+    dprint("dmodule_create_task: ret = %d\n", ret);
 }

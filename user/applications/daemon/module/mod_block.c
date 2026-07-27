@@ -3,6 +3,9 @@
 #include "dlog.h"
 #include "dconf.h"
 #include "core/dmodule.h"
+#include "core/dworker.h"
+#include "module/dmsgid.h"
+#include "module/mod_data.h"
 
 static dmod_t blkmod;
 
@@ -22,8 +25,30 @@ static void blkmod_stop(dmod_t *m)
     return ;
 }
 
-static int blkmod_onmsg(dmod_t *m, const dmsg_t *msg)
+static int blkmod_onmsg(dmod_t *m, const dtask_t *task)
 {
+    (void)m;
+    if (NULL == task)
+    {
+        dprint("blk_onmsg: invalid task\n");
+        return Fail;
+    }
+
+    dprint("receive task from %d\n", task->src_compid);
+    blk_info_t *info = (blk_info_t *)task->data;
+
+    switch (task->msgid)
+    {
+        case MSGID_BLKDEV_ADD:
+            dprint("add a new block %s\n", info->blkdev_name);
+            break;
+        case MSGID_BLKDEV_REMOVE:
+            dprint("remove block %s\n", info->blkdev_name);
+            break;
+        default:
+            dprint("invalid msgid 0x%x\n", task->msgid);
+            break;
+    }
 
     return Success;
 }

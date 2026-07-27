@@ -60,7 +60,7 @@ int dproto_handle(void *arg)
     dtask_t *task = (dtask_t *)arg;
     dpdata_t *pdata = (dpdata_t *)task->data;
     const char *proto_name = dproto_get_name(pdata->type);
-    dcomp_t *comp = find_dcomponent_by_name(proto_name, Layer_Proto);
+    const dcomp_t *comp = find_dcomponent_by_name(proto_name, Layer_Proto);
     if (comp == NULL)
     {
         derror("dproto_handle: failed to find proto[%s] in record\n", proto_name);
@@ -78,7 +78,8 @@ int dproto_handle(void *arg)
         }
         else
         {
-            ret = task_enqueue(TaskInform, comp->dcomp_id, DCOMPID_NONE, TASK_DATA_MAXSIZE, buf);
+            ret = task_enqueue(TaskInform, comp->dcomp_id, DCOMPID_NONE,
+                0, TASK_DATA_MAXSIZE, buf);
             dprint("dproto_handle: enqueue inform task ret = %d\n", ret);
         }
     }
