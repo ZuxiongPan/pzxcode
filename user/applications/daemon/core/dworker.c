@@ -206,7 +206,8 @@ static int process_task(char *buffer)
 
     switch (task->type)
     {
-        case TaskCodec:
+        case TaskDecode:
+        case TaskEncode:
             ret = dproto_handle(task);
             break;
         case TaskInform:

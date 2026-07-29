@@ -10,7 +10,8 @@
 
 enum dtask_type {
     TaskInvalid = 0,
-    TaskCodec,  // task encode/decode
+    TaskEncode,  // task encode
+    TaskDecode, // task decode
     TaskInform, // task inner module message
 };
 typedef enum dtask_type dtask_type_e;
@@ -54,6 +55,7 @@ typedef struct daemon_worker_manager dworker_mgr_t;
 
 int worker_manager_init(dworker_mgr_t* mgr);
 void worker_manager_destroy(dworker_mgr_t* mgr);
+// if type is not TaskInform, msgid is set to 0
 int task_enqueue(dtask_type_e type, int src, int dst,
     unsigned int msgid, unsigned int data_size, const char *data);
 

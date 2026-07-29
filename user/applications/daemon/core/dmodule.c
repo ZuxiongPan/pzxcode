@@ -7,22 +7,6 @@
 #include "core/dmodule.h"
 #include "core/dworker.h"
 
-static const char *dmodule_name[] = {
-    [ModUnused] = "unused",
-    [ModBlock] = "dblock",
-};
-
-const char *dmodule_get_name(dmod_id_e modid)
-{
-    if (modid >= ModInvalid)
-    {
-        derror("dmodule_get_name: invalid mod id\n");
-        modid = ModInvalid;
-    }
-    
-    return dmodule_name[modid];
-}
-
 int dmodule_register(dmod_t *mod)
 {
     if (mod == NULL)
@@ -70,19 +54,4 @@ int dmodule_handle(void *arg)
     }
 
     return ret;
-}
-
-void dmodule_create_task(int src, int dst, unsigned int msgid,
-    unsigned int data_size, void *data)
-{
-    if (data == NULL)
-    {
-        derror("dmodule_create_task: data is invalid\n");
-        return ;
-    }
-    
-    int ret = task_enqueue(TaskInform, src, dst,
-        msgid, data_size, (char *)data);
-    
-    dprint("dmodule_create_task: ret = %d\n", ret);
 }

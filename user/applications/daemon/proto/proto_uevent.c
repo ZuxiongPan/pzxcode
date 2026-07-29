@@ -7,7 +7,6 @@
 #include "core/dproto.h"
 #include "core/dworker.h"
 #include "core/dmodule.h"
-#include "core/dcontext.h"
 #include "module/mod_api.h"
 #include "module/dmsgid.h"
 #include "module/mod_data.h"
@@ -18,6 +17,7 @@ enum uevent_keys_id {
     KeySubsystem,
     KeyDevname,
     KeyDevtype,
+    KeySeqNum,
 };
 
 typedef struct uevent_keyinfo {
@@ -31,6 +31,7 @@ static const keyinfo_t uevent_keys[] = {
     [KeySubsystem] = { .key = "SUBSYSTEM=", .len = 10 },
     [KeyDevname] = { .key = "DEVNAME=", .len = 8 },
     [KeyDevtype] = { .key = "DEVTYPE=", .len = 8 },
+    [KeySeqNum] = { .key = "SEQNUM=", .len = 7 },
 };
 
 typedef struct uevent_msg {
@@ -39,25 +40,27 @@ typedef struct uevent_msg {
     const char *subsystem;
     const char *devname;
     const char *devtype;
+    const char *seqnum;
 } uevent_msg_t;
 
 static dproto_t uevent_proto;
 
 static void translate_block_kernel_msg(const uevent_msg_t *msg);
 
-static int uevent_proto_decode(const struct daemon_proto *proto, void *inbuf,
-    unsigned int inbuf_size, void *data)
+static int uevent_proto_decode(const struct daemon_proto *proto, void *arg)
 {
-    (void)inbuf;
-    (void)inbuf_size;
-    dpdata_t *pdata = (dpdata_t *)data;
-    dtask_t *task = proto->task_tmp;
-    unsigned int data_size = task ? task->data_size : 0;
-    const char *ptr = pdata->data;
+    (void)proto;
+    if (NULL == arg)
+    {
+        derror("the task info is invalid\n");
+        return Fail;
+    }
+    const dtask_t *task = (dtask_t *)arg;
+    const char *ptr = task->data;
     uevent_msg_t msg;
     memset(&msg, 0, sizeof(uevent_msg_t));
 
-    while(ptr < pdata->data + pdata->data_size)
+    while(ptr < task->data + task->data_size)
     {
         if (strncmp(ptr, uevent_keys[KeyAction].key, uevent_keys[KeyAction].len) == 0)
         {
@@ -79,6 +82,10 @@ static int uevent_proto_decode(const struct daemon_proto *proto, void *inbuf,
         {
             msg.devtype = ptr + uevent_keys[KeyDevtype].len;
         }
+        else if ((strncmp(ptr, uevent_keys[KeySeqNum].key, uevent_keys[KeySeqNum].len) == 0))
+        {
+            msg.seqnum = ptr + uevent_keys[KeySeqNum].len;
+        }
 
         ptr += strlen(ptr) + 1;
     }
@@ -86,12 +93,16 @@ static int uevent_proto_decode(const struct daemon_proto *proto, void *inbuf,
     if (msg.subsystem != NULL && strcmp(msg.subsystem, "block") == 0)
     {
         translate_block_kernel_msg(&msg);
+        if (NULL == msg.seqnum)
+        {
+            msg.seqnum = "seqnum invalid";
+        }
         dprint("------ uevent message ------\n");
-        dprint("\t[%u]action = %s\n", data_size, msg.action ? msg.action : "null");
-        dprint("\t[%u]devpath = %s\n", data_size, msg.devpath ? msg.devpath : "null");
-        dprint("\t[%u]subsystem = %s\n", data_size, msg.subsystem ? msg.subsystem : "null");
-        dprint("\t[%u]devname = %s\n", data_size, msg.devname ? msg.devname : "null");
-        dprint("\t[%u]devtype = %s\n", data_size, msg.devtype ? msg.devtype : "null");
+        dprint("\t[%s]action = %s\n", msg.seqnum, msg.action ? msg.action : "null");
+        dprint("\t[%s]devpath = %s\n", msg.seqnum, msg.devpath ? msg.devpath : "null");
+        dprint("\t[%s]subsystem = %s\n", msg.seqnum, msg.subsystem ? msg.subsystem : "null");
+        dprint("\t[%s]devname = %s\n", msg.seqnum, msg.devname ? msg.devname : "null");
+        dprint("\t[%s]devtype = %s\n", msg.seqnum, msg.devtype ? msg.devtype : "null");
         dprint("---- uevent message end ----\n");
     }
 
@@ -107,7 +118,7 @@ int proto_uevent_init(void)
 {
     int ret = Success;
     memset(&uevent_proto, 0, sizeof(dproto_t));
-    dcomponent_init(&uevent_proto.dcomp, dproto_get_name(ProtoUevent));
+    dcomponent_init(&uevent_proto.dcomp, ProtoIDUevent, "proto_uevent");
     uevent_proto.ops = &uevent_proto_ops;
 
     ret = dproto_register(&uevent_proto);
@@ -142,17 +153,10 @@ static void translate_block_kernel_msg(const uevent_msg_t *msg)
 
     if (NULL != msg->devtype && !strcmp(msg->devtype, "disk"))
     {
-        snprintf(data.blkdev_name, BLKDEV_NAME_MAXLEN, "%s", msg->devpath);
-        const dcomp_t *blk = find_dcomponent_by_name("dblock", Layer_Module);
-        if (NULL != blk)
-        {
-            dmodule_create_task(uevent_proto.dcomp.dcomp_id, blk->dcomp_id,
-                msgid, sizeof(data), &data);
-        }
-        else
-        {
-            derror("translate_block_kernel_msg: no target\n");
-        }
+        snprintf(data.blkdev_name, BLKDEV_NAME_MAXLEN, "%s", msg->devname);
+        int ret = task_enqueue(TaskInform, uevent_proto.dcomp.dcomp_id, ModuleIDBlock,
+            msgid, sizeof(data), (const char *)&data);
+        dprint("send message to mod block ret %d\n", ret);
     }
 
     return ;

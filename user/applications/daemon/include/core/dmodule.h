@@ -3,15 +3,9 @@
 
 #include "core/dcontext.h"
 
-struct daemon_module;
-struct daemon_task;
+#define ModuleIDBlock (MODULEID_START + 1)
 
-enum dmodule_id {
-    ModUnused = 0,
-    ModBlock,
-    ModInvalid,
-};
-typedef enum dmodule_id dmod_id_e;
+struct daemon_module;
 
 struct daemon_message {
     int src_compid;
@@ -25,7 +19,8 @@ typedef struct daemon_message dmsg_t;
 struct mod_ops {
     int (*start)(struct daemon_module *m);
     void (*stop)(struct daemon_module *m);
-    int (*onmsg)(struct daemon_module *m, const struct daemon_task *task);
+    // arg here is the task pointer
+    int (*onmsg)(struct daemon_module *m, void *arg);
 };
 typedef struct mod_ops mod_ops_t;
 
@@ -38,9 +33,6 @@ typedef struct daemon_module dmod_t;
 
 int dmodule_register(dmod_t *mod);
 void dmodule_unregister(dmod_t *mod);
-const char *dmodule_get_name(dmod_id_e modid);
 int dmodule_handle(void *arg);
-void dmodule_create_task(int src, int dst, unsigned int msgid,
-    unsigned int data_size, void *data);
 
 #endif

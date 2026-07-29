@@ -35,7 +35,6 @@ void daemon_context_init(void)
     for (int i = Layer_Channel; i < Layer_Unknown; i++)
     {
         pthread_rwlock_init(&g_ctx.records[i].rwlock, NULL);
-        g_ctx.records[i].next_id = 0;
         g_ctx.records[i].sentinel.name = "sentinel";
         g_ctx.records[i].sentinel.prev = &g_ctx.records[i].sentinel;
         g_ctx.records[i].sentinel.next = &g_ctx.records[i].sentinel;
@@ -94,14 +93,15 @@ void daemon_context_destroy(void)
     return ;
 }
 
-void dcomponent_init(dcomp_t *comp, const char *name)
+void dcomponent_init(dcomp_t *comp, int compid, const char *name)
 {
-    if (comp == NULL || name == NULL)
+    if (comp == NULL)
     {
         derror("dcomponent_init: component is invalid\n");
         return ;
     }
 
+    comp->dcomp_id = compid;
     comp->name = name;
     comp->prev = comp;
     comp->next = comp;
@@ -117,12 +117,10 @@ int dcomponent_record_add(dcomp_t *comp, dlayer_e layer)
 
     pthread_rwlock_wrlock(&g_ctx.records[layer].rwlock);
     dcomp_t *sentinel = &g_ctx.records[layer].sentinel;
-    comp->dcomp_id = ((layer + 1) << 16) | g_ctx.records[layer].next_id;
     comp->prev = sentinel;
     comp->next = sentinel->next;
     sentinel->next->prev = comp;
     sentinel->next = comp;
-    g_ctx.records[layer].next_id++;
     pthread_rwlock_unlock(&g_ctx.records[layer].rwlock);
 
     return Success;

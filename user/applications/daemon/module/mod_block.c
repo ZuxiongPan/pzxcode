@@ -25,17 +25,18 @@ static void blkmod_stop(dmod_t *m)
     return ;
 }
 
-static int blkmod_onmsg(dmod_t *m, const dtask_t *task)
+static int blkmod_onmsg(dmod_t *m, void *arg)
 {
     (void)m;
-    if (NULL == task)
+    if (NULL == arg)
     {
         dprint("blk_onmsg: invalid task\n");
         return Fail;
     }
 
-    dprint("receive task from %d\n", task->src_compid);
+    dtask_t *task = (dtask_t *)arg;
     blk_info_t *info = (blk_info_t *)task->data;
+    dprint("receive task from %d\n", task->src_compid);
 
     switch (task->msgid)
     {
@@ -63,7 +64,7 @@ int blkmod_init(void)
 {
     int ret = Success;
     memset(&blkmod, 0, sizeof(dmod_t));
-    dcomponent_init(&blkmod.dcomp, dmodule_get_name(ModBlock));
+    dcomponent_init(&blkmod.dcomp, ModuleIDBlock, "mod_block");
     blkmod.ops = &blkmod_ops;
 
     ret = dmodule_register(&blkmod);

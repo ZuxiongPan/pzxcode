@@ -17,6 +17,10 @@ enum daemon_layer {
 };
 typedef enum daemon_layer dlayer_e;
 
+#define CHANNELID_START (Layer_Channel << 16)
+#define MODULEID_START (Layer_Module << 16)
+#define PROTOID_START (Layer_Proto << 16)
+
 struct daemon_component {
     int dcomp_id;
     const char *name;
@@ -26,7 +30,6 @@ struct daemon_component {
 typedef struct daemon_component dcomp_t;
 
 struct dlayer_record {
-    unsigned short next_id; // only increase
     dcomp_t sentinel;
     pthread_rwlock_t rwlock;
 };
@@ -44,7 +47,7 @@ dctx_t* dctx_instance(void);
 void daemon_context_init(void);
 void daemon_context_run(void);
 void daemon_context_destroy(void);
-void dcomponent_init(dcomp_t *comp, const char *name);
+void dcomponent_init(dcomp_t *comp, int compid, const char *name);
 int dcomponent_record_add(dcomp_t *comp, dlayer_e layer);
 void dcomponent_record_del(dcomp_t *comp, dlayer_e layer);
 dcomp_t* find_dcomponent_by_id(int compid, dlayer_e layer);

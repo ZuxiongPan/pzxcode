@@ -1,8 +1,12 @@
 #ifndef _DCHANNEL_H_
 #define _DCHANNEL_H_
 
-#include "core/dcontext.h"
 #include <stdint.h>
+#include <stdbool.h>
+#include "core/dcontext.h"
+
+#define ChannelIDTimer (CHANNELID_START + 1)
+#define ChannelIDUevent (CHANNELID_START + 2)
 
 struct daemon_channel;
 
@@ -21,6 +25,6 @@ typedef struct daemon_channel dchannel_t;
 
 int dchannel_register(uint32_t events, dchannel_t *chnl);
 void dchannel_unregister(dchannel_t *chnl);
-void dchannel_create_task(dchannel_t *chnl, unsigned int data_size, const char *data);
+void dchannel_handle(void *arg);
 
 #endif

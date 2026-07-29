@@ -8,6 +8,7 @@
 
 #include "dlog.h"
 #include "dconf.h"
+#include "core/dworker.h"
 #include "core/dproto.h"
 #include "core/dchannel.h"
 
@@ -18,9 +19,8 @@ static int uevent_chnl_callback(dchannel_t *chnl)
     char buf[NETCHNL_RECV_BUF_SIZE];
     memset(buf, 0, sizeof(buf));
     ssize_t len = 0;
-    dpdata_t *pdata = (dpdata_t *)buf;
 
-    len = recv(chnl->fd, pdata->data, sizeof(buf) - sizeof(dpdata_t), 0);
+    len = recv(chnl->fd, buf, sizeof(buf), 0);
     if (len < 0)
     {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -35,12 +35,8 @@ static int uevent_chnl_callback(dchannel_t *chnl)
         return Fail;
     }
 
-    pdata->type = ProtoUevent;
-    pdata->op = PROTO_OP_DECODE;
-    pdata->data_size = len;
-    dchannel_create_task(chnl, len + sizeof(dpdata_t), buf);
-
-    return Success;
+    return task_enqueue(TaskDecode, chnl->dcomp.dcomp_id,
+        ProtoIDUevent, 0, len, buf);
 }
 
 const channel_ops_t uevent_chnl_ops = {
@@ -54,7 +50,7 @@ int ch_uevent_init(void)
 
     memset(&addr, 0, sizeof(addr));
     memset(&uevent_chnl, 0, sizeof(dchannel_t));
-    dcomponent_init(&uevent_chnl.dcomp, dproto_get_name(ProtoUevent));
+    dcomponent_init(&uevent_chnl.dcomp, ChannelIDUevent, "ch_uevent");
     uevent_chnl.ops = &uevent_chnl_ops;
     uevent_chnl.fd = socket(AF_NETLINK, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC,
         NETLINK_KOBJECT_UEVENT);
