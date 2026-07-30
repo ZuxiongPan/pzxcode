@@ -10,18 +10,18 @@ int dproto_register(dproto_t *proto)
 {
     if (proto == NULL)
     {
-        derror("dproto_register: proto is NULL\n");
+        derror("proto is NULL\n");
         return Fail;
     }
 
     int ret = dcomponent_record_add(&proto->dcomp, Layer_Proto);
     if (ret != Success)
     {
-        derror("dproto_register: failed to add proto[%s] to record\n",
+        derror("failed to add proto[%s] to record\n",
             proto->dcomp.name == NULL ? "no name" : proto->dcomp.name);
         return Fail;
     }
-    dprint("dproto_register: proto[%s] id[0x%x]\n", proto->dcomp.name ? proto->dcomp.name : "no name", proto->dcomp.dcomp_id);
+    dprint("proto[%s] id[0x%x]\n", proto->dcomp.name ? proto->dcomp.name : "no name", proto->dcomp.dcomp_id);
 
     return Success;
 }
@@ -30,7 +30,7 @@ void dproto_unregister(dproto_t *proto)
 {
     if (proto == NULL)
     {
-        derror("dproto_unregister: proto is NULL\n");
+        derror("proto is NULL\n");
         return;
     }
     
@@ -44,7 +44,7 @@ int dproto_handle(void *arg)
     const dcomp_t *comp = find_dcomponent_by_id(task->dst_compid, Layer_Proto);
     if (comp == NULL)
     {
-        derror("dproto_handle: failed to find proto[%d] in record\n", task->dst_compid);
+        derror("failed to find proto[%d] in record\n", task->dst_compid);
         return Fail;
     }
 
@@ -54,7 +54,7 @@ int dproto_handle(void *arg)
         ret = proto->ops->decode(proto, task);
         if (ret != Success)
         {
-            derror("dproto_handle: failed to decode proto[%s]\n", comp->name ? comp->name : "no name");
+            derror("failed to decode proto[%s]\n", comp->name ? comp->name : "no name");
         }
     }
     else if (task->type == TaskEncode && proto->ops->encode != NULL)

@@ -30,7 +30,7 @@ static int blkmod_onmsg(dmod_t *m, void *arg)
     (void)m;
     if (NULL == arg)
     {
-        dprint("blk_onmsg: invalid task\n");
+        dprint("invalid task\n");
         return Fail;
     }
 
@@ -70,16 +70,16 @@ int blkmod_init(void)
     ret = dmodule_register(&blkmod);
     if (ret != Success)
     {
-        derror("blkmod_init: block module register failed\n");
+        derror("block module register failed\n");
         return Fail;
     }
 
-    dprint("blkmod_init: ret = %d\n", ret);
+    dprint("blkmod_init ret = %d\n", ret);
     return ret;
 }
 
 void blkmod_exit(void)
 {
     dmodule_unregister(&blkmod);
-    dprint("blkmod_exit: block module unregister done\n");
+    dprint("block module unregister done\n");
 }

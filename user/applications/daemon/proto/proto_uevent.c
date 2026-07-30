@@ -98,11 +98,11 @@ static int uevent_proto_decode(const struct daemon_proto *proto, void *arg)
             msg.seqnum = "seqnum invalid";
         }
         dprint("------ uevent message ------\n");
-        dprint("\t[%s]action = %s\n", msg.seqnum, msg.action ? msg.action : "null");
-        dprint("\t[%s]devpath = %s\n", msg.seqnum, msg.devpath ? msg.devpath : "null");
-        dprint("\t[%s]subsystem = %s\n", msg.seqnum, msg.subsystem ? msg.subsystem : "null");
-        dprint("\t[%s]devname = %s\n", msg.seqnum, msg.devname ? msg.devname : "null");
-        dprint("\t[%s]devtype = %s\n", msg.seqnum, msg.devtype ? msg.devtype : "null");
+        rawlog("\t[%s]action = %s\n", msg.seqnum, msg.action ? msg.action : "null");
+        rawlog("\t[%s]devpath = %s\n", msg.seqnum, msg.devpath ? msg.devpath : "null");
+        rawlog("\t[%s]subsystem = %s\n", msg.seqnum, msg.subsystem ? msg.subsystem : "null");
+        rawlog("\t[%s]devname = %s\n", msg.seqnum, msg.devname ? msg.devname : "null");
+        rawlog("\t[%s]devtype = %s\n", msg.seqnum, msg.devtype ? msg.devtype : "null");
         dprint("---- uevent message end ----\n");
     }
 
@@ -124,18 +124,18 @@ int proto_uevent_init(void)
     ret = dproto_register(&uevent_proto);
     if (ret != Success)
     {
-        derror("proto_uevent_init: uevent proto register failed\n");
+        derror("uevent proto register failed\n");
         return Fail;
     }
 
-    dprint("proto_uevent_init: ret = %d\n", ret);
+    dprint("proto_uevent_init ret = %d\n", ret);
     return Success;
 }
 
 void proto_uevent_exit(void)
 {
     dproto_unregister(&uevent_proto);
-    dprint("proto_uevent_exit: uevent proto unregister done\n");
+    dprint("uevent proto unregister done\n");
 }
 
 static void translate_block_kernel_msg(const uevent_msg_t *msg)

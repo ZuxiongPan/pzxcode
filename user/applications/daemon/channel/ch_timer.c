@@ -168,7 +168,7 @@ static void timerfd_expired_process(void)
         }
 
         heap_pop();
-        dprint("timerfd_expired_process: timer_id = %d\n", timer->timer_id);
+        dprint("timer_id = %d\n", timer->timer_id);
         if (timer->repeat)
         {
             timer->expire_ms += timer->interval_ms;
@@ -210,7 +210,7 @@ int ch_timer_init(void)
     dtimer_mgr.heap = calloc(MAX_DTIMER_COUNT, sizeof(dtimer_t*));
     if (dtimer_mgr.heap == NULL)
     {
-        derror("ch_timer_init: failed to calloc timer heap\n");
+        derror("failed to calloc timer heap\n");
         return Fail;
     }
 
@@ -218,7 +218,7 @@ int ch_timer_init(void)
     timer_chnl.fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (timer_chnl.fd < 0)
     {
-        derror("ch_timer_init: failed to create dtimer fd\n");
+        derror("failed to create dtimer fd\n");
         free(dtimer_mgr.heap);
         return Fail;
     }
@@ -226,13 +226,13 @@ int ch_timer_init(void)
     ret = dchannel_register(EPOLLIN, &timer_chnl);
     if (ret != Success)
     {
-        derror("ch_timer_init: failed to register dtimer channel\n");
+        derror("failed to register dtimer channel\n");
         close(timer_chnl.fd);
         free(dtimer_mgr.heap);
         return Fail;
     }
 
-    dprint("ch_timer_init: dtimer channel fd = %d\n", timer_chnl.fd);
+    dprint("dtimer channel fd = %d\n", timer_chnl.fd);
     return Success;
 }
 
@@ -260,7 +260,7 @@ void ch_timer_exit(void)
     pthread_mutex_unlock(&dtimer_mgr.lock);
     pthread_mutex_destroy(&dtimer_mgr.lock);
 
-    dprint("ch_timer_exit: dtimer channel fd = %d\n", timer_chnl.fd);
+    dprint("dtimer channel fd = %d\n", timer_chnl.fd);
 }
 
 int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat)

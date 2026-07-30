@@ -24,7 +24,7 @@ void dproto_init(void)
         ret = dproto_initcalls[i]();
         if (ret != Success)
         {
-            derror("dproto_init: failed to init proto[%d]\n", i);
+            derror("failed to init proto[%d]\n", i);
         }
     }
     

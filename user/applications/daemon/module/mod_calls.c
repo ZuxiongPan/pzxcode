@@ -24,7 +24,7 @@ void dmodule_init(void)
         ret = dmodule_initcalls[i]();
         if (ret != Success)
         {
-            derror("dmodule_init: failed to init module[%d]\n", i);
+            derror("failed to init module[%d]\n", i);
         }
     }
     

@@ -97,7 +97,7 @@ void dcomponent_init(dcomp_t *comp, int compid, const char *name)
 {
     if (comp == NULL)
     {
-        derror("dcomponent_init: component is invalid\n");
+        derror("component is invalid\n");
         return ;
     }
 
@@ -111,7 +111,7 @@ int dcomponent_record_add(dcomp_t *comp, dlayer_e layer)
 {
     if (comp == NULL || layer >= Layer_Unknown)
     {
-        derror("dcomponent_record_add: component is invalid\n");
+        derror("component is invalid\n");
         return Fail;
     }
 
@@ -130,7 +130,7 @@ void dcomponent_record_del(dcomp_t *comp, dlayer_e layer)
 {
     if (comp == NULL || layer >= Layer_Unknown)
     {
-        derror("dcomponent_unregister: component is invalid\n");
+        derror("component is invalid\n");
         return ;
     }
 
@@ -148,7 +148,7 @@ dcomp_t* find_dcomponent_by_id(int compid, dlayer_e layer)
 {
     if (layer >= Layer_Unknown || compid < 0)
     {
-        derror("find_dcomponent_by_id: invalid layer or compid\n");
+        derror("invalid layer or compid\n");
         return NULL;
     }
 
@@ -172,7 +172,7 @@ dcomp_t* find_dcomponent_by_name(const char *name, dlayer_e layer)
 {
     if (layer >= Layer_Unknown || name == NULL)
     {
-        derror("find_dcomponent_by_name: invalid layer or name\n");
+        derror("invalid layer or name\n");
         return NULL;
     }
 

@@ -49,7 +49,7 @@ static void* worker_thread(void* arg)
         pthread_mutex_unlock(&queue->mutex);
         /* process task */
         inner_ret = process_task(buffer);
-        ddebug("worker_thread: process task ret %d\n", inner_ret);
+        ddebug("process task ret %d\n", inner_ret);
         atomic_fetch_sub(&ctx->worker_mgr->busy, 1);
     }
 
@@ -70,7 +70,7 @@ int task_enqueue(dtask_type_e type, int src, int dst,
         queue->total++;
         queue->drop++;
         pthread_mutex_unlock(&queue->mutex);
-        derror("task_enqueue: data_size %d is too large\n", data_size);
+        derror("data_size %d is too large\n", data_size);
         return Fail;
     }
 
@@ -94,7 +94,7 @@ int task_enqueue(dtask_type_e type, int src, int dst,
         {
             if (queue->first_offset < required)
             {
-                derror("task_enqueue: there is no space for new task\n");
+                derror("there is no space for new task\n");
                 queue->drop++;
                 pthread_mutex_unlock(&queue->mutex);
                 return Fail;
@@ -106,7 +106,7 @@ int task_enqueue(dtask_type_e type, int src, int dst,
     {
         if ((queue->first_offset - queue->idle_offset) < required)
         {
-            derror("task_enqueue: there is no space for new task\n");
+            derror("there is no space for new task\n");
             queue->drop++;
             pthread_mutex_unlock(&queue->mutex);
             return Fail;
@@ -149,7 +149,7 @@ int worker_manager_init(dworker_mgr_t* mgr)
     queue->tasks = calloc(1, TASK_QUEUE_BYTES);
     if (queue->tasks == NULL)
     {
-        derror("worker_init: failed to malloc task queue\n");
+        derror("failed to malloc task queue\n");
         return Fail;
     }
     queue->first_offset = 0;
@@ -167,7 +167,7 @@ int worker_manager_init(dworker_mgr_t* mgr)
         if (inner_ret != 0)
         {
             mgr->workers[i].valid = false;
-            derror("worker_init: failed to create worker thread %d\n", i);
+            derror("failed to create worker thread %d\n", i);
         }
         else
         {
@@ -176,7 +176,7 @@ int worker_manager_init(dworker_mgr_t* mgr)
         }
     }
 
-    dprint("worker_init: created %d worker threads, expect %d\n", tmp, WORKER_MAXNUM);
+    dprint("created %d worker threads, expect %d\n", tmp, WORKER_MAXNUM);
     return Success;
 }
 
@@ -214,7 +214,7 @@ static int process_task(char *buffer)
             ret = dmodule_handle(task);
             break;
         default:
-            derror("process_task: unknown task type %d\n", task->type);
+            derror("unknown task type %d\n", task->type);
             ret = Fail;
             break;
     }

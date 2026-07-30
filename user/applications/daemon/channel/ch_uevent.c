@@ -56,7 +56,7 @@ int ch_uevent_init(void)
         NETLINK_KOBJECT_UEVENT);
     if (uevent_chnl.fd < 0)
     {
-        derror("ch_uevent_init: uevent socket create failed\n");
+        derror("uevent socket create failed\n");
         return Fail;
     }
 
@@ -65,7 +65,7 @@ int ch_uevent_init(void)
     addr.nl_groups = 1;
     if (bind(uevent_chnl.fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
-        derror("ch_uevent_init: uevent channel socket bind failed\n");
+        derror("uevent channel socket bind failed\n");
         close(uevent_chnl.fd);
         return Fail;
     }
@@ -73,12 +73,12 @@ int ch_uevent_init(void)
     ret = dchannel_register(EPOLLIN, &uevent_chnl);
     if (ret != Success)
     {
-        derror("ch_uevent_init: uevent channel register failed\n");
+        derror("uevent channel register failed\n");
         close(uevent_chnl.fd);
         return Fail;
     }
 
-    dprint("ch_uevent_init: uevent channel fd = %d\n", uevent_chnl.fd);
+    dprint("uevent channel fd = %d\n", uevent_chnl.fd);
     return Success;
 }
 
@@ -90,5 +90,4 @@ void ch_uevent_exit(void)
         close(uevent_chnl.fd);
     }
     uevent_chnl.fd = -1;
-    dprint("ch_uevent_exit: uevent channel fd = %d\n", uevent_chnl.fd);
 }

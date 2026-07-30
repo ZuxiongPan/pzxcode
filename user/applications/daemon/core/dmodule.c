@@ -11,18 +11,18 @@ int dmodule_register(dmod_t *mod)
 {
     if (mod == NULL)
     {
-        derror("dmodule_register: mod is NULL\n");
+        derror("mod is NULL\n");
         return Fail;
     }
 
     int ret = dcomponent_record_add(&mod->dcomp, Layer_Module);
     if (ret != Success)
     {
-        derror("dmodule_register: failed to add mod[%s] to record\n",
+        derror("failed to add mod[%s] to record\n",
             mod->dcomp.name == NULL ? "no name" : mod->dcomp.name);
         return Fail;
     }
-    dprint("dmodule_register: module[%s] id[0x%x]\n", mod->dcomp.name ? mod->dcomp.name : "no name", mod->dcomp.dcomp_id);
+    dprint("module[%s] id[0x%x]\n", mod->dcomp.name ? mod->dcomp.name : "no name", mod->dcomp.dcomp_id);
 
     return Success;
 }
@@ -31,7 +31,7 @@ void dmodule_unregister(dmod_t *mod)
 {
     if (mod == NULL)
     {
-        derror("dmodule_unregister: mod is NULL\n");
+        derror("mod is NULL\n");
         return;
     }
     

@@ -11,18 +11,18 @@ int dchannel_register(uint32_t events, dchannel_t *chnl)
 {
     if (chnl == NULL)
     {
-        derror("dchannel_register: channel is NULL\n");
+        derror("channel is NULL\n");
         return Fail;
     }
 
     int ret = dcomponent_record_add(&chnl->dcomp, Layer_Channel);
     if (ret != Success)
     {
-        derror("dchannel_register: failed to add channel[%s] to record\n",
+        derror("failed to add channel[%s] to record\n",
             chnl->dcomp.name == NULL ? "no name" : chnl->dcomp.name);
         return Fail;
     }
-    dprint("dchannel_register: channel[%s] id[0x%x]\n", chnl->dcomp.name ? chnl->dcomp.name : "no name", chnl->dcomp.dcomp_id);
+    dprint("channel[%s] id[0x%x]\n", chnl->dcomp.name ? chnl->dcomp.name : "no name", chnl->dcomp.dcomp_id);
 
     dctx_t *ctx = dctx_instance();
     struct epoll_event ev;
@@ -32,7 +32,7 @@ int dchannel_register(uint32_t events, dchannel_t *chnl)
     ret = epoll_ctl(ctx->epfd, EPOLL_CTL_ADD, chnl->fd, &ev);
     if (ret != 0)
     {
-        derror("dchannel_register: failed to add channel[%s] to epoll\n",
+        derror("failed to add channel[%s] to epoll\n",
             chnl->dcomp.name == NULL ? "no name" : chnl->dcomp.name);
         dcomponent_record_del(&chnl->dcomp, Layer_Channel);
         return Fail;
@@ -45,7 +45,7 @@ void dchannel_unregister(dchannel_t *chnl)
 {
     if (chnl == NULL)
     {
-        derror("dchannel_unregister: channel is NULL\n");
+        derror("channel is NULL\n");
         return;
     }
     

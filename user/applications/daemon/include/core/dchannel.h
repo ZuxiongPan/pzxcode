@@ -7,6 +7,7 @@
 
 #define ChannelIDTimer (CHANNELID_START + 1)
 #define ChannelIDUevent (CHANNELID_START + 2)
+#define ChannelIDUds (CHANNELID_START + 3)
 
 struct daemon_channel;
 
