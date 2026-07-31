@@ -4,6 +4,7 @@
 #include "core/dcontext.h"
 
 #define ProtoIDUevent (PROTOID_START + 1)
+#define ProtoIDJSON (PROTOID_START + 2)
 
 struct daemon_proto;
 
