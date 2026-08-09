@@ -13,6 +13,7 @@
 #include "core/dworker.h"
 #include "core/dproto.h"
 #include "core/dchannel.h"
+#include "channel/chnl_api.h"
 
 typedef struct uds_mgr {
     dchannel_t server;
@@ -29,6 +30,16 @@ static int uds_client_chnl_callback(dchannel_t *chnl)
     ssize_t len = 0;
 
     len = recv(chnl->fd, buf, sizeof(buf), 0);
+    if (len == 0)
+    {
+        dprint("uds client closed by peer\n");
+        close(chnl->fd);
+        chnl->fd = -1;
+        dchannel_unregister(chnl);
+        atomic_store(&g_uds_mgr.client_inuse, false);
+        return Fail;
+    }
+
     if (len < 0)
     {
         if (errno == EAGAIN || errno == EWOULDBLOCK)

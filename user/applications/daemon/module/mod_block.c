@@ -6,23 +6,50 @@
 #include "core/dworker.h"
 #include "module/dmsgid.h"
 #include "module/mod_data.h"
+#include "proto/proto_api.h"
 
 static dmod_t blkmod;
 
-static int blkmod_start(dmod_t *m)
+static int blkdev_handle_add(const dtask_t *task)
 {
-    (void)m;
-    dprint("block module started\n");
+    int ret = Success;
+    const blk_info_t *info = (const blk_info_t *)task->data;
+    if (NULL == info)
+    {
+        derror("the task info is invalid\n");
+        return Fail;
+    }
+    dprint("add a new block %s\n", info->blkdev_name);
 
-    return Success;
+    return ret;
 }
 
-static void blkmod_stop(dmod_t *m)
+static int blkdev_handle_remove(const dtask_t *task)
 {
-    (void)m;
-    dprint("block module stopped\n");
+    int ret = Success;
+    const blk_info_t *info = (const blk_info_t *)task->data;
+    if (NULL == info)
+    {
+        derror("the task info is invalid\n");
+        return Fail;
+    }
+    dprint("remove block %s\n", info->blkdev_name);
 
-    return ;
+    return ret;
+}
+
+static int blkdev_handle_json(const dtask_t *task)
+{
+    int ret = Success;
+    const dproto_data_t *data = (const dproto_data_t *)task->data;
+    if (NULL == data)
+    {
+        derror("the task info is invalid\n");
+        return Fail;
+    }
+    dprint("json request: %s\n", data->json_data);
+
+    return ret;
 }
 
 static int blkmod_onmsg(dmod_t *m, void *arg)
@@ -34,29 +61,29 @@ static int blkmod_onmsg(dmod_t *m, void *arg)
         return Fail;
     }
 
+    int ret = Fail;
     dtask_t *task = (dtask_t *)arg;
-    blk_info_t *info = (blk_info_t *)task->data;
-    dprint("receive task from %d\n", task->src_compid);
 
     switch (task->msgid)
     {
         case MSGID_BLKDEV_ADD:
-            dprint("add a new block %s\n", info->blkdev_name);
+            ret = blkdev_handle_add(task);
             break;
         case MSGID_BLKDEV_REMOVE:
-            dprint("remove block %s\n", info->blkdev_name);
+            ret = blkdev_handle_remove(task);
+            break;
+        case MSGID_JSON_RAWSTR:
+            ret = blkdev_handle_json(task);
             break;
         default:
             dprint("invalid msgid 0x%x\n", task->msgid);
             break;
     }
 
-    return Success;
+    return ret;
 }
 
 static const mod_ops_t blkmod_ops = {
-    .start = blkmod_start,
-    .stop = blkmod_stop,
     .onmsg = blkmod_onmsg,
 };
 

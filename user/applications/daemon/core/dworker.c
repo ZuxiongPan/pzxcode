@@ -126,7 +126,10 @@ int task_enqueue(dtask_type_e type, int src, int dst,
     new_task->msgid = msgid;
     new_task->data_size = data_size;
     new_task->next_offset = target_offset + required;
-    memcpy(new_task->data, data, data_size);
+    if (data != NULL && data_size > 0)
+    {
+        memcpy(new_task->data, data, data_size);
+    }
     queue->last_offset = target_offset;
     queue->idle_offset = new_task->next_offset;
     queue->count++;

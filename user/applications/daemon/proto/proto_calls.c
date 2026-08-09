@@ -5,13 +5,17 @@
 
 extern int proto_uevent_init(void);
 extern void proto_uevent_exit(void);
+extern int proto_json_init(void);
+extern void proto_json_exit(void);
 
 static const dcomp_init_f dproto_initcalls[] = {
     proto_uevent_init,
+    proto_json_init,
     NULL,
 };
 
 static const dcomp_exit_f dproto_exitcalls[] = {
+    proto_json_exit,
     proto_uevent_exit,
     NULL,
 };
