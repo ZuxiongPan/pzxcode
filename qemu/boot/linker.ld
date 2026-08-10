@@ -1,10 +1,10 @@
-
 ENTRY(_start)
 
 MEMORY
 {
-    MROM : ORIGIN = 0x00000000, LENGTH = 0x00080000 /* 512KB MROM */
-    SRAM : ORIGIN = 0x00080000, LENGTH = 0x00100000 /* 12MB SRAM */
+    MROM  : ORIGIN = 0x00000000, LENGTH = 0x00080000 /* 512KB MROM */
+    SRAM1 : ORIGIN = 0x00080000, LENGTH = 0x00100000 /* 1MB for SD CODE */
+    SRAM2 : ORIGIN = 0x00180000, LENGTH = 0x00080000 /* 512KB MROM CODE */
 }
 
 SECTIONS
@@ -22,8 +22,8 @@ SECTIONS
         *(.data*)
         . = ALIGN(8);
         __data_end__ = .;
-    } > SRAM AT > MROM
-    
+    } > SRAM2 AT > MROM
+
     __data_load_start__ = LOADADDR(.data);
 
     .bss : {
@@ -33,6 +33,5 @@ SECTIONS
         *(COMMON)
         . = ALIGN(8);
         __bss_end__ = .;
-    } > SRAM
+    } > SRAM2
 }
-

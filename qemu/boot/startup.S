@@ -7,7 +7,7 @@ _start:
     msr daifset, #0xf
 
     // 2. set stack pointer(sram top)
-    ldr x0, =0x00180000
+    ldr x0, =0x00200000
     mov sp, x0
 
     // 3. bss zero
@@ -20,7 +20,7 @@ bss_loop:
     b bss_loop
 bss_done:
 
-    // 4. copy data (MROM -> SRAM)
+    // 4. copy data (MROM -> SRAM2)
     ldr x0, =__data_load_start__
     ldr x1, =__data_start__
     ldr x2, =__data_end__
@@ -32,7 +32,18 @@ data_copy_loop:
     b data_copy_loop
 data_copy_done:
 
+    // 5. run main function
+    // when return from main
+    // register x0 is the entry address of sd code
     bl main
+
+    // 6. memory barriers for refresh
+    ic iallu    // invalidate all instruction caches
+    dsb nsh     // data synchronization barrier
+    isb         // instruction synchronization barrier
+
+    // 7. run sd code
+    br x0
 
 halt:
     wfe

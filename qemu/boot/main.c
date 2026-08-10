@@ -5,44 +5,92 @@
 #define UART_FR (*(volatile uint32_t *)(UART_BASE + 0x18))
 #define UART_FR_TXFF (1 << 5)
 
-void uart_putc(char c)
-{
-    while ((UART_FR & UART_FR_TXFF) != 0)
-    {
-        asm volatile("nop");
-    }
-    UART_DR = c;
-}
+#define SD_BASE 0x00300000
+#define SD_POWER (*(volatile uint32_t *)(SD_BASE + 0x0))
+#define SD_CLOCK (*(volatile uint32_t *)(SD_BASE + 0x4))
+#define SD_ARG (*(volatile uint32_t *)(SD_BASE + 0x8))
+#define SD_CMD (*(volatile uint32_t *)(SD_BASE + 0xc))
+#define SD_RESP0 (*(volatile uint32_t *)(SD_BASE + 0x14))
+#define SD_DATATIMER (*(volatile uint32_t *)(SD_BASE + 0x24))
+#define SD_DATALEN (*(volatile uint32_t *)(SD_BASE + 0x28))
+#define SD_DATACTRL (*(volatile uint32_t *)(SD_BASE + 0x2c))
+#define SD_STATUS (*(volatile uint32_t *)(SD_BASE + 0x34))
+#define SD_FIFO (*(volatile uint32_t *)(SD_BASE + 0x80))
 
 void uart_puts(const char *str)
 {
     while (*str)
     {
-        uart_putc(*str++);
+        while ((UART_FR & UART_FR_TXFF) != 0)
+        {
+            asm volatile("nop");
+        }
+        UART_DR = *str++;
     }
+}
+
+void sd_send_cmd(uint32_t cmd_idx, uint32_t arg, uint32_t expected_resp)
+{
+    SD_ARG = arg;
+    uint32_t cmd_val = cmd_idx | (1 << 10);
+    if (expected_resp)
+    {
+        cmd_val |= (1 << 6);
+    }
+
+    SD_CMD = cmd_val;
+    while (SD_STATUS & (1 << 23))
+    {
+        // do nothing
+    }
+}
+
+void load_form_sd(void)
+{
+    uart_puts("Init SD...\n");
+    SD_POWER = 0xbf;
+    SD_CLOCK = 0x1ff | (1 << 8);
+
+    sd_send_cmd(0, 0, 0);
+    sd_send_cmd(8, 0x1aa, 1);
+
+    do {
+        sd_send_cmd(55, 0, 1);
+        sd_send_cmd(41, 0x40000000, 1);
+    } while ((SD_RESP0 & 0x80000000) == 0);
+
+    sd_send_cmd(2, 0, 1);
+    sd_send_cmd(3, 0, 1);
+    uint32_t rca = SD_RESP0 & 0xffff0000;
+    sd_send_cmd(7, rca, 1);
+
+    uart_puts("Loading code from sd to sram...\n");
+    SD_DATATIMER = 0xffffffff;
+    SD_DATALEN = 512;
+    SD_DATACTRL = 1 | (1 << 3) | (9 << 4);
+    sd_send_cmd(17, 0, 1);
+
+    uint32_t *dest = (uint32_t *)0x00080000;
+    int words_to_read = 512 / 4;
+    while (words_to_read > 0)
+    {
+        if ((SD_STATUS & (1 << 19)) == 0)
+        {
+            *dest++ = SD_FIFO;
+            words_to_read--;
+        }
+    }
+    uart_puts("Code loaded to sram success.\n");
 }
 
 int main(void)
 {
-    uart_puts("Hello from C main!\n");
+    uart_puts("Boot MROM\n");
     
-    static int initialized_var = 42;
-    static int zero_var;
-    
-    if (initialized_var == 42 && zero_var == 0)
-    {
-        uart_puts("Runtime environment OK.\n");
-    }
-    else
-    {
-        uart_puts("Runtime environment FAILED.\n");
-    }
+    load_form_sd();
 
-    while (1)
-    {
-        __asm__ volatile ("wfe");
-    }
+    uart_puts("Start Run ...\n");
     
-    return 0;
+    return 0x00080000;
 }
 
