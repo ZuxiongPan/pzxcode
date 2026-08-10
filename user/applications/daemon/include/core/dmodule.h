@@ -4,6 +4,7 @@
 #include "core/dcontext.h"
 
 #define ModuleIDBlock (MODULEID_START + 1)
+#define ModuleIDStatus (MODULEID_START + 2)
 
 struct daemon_module;
 

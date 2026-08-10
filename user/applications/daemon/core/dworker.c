@@ -143,7 +143,8 @@ int task_enqueue(dtask_type_e type, int src, int dst,
 int worker_manager_init(dworker_mgr_t* mgr)
 {
     // here we shoule check mgr is valid, but this is a key init, mgr must be valid
-    int tmp = 0, inner_ret = 0;
+    uint8_t tmp = 0;
+    int inner_ret = 0;
     task_queue_t *queue = &mgr->queue;
 
     // 1. init task queue, first version we use a fixed-size array
@@ -179,6 +180,7 @@ int worker_manager_init(dworker_mgr_t* mgr)
         }
     }
 
+    mgr->valid = tmp;
     dprint("created %d worker threads, expect %d\n", tmp, WORKER_MAXNUM);
     return Success;
 }

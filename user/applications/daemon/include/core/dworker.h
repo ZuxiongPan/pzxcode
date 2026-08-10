@@ -49,6 +49,7 @@ typedef struct daemon_worker dworker_t;
 struct daemon_worker_manager {
     task_queue_t queue;
     dworker_t workers[WORKER_MAXNUM];
+    uint8_t valid;  // valid worker count
     atomic_uchar busy;
 };
 typedef struct daemon_worker_manager dworker_mgr_t;

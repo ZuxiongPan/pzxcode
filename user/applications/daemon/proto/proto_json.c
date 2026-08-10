@@ -26,7 +26,6 @@ static int json_proto_decode(const struct daemon_proto *proto, void *arg)
         derror("the task info is invalid\n");
         return Fail;
     }
-    int ret = Success;
     const dtask_t *task = (dtask_t *)arg;
     const char *ptr = task->data;
     int buf_size = task->data_size;
@@ -65,11 +64,9 @@ static int json_proto_decode(const struct daemon_proto *proto, void *arg)
     }
     strcpy(data->json_data, item->valuestring);
     cJSON_Delete(json);
-    
-    ret = task_enqueue(TaskInform, proto->dcomp.dcomp_id, data->dst_compid,
-        MSGID_JSON_RAWSTR, buf_size, buffer);
 
-    return ret;
+    return task_enqueue(TaskInform, proto->dcomp.dcomp_id, data->dst_compid,
+        MSGID_JSON_RAWSTR, buf_size, buffer);
 }
 
 static int json_proto_encode(const struct daemon_proto *proto, void *arg)

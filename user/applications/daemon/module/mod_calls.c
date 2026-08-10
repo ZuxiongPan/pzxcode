@@ -5,13 +5,17 @@
 
 extern int blkmod_init(void);
 extern void blkmod_exit(void);
+extern int statmod_init(void);
+extern void statmod_exit(void);
 
 static const dcomp_init_f dmodule_initcalls[] = {
     blkmod_init,
+    statmod_init,
     NULL,
 };
 
 static const dcomp_exit_f dmodule_exitcalls[] = {
+    statmod_exit,
     blkmod_exit,
     NULL,
 };

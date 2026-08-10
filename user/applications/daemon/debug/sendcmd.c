@@ -11,9 +11,9 @@
 
 int main(int argc, const char *argv[])
 {
-    if (argc != 2)
+    if (argc != 3)
     {
-        printf("usage: %s <cmd>\n", argv[0]);
+        printf("usage: %s <mod> <req>\n", argv[0]);
         return -1;
     }
 
@@ -45,7 +45,7 @@ int main(int argc, const char *argv[])
         sleep(1);
     }
 
-    snprintf(buf, sizeof(buf), "{\"target\":\"mod_block\",\"request\":\"%s\"}", argv[1]);
+    snprintf(buf, sizeof(buf), "{\"target\":\"%s\",\"request\":\"%s\"}", argv[1], argv[2]);
     len = send(sockfd, buf, strlen(buf), 0);
     if (len < 0)
     {
