@@ -260,7 +260,7 @@ void ch_timer_exit(void)
     pthread_mutex_unlock(&dtimer_mgr.lock);
     pthread_mutex_destroy(&dtimer_mgr.lock);
 
-    dprint("dtimer channel fd = %d\n", timer_chnl.fd);
+    dprint("dtimer channel exit\n");
 }
 
 int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat)

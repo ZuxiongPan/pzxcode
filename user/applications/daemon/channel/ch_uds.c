@@ -180,4 +180,5 @@ void ch_uds_exit(void)
     }
     g_uds_mgr.server.fd = -1;
     unlink(UDS_PATH);
+    dprint("uds channel exit\n");
 }

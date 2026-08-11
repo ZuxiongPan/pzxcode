@@ -90,4 +90,5 @@ void ch_uevent_exit(void)
         close(uevent_chnl.fd);
     }
     uevent_chnl.fd = -1;
+    dprint("uevent channel exit\n");
 }
