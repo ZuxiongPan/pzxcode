@@ -34,6 +34,44 @@ void uart_puts(const char *str)
     }
 }
 
+char hex_char(uint32_t val)
+{
+    if (val < 10)
+    {
+        return val + '0';
+    }
+    else
+    {
+        return val - 10 + 'a';
+    }
+}
+
+void memory_hexdump(const char *addr, int len)
+{
+    int i = 0;
+    char byte = 0;
+
+    while (i < len)
+    {
+        byte = addr[i];
+        uart_putc(hex_char(byte >> 4));
+        uart_putc(hex_char(byte & 0xf));
+        uart_putc(' ');
+        if ((i + 1) % 16 == 0)
+        {
+            uart_putc('\r');
+            uart_putc('\n');
+        }
+        i++;
+    }
+
+    if (len % 16 != 0)
+    {
+        uart_putc('\r');
+        uart_putc('\n');
+    }
+}
+
 void sd_send_cmd(uint32_t cmd_idx, uint32_t arg, uint32_t expected_resp)
 {
     SD_ARG = arg;
@@ -50,7 +88,14 @@ void sd_send_cmd(uint32_t cmd_idx, uint32_t arg, uint32_t expected_resp)
     }
 }
 
-void load_form_sd(void)
+
+void dram_init(void)
+{
+    uart_puts("Init DRAM...\n");
+    uart_puts("Init DRAM success.\n");
+}
+
+void load_uboot_form_sd(void)
 {
     uart_puts("Init SD...\n");
     SD_POWER = 0xbf;
@@ -70,15 +115,15 @@ void load_form_sd(void)
     sd_send_cmd(7, rca, 1);
     sd_send_cmd(16, 512, 1);
 
-    uart_puts("Loading code from sd to sram...\n");
+    uart_puts("Loading code from sd to dram...\n");
     SD_DATATIMER = 0xffffffff;
-    SD_DATALEN = 4096;
+    SD_DATALEN = 512;
 
+    sd_send_cmd(17, 0, 1);
     SD_DATACTRL = 1 | (1 << 1) | (9 << 4);
-    sd_send_cmd(18, 0, 1);
 
-    uint32_t *dest = (uint32_t *)0x00080000;
-    int words_to_read = 4096 / 4;
+    uint32_t *dest = (uint32_t *)0x80000000;
+    int words_to_read = 512 / 4;
     while (words_to_read > 0)
     {
         if ((SD_STATUS & (1 << 19)) == 0)
@@ -87,17 +132,25 @@ void load_form_sd(void)
             words_to_read--;
         }
     }
-    sd_send_cmd(12, 0, 1);
-    uart_puts("Code loaded to sram success.\n");
+    uart_puts("Code loaded to dram success.\n");
 }
 
 int main(void)
 {
-    uart_puts("Boot MROM\n");
-    
-    load_form_sd();
+    uart_puts("Boot SRAM\n");
 
-    uart_puts("Start Run Loader...\n");
+    dram_init();
+    
+    load_uboot_form_sd();
+
+    memory_hexdump((char *)0x80000000, 1024);
+
+    uart_puts("Start Run Uboot...\n");
+
+    while (1)
+    {
+        asm volatile("nop");
+    }
     
     return 0x00080000;
 }
