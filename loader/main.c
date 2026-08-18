@@ -1,11 +1,11 @@
 #include <stdint.h>
 
-#define UART_BASE 0x00200000
+#define UART_BASE 0x00400000
 #define UART_DR (*(volatile uint32_t *)(UART_BASE + 0x0))
 #define UART_FR (*(volatile uint32_t *)(UART_BASE + 0x18))
 #define UART_FR_TXFF (1 << 5)
 
-#define SD_BASE 0x00300000
+#define SD_BASE 0x00500000
 #define SD_POWER (*(volatile uint32_t *)(SD_BASE + 0x0))
 #define SD_CLOCK (*(volatile uint32_t *)(SD_BASE + 0x4))
 #define SD_ARG (*(volatile uint32_t *)(SD_BASE + 0x8))

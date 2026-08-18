@@ -7,7 +7,7 @@ _start:
     msr daifset, #0xf
 
     // 2. set stack pointer(sram top)
-    ldr x0, =0x00200000
+    ldr x0, =0x00300000
     mov sp, x0
 
     // 3. bss zero

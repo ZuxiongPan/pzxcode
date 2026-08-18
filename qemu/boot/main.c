@@ -1,11 +1,11 @@
 #include <stdint.h>
 
-#define UART_BASE 0x00200000
+#define UART_BASE 0x00400000
 #define UART_DR (*(volatile uint32_t *)(UART_BASE + 0x0))
 #define UART_FR (*(volatile uint32_t *)(UART_BASE + 0x18))
 #define UART_FR_TXFF (1 << 5)
 
-#define SD_BASE 0x00300000
+#define SD_BASE 0x00500000
 #define SD_POWER (*(volatile uint32_t *)(SD_BASE + 0x0))
 #define SD_CLOCK (*(volatile uint32_t *)(SD_BASE + 0x4))
 #define SD_ARG (*(volatile uint32_t *)(SD_BASE + 0x8))
@@ -77,7 +77,7 @@ void load_form_sd(void)
     SD_DATACTRL = 1 | (1 << 1) | (9 << 4);
     sd_send_cmd(18, 0, 1);
 
-    uint32_t *dest = (uint32_t *)0x00080000;
+    uint32_t *dest = (uint32_t *)0x00100000;
     int words_to_read = 4096 / 4;
     while (words_to_read > 0)
     {
@@ -99,6 +99,6 @@ int main(void)
 
     uart_puts("Start Run Loader...\n");
     
-    return 0x00080000;
+    return 0x00100000;
 }
 

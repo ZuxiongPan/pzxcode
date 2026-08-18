@@ -156,8 +156,6 @@ path [qemu-x.x.x/hw/arm/pzx.c]
 # path [qemu-x.x.xhw/arm/Kconfig]
 config ARM_PZX
     bool
-    select PL011
-# path [qemu-x.x.x/configs/devices/aarch64-softmmu/default.mak]
-CONFIG_ARM_PZX=y
+    default y
 # path [qemu-x.x.x/hw/arm/meson.build]
 arm_ss.add(when: 'CONFIG_ARM_PZX', if_true: files('pzx.c'))
