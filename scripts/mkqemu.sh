@@ -7,7 +7,7 @@ echo "Building QEMU..."
 ./configure \
     --prefix=$QEMU_BUILD_DIR \
     --target-list=aarch64-softmmu
-make -j16
+make -j4
 make install
 
 echo "Building QEMU Over..."

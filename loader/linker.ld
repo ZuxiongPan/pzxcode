@@ -2,7 +2,8 @@ ENTRY(_start)
 
 MEMORY
 {
-    SRAM : ORIGIN = 0x00100000, LENGTH = 0x00200000 /* 2MB for LOADER */
+    SRAM_CODE : ORIGIN = 0x00100000, LENGTH = 0x00100000 /* 1MB for TEXT */
+    SRAM_DATA : ORIGIN = 0x00200000, LENGTH = 0x00100000  /* 1MB for DATA */
 }
 
 SECTIONS
@@ -12,13 +13,13 @@ SECTIONS
         *(.text*)
         *(.rodata*)
         . = ALIGN(8);
-    } > SRAM
+    } > SRAM_CODE
 
     .data : {
         . = ALIGN(8);
         *(.data*)
         . = ALIGN(8);
-    } > SRAM
+    } > SRAM_DATA
 
     .bss : {
         . = ALIGN(8);
@@ -27,5 +28,5 @@ SECTIONS
         *(COMMON)
         . = ALIGN(8);
         __bss_end__ = .;
-    } > SRAM
+    } > SRAM_DATA
 }

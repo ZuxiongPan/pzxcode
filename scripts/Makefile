@@ -7,13 +7,14 @@ KERNEL_DIR := $(TOP_DIR)/linux-6.15.4
 BUSYBOX_DIR := $(TOP_DIR)/busybox-1.36.0
 OPTEE_DIR := $(TOP_DIR)/optee_os-4.8.0
 TFA_DIR := $(TOP_DIR)/arm-trusted-firmware-2.13.0
+QEMU_DIR := $(TOP_DIR)/qemu-10.2.4
 ROOT_DIR := $(TOP_DIR)/root
 CROSS_COMPILER_DIR := $(TOP_DIR)/aarch64-none-linux-gnu-14.3
 CROSS_COMPILER_PREFIX := $(CROSS_COMPILER_DIR)/bin/aarch64-none-linux-gnu-
 
-export TOP_DIR CODE_DIR KERNEL_DIR UBOOT_DIR ROOT_DIR CROSS_COMPILER_PREFIX
+export TOP_DIR CODE_DIR KERNEL_DIR UBOOT_DIR QEMU_DIR ROOT_DIR CROSS_COMPILER_PREFIX
 
-.PHONY: all prepare config uboot kernel busybox boot user version \
+.PHONY: all prepare config uboot kernel busybox boot user version qemu \
 	uboot_clean kernel_clean busybox_clean user_clean clean
 
 all: prepare config optee uboot kernel busybox user
@@ -24,11 +25,11 @@ prepare:
 
 config:
 	rm -f $(KERNEL_DIR)/arch/arm64/configs/kernel_defconfig
-	cp $(CODE_DIR)/kernel_defconfig $(KERNEL_DIR)/arch/arm64/configs/
+	cp $(CODE_DIR)/qemu-virt/kernel_defconfig $(KERNEL_DIR)/arch/arm64/configs/
 	rm -f $(UBOOT_DIR)/configs/uboot_defconfig
-	cp $(CODE_DIR)/uboot_defconfig $(UBOOT_DIR)/configs/
+	cp $(CODE_DIR)/qemu-virt/uboot_defconfig $(UBOOT_DIR)/configs/
 	rm -f $(UBOOT_DIR)/arch/arm/dts/qemu-arm64.dts
-	cp $(CODE_DIR)/virt-uboot.dts $(UBOOT_DIR)/arch/arm/dts/qemu-arm64.dts -f
+	cp $(CODE_DIR)/qemu-virt/virt-uboot.dts $(UBOOT_DIR)/arch/arm/dts/qemu-arm64.dts -f
 
 optee:
 	cp $(CODE_DIR)/include/optee/platform_config.h $(OPTEE_DIR)/core/arch/arm/plat-vexpress/ -f
@@ -65,7 +66,7 @@ kernel:
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) kernel_defconfig
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) -j32
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) modules
-	$(KERNEL_DIR)/scripts/dtc/dtc -I dts -O dtb $(CODE_DIR)/virt.dts \
+	$(KERNEL_DIR)/scripts/dtc/dtc -I dts -O dtb $(CODE_DIR)/qemu-virt/virt.dts \
 		-o $(TOP_DIR)/virt.dtb
 
 kernel_clean:
@@ -92,6 +93,9 @@ user_clean:
 	make -C $(CODE_DIR)/user/lib clean
 	make -C $(CODE_DIR)/user/applications clean
 
+qemu:
+	./mkqemu.sh
+
 version:
 	$(UBOOT_DIR)/tools/mkimage -f $(SCRIPTS_DIR)/kernel.its $(TOP_DIR)/kernel.itb
 	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 $(ROOT_DIR)/lib/ -f
@@ -102,7 +106,7 @@ version:
 	./combine_bl31_fip.sh
 
 tfa_boot:
-	qemu-system-aarch64 \
+	$(QEMU_DIR)/build/qemu-system-aarch64 \
     	-M virt,gic-version=3,secure=on \
     	-cpu cortex-a53 \
     	-smp 2 -m 128M \
