@@ -1,0 +1,16 @@
+[u-boot/arm64_pzx]
+[u-boot/include/configs/arm64_pzx.h]
+[u-boot/configs/arm64_pzx_defconfig]
+[u-boot/arch/arm/dts/arm64-pzx.dts]
+
+[u-boot/arch/arm/Kconfig]
+config ARCH_PZX
+	bool "PZX QEMU SoC"
+	select ARM64
+	select DM
+	select DM_SERIAL
+
+source "board/arm64_pzx/Kconfig"
+
+[u-boot/arch/arm/dts/Makefile]
+dtb-$(CONFIG_TARGET_ARM64_PZX) += arm64-pzx.dtb

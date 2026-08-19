@@ -1,0 +1,12 @@
+if TARGET_ARM64_PZX
+
+config SYS_BOARD
+	default "arm64_pzx"
+
+config SYS_CONFIG_NAME
+	default "pzx"
+
+config TEXT_BASE
+	default 0x80000000
+
+endif

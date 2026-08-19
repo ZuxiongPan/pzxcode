@@ -1,0 +1,1 @@
+obj-y += arm64_pzx.o
