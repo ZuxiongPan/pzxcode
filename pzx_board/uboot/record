@@ -1,10 +1,10 @@
-[u-boot/arm64_pzx]
+[u-boot/board/arm64_pzx]
 [u-boot/include/configs/arm64_pzx.h]
 [u-boot/configs/arm64_pzx_defconfig]
 [u-boot/arch/arm/dts/arm64-pzx.dts]
 
 [u-boot/arch/arm/Kconfig]
-config ARCH_PZX
+config ARCH_ARM64_PZX
 	bool "PZX QEMU SoC"
 	select ARM64
 	select DM

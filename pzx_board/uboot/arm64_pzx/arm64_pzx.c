@@ -5,7 +5,10 @@
 #include <fdtdec.h>
 #include <asm/armv8/mmu.h>
 #include <asm/system.h>
+#include <asm/global_data.h>
 #include <linux/sizes.h>
+
+DECLARE_GLOBAL_DATA_PTR;
 
 static struct mm_region pzx_mem_map[] = {
 	{
@@ -39,7 +42,7 @@ int board_init(void)
 int dram_init(void)
 {
 	if (fdtdec_setup_mem_size_base() != 0)
-		gd->ram_size = SZ_128M;
+		gd->ram_size = 0x08000000;
 
 	return 0;
 }
@@ -47,4 +50,16 @@ int dram_init(void)
 int dram_init_banksize(void)
 {
 	return fdtdec_setup_memory_banksize();
+}
+
+int print_cpuinfo(void)
+{
+	printf("PZX QEMU SoC\n");
+	return 0;
+}
+
+void reset_cpu(ulong addr)
+{
+	while(1)
+		;
 }
