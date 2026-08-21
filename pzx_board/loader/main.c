@@ -116,22 +116,28 @@ void load_uboot_form_sd(void)
     sd_send_cmd(16, 512, 1);
 
     uart_puts("Loading code from sd to dram...\n");
-    SD_DATATIMER = 0xffffffff;
-    SD_DATALEN = 512;
 
-    sd_send_cmd(17, 0, 1);
-    SD_DATACTRL = 1 | (1 << 1) | (9 << 4);
-
+    uint32_t total_sectors = 4096;
+    uint32_t uboot_offset = 0x100000;
     uint32_t *dest = (uint32_t *)0x80000000;
-    int words_to_read = 512 / 4;
-    while (words_to_read > 0)
+
+    for( uint32_t sector = 0; sector < total_sectors; sector++)
     {
-        if ((SD_STATUS & (1 << 19)) == 0)
+        SD_DATATIMER = 0xffffffff;
+        SD_DATALEN = 512;
+        sd_send_cmd(17, uboot_offset + sector * 512, 1);
+        SD_DATACTRL = 1 | (1 << 1) | (9 << 4);
+        int words_to_read = 512 / 4;
+        while (words_to_read > 0)
         {
-            *dest++ = SD_FIFO;
-            words_to_read--;
+            if ((SD_STATUS & (1 << 19)) == 0)
+            {
+                *dest++ = SD_FIFO;
+                words_to_read--;
+            }
         }
     }
+
     uart_puts("Code loaded to dram success.\n");
 }
 
@@ -143,15 +149,10 @@ int main(void)
     
     load_uboot_form_sd();
 
-    memory_hexdump((char *)0x80000000, 1024);
+    //memory_hexdump((char *)0x80000000, 1024);
 
     uart_puts("Start Run Uboot...\n");
-
-    while (1)
-    {
-        asm volatile("nop");
-    }
     
-    return 0x00080000;
+    return 0x80000000;
 }
 
