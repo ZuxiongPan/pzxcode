@@ -1,0 +1,45 @@
+
+/dts-v1/;
+/ {
+    description = "arm64 Linux Kernel FIT Image";
+    #address-cells = <1>;
+
+    images {
+        kernel {
+            description = "qemu-virt image";
+            data = /incbin/("/home/pzx/aarch64/linux-6.15.4/arch/arm64/boot/Image.gz");
+            type = "kernel";
+            arch = "arm64";
+            os = "linux";
+            compression = "gzip";
+            load = <0x40400000>;
+            entry = <0x40400000>;
+
+            hash-1 {
+                algo = "sha256";
+            };
+        };
+
+        fdt {
+            description = "qemu-virt dtb";
+            data = /incbin/("/home/pzx/aarch64/virt.dtb");
+            type = "flat_dt";
+            arch = "arm64";
+            compression = "none";
+
+            hash-1 {
+                algo = "sha256";
+            };
+        };
+    };
+
+    configurations {
+        default = "defcfg";
+
+        defcfg {
+            description = "qemu uImage";
+            kernel = "kernel";
+            fdt = "fdt";
+        };
+    };
+};
