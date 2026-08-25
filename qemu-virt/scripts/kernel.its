@@ -31,6 +31,17 @@
                 algo = "sha256";
             };
         };
+/*  this is for generate rsa public key node
+        pubkey {
+            description = "version publickey";
+            data = /incbin/("/dev/null");
+
+            signature {
+                algo = "sha256,rsa2048";
+                key-name-hint = "pzx";
+            };
+        };
+*/
     };
 
     configurations {

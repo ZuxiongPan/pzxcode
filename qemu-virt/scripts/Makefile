@@ -127,10 +127,11 @@ boot:
     	-cpu cortex-a53 \
     	-smp 2 -m 128M \
 		-monitor telnet:127.0.0.1:9999,server,nowait \
-		-kernel $(KERNEL_DIR)/arch/arm64/boot/Image \
+		-dtb $(UBOOT_DIR)/arch/arm/dts/qemu-arm64.dtb \
+		-kernel $(UBOOT_DIR)/u-boot \
 		-device qemu-xhci,id=xhci \
 		-device usb-storage,drive=usbdisk,bus=xhci.0 \
-		-drive if=none,id=usbdisk,file=$(TOP_DIR)/rootfs.img,format=raw \
+		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version.bin,format=raw \
 		-netdev user,id=net0,tftp=$(TOP_DIR),hostfwd=tcp::2222-:23,hostfwd=tcp::8888-:8888 \
 		-device virtio-net-pci,netdev=net0 \
 		-append "init=/linuxrc root=/dev/sda rootwait ro console=ttyAMA0,115200 earlycon" \

@@ -106,7 +106,7 @@ openssl genpkey -algorithm RSA -out pzx.key -pkeyopt rsa_keygen_bits:2048 -pkeyo
 openssl req -batch -new -x509 -key pzx.key -out pzx.crt
 openssl x509 -in pzx.crt -pubkey -noout > pzx.pub
 mkimage -f kernel.its kernel.itb -k keydir -K uboot.dtb -r
-# using this add rsa pub key info to uboot dtb
+# add this node to kernel.its for public key and then add rsa pub key info to uboot dtb
     pubkey {
         description = "version publickey";
         data = /incbin/("/dev/null");

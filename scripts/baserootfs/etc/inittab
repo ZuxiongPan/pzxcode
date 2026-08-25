@@ -1,3 +1,0 @@
-::sysinit:/etc/init.d/rcS
-ttyAMA0::respawn:/sbin/getty -L ttyAMA0 115200 vt100
-::ctrlaltdel:/bin/umount -a -r
