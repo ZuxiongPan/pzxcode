@@ -15,9 +15,10 @@ CROSS_COMPILER_PREFIX := $(CROSS_COMPILER_DIR)/bin/aarch64-none-linux-gnu-
 export TOP_DIR CODE_DIR KERNEL_DIR UBOOT_DIR QEMU_DIR ROOT_DIR CROSS_COMPILER_PREFIX
 
 .PHONY: all prepare config uboot kernel busybox boot user version qemu \
+	optee tfa optee_clean tfa_clean version tfa_boot \
 	uboot_clean kernel_clean busybox_clean user_clean clean
 
-all: prepare config optee uboot kernel busybox user
+all: prepare config optee uboot kernel busybox user tfa
 
 prepare:
 	./mkprepare.sh
@@ -106,7 +107,7 @@ version:
 	./combine_bl31_fip.sh
 
 tfa_boot:
-	qemu-system-aarch64 \
+	$(QEMU_DIR)/build/qemu-system-aarch64 \
     	-M virt,gic-version=3,secure=on \
     	-cpu cortex-a53 \
     	-smp 2 -m 128M \
@@ -118,23 +119,22 @@ tfa_boot:
 		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version.bin,format=raw \
 		-netdev user,id=net0,tftp=$(TOP_DIR),hostfwd=tcp::2222-:23,hostfwd=tcp::8888-:8888 \
 		-device virtio-net-pci,netdev=net0 \
-    	-nographic -no-reboot
+    	-nographic -no-reboot -s
 
 boot:
-	qemu-system-aarch64 \
+	$(QEMU_DIR)/build/qemu-system-aarch64 \
     	-M virt,gic-version=3 \
     	-cpu cortex-a53 \
     	-smp 2 -m 128M \
 		-monitor telnet:127.0.0.1:9999,server,nowait \
-		-dtb $(UBOOT_DIR)/arch/arm/dts/qemu-arm64.dtb \
-    	-device loader,file=$(UBOOT_DIR)/u-boot.bin \
-		-device nec-usb-xhci,id=xhci \
+		-kernel $(KERNEL_DIR)/arch/arm64/boot/Image \
+		-device qemu-xhci,id=xhci \
 		-device usb-storage,drive=usbdisk,bus=xhci.0 \
-		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version.bin,format=raw \
-		-netdev user,id=net0,tftp=$(TOP_DIR),hostfwd=tcp::2222-:23 \
-		-device virtio-net-device,netdev=net0 \
-		-device edu,dma_mask=32 \
-    	-nographic -no-reboot
+		-drive if=none,id=usbdisk,file=$(TOP_DIR)/rootfs.img,format=raw \
+		-netdev user,id=net0,tftp=$(TOP_DIR),hostfwd=tcp::2222-:23,hostfwd=tcp::8888-:8888 \
+		-device virtio-net-pci,netdev=net0 \
+		-append "init=/linuxrc root=/dev/sda rootwait ro console=ttyAMA0,115200 earlycon" \
+    	-nographic -no-reboot -s
 
 clean:
 	make uboot_clean

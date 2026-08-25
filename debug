@@ -159,3 +159,9 @@ config ARM_PZX
     default y
 # path [qemu-x.x.x/hw/arm/meson.build]
 arm_ss.add(when: 'CONFIG_ARM_PZX', if_true: files('pzx.c'))
+
+# new git account
+git config --global user.name "pzx"
+git config --global user.email "panzx9865@qq.com"
+ssh-keygen -t rsa -C "panzx9865@qq.com"
+cat ~/.ssh/id_rsa.pub
