@@ -275,7 +275,7 @@ static int build_version_file(void)
         return -EACCES;
     }
 
-    version = fopen(version_filepath, "wb+");
+    version = fopen(version_filepath, "rb+");
     if(NULL == version)
     {
         printf("file %s create failed\n", version_filepath);

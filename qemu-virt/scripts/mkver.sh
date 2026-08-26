@@ -15,7 +15,7 @@ cd $ROOT_DIR
 make rootfsimg
 cd -
 
-#dd if=/dev/zero of=$TOP_DIR/version.bin bs=1M count=128
+dd if=/dev/zero of=$TOP_DIR/version.bin bs=1M count=128
 
 $CODE_DIR/host/buildversion/buildversion \
     -k $TOP_DIR/kernel.itb \

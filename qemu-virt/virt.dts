@@ -12,7 +12,7 @@
 		cpu_on = <0xc4000003>;
 		cpu_off = <0x84000002>;
 		cpu_suspend = <0xc4000001>;
-		method = "smc";
+		method = "hvc";
 		compatible = "arm,psci-1.0", "arm,psci-0.2", "arm,psci";
 	};
 
@@ -25,7 +25,7 @@
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
-
+/*
 		optee_core@47000000 {
 			reg = <0x0 0x47000000 0x0 0xf00000>;
 			no-map;
@@ -34,7 +34,7 @@
 			reg = <0x0 0x47f00000 0x0 0x100000>;
 			no-map;
 		};
-
+*/
 		mblkrsv: memblkrsv@45000000 {
 			reg = <0x0 0x45000000 0x0 0x800000>;
 			no-map;
@@ -55,7 +55,7 @@
 		compatible = "pzx,memblkenc";
 		memory-region = <&mblkencrsv>;
 	};
-
+/*
 	firmware {
 		optee {
 			interrupts = <0x00 0xbb 0x01>;
@@ -63,7 +63,7 @@
 			compatible = "linaro,optee-tz";
 		};
 	};
-
+*/
 	platform-bus@c000000 {
 		interrupt-parent = <&intc>;
 		ranges = <0x00 0x00 0xc000000 0x2000000>;
