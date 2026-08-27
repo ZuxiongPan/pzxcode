@@ -13,7 +13,7 @@ int main(int argc, const char *argv[])
 {
     if (argc != 3)
     {
-        printf("usage: %s <mod> <req>\n", argv[0]);
+        printf("usage: %s <mod> <req> <arg1> <arg2> ...\n", argv[0]);
         return -1;
     }
 
@@ -21,7 +21,7 @@ int main(int argc, const char *argv[])
     int ret = -1;
     ssize_t len = -1;
     struct sockaddr_un addr;
-    char buf[NETCHNL_RECV_BUF_SIZE];
+    char buf[TASK_DATA_MAXSIZE];
 
     sockfd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (sockfd < 0)

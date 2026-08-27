@@ -11,7 +11,6 @@
 #include "dlog.h"
 #include "dconf.h"
 #include "core/dworker.h"
-#include "core/dproto.h"
 #include "core/dchannel.h"
 #include "channel/chnl_api.h"
 
@@ -25,7 +24,7 @@ static uds_mgr_t g_uds_mgr;
 
 static int uds_client_chnl_callback(dchannel_t *chnl)
 {
-    char buf[NETCHNL_RECV_BUF_SIZE];
+    char buf[TASK_DATA_MAXSIZE];
     memset(buf, 0, sizeof(buf));
     ssize_t len = 0;
 
@@ -58,8 +57,9 @@ static int uds_client_chnl_callback(dchannel_t *chnl)
         return Fail;
     }
 
-    return task_enqueue(TaskDecode, chnl->dcomp.dcomp_id,
-        ProtoIDJSON, 0, len, buf);
+    // the message from uds is a control message, we do not know where to put it
+    return task_enqueue(DataRawString, chnl->dcomp.dcomp_id,
+        DCOMPID_NONE, 0, len, buf);
 }
 
 const channel_ops_t uds_client_chnl_ops = {

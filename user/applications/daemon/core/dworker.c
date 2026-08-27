@@ -5,11 +5,13 @@
 #include "dconf.h"
 #include "core/dworker.h"
 #include "core/dcontext.h"
-#include "core/dproto.h"
 #include "core/dmodule.h"
+#include "module/dmsgid.h"
+#include "lib/cJSON.h"
 
 static const int task_max_needed = TASK_DATA_MAXSIZE + sizeof(dtask_t);
 static int process_task(char *buffer);
+static void rawstr_parse(const char *rawstr, int *real_dst, unsigned int *msgid);
 
 static inline dtask_t* get_task_addr(task_queue_t *queue, unsigned int offset)
 {
@@ -56,7 +58,7 @@ static void* worker_thread(void* arg)
     return NULL;
 }
 
-int task_enqueue(dtask_type_e type, int src, int dst,
+int task_enqueue(dtask_datatype_e datatype, int src, int dst,
     unsigned int msgid, unsigned int data_size, const char *data)
 {
     dctx_t *ctx = dctx_instance();
@@ -120,10 +122,10 @@ int task_enqueue(dtask_type_e type, int src, int dst,
     }
 
     new_task = get_task_addr(queue, target_offset);
-    new_task->type = type;
+    new_task->datatype = datatype;
+    new_task->msgid = msgid;
     new_task->src_compid = src;
     new_task->dst_compid = dst;
-    new_task->msgid = msgid;
     new_task->data_size = data_size;
     new_task->next_offset = target_offset + required;
     if (data != NULL && data_size > 0)
@@ -133,6 +135,11 @@ int task_enqueue(dtask_type_e type, int src, int dst,
     queue->last_offset = target_offset;
     queue->idle_offset = new_task->next_offset;
     queue->count++;
+
+    dprint("task info: datatype[%d], src[%x], dst[%x], msgid[%x], data_size[%d], next_offset[%x]\n",
+        datatype, src, dst, msgid, data_size, new_task->next_offset);
+    dprint("queue info: first_offset[%x], last_offset[%x], idle_offset[%x], count[%d]\n",
+        queue->first_offset, queue->last_offset, queue->idle_offset, queue->count);
 
     pthread_cond_signal(&queue->cond);
     pthread_mutex_unlock(&queue->mutex);
@@ -206,23 +213,59 @@ void worker_manager_destroy(dworker_mgr_t* mgr)
 
 static int process_task(char *buffer)
 {
-    int ret = Success;
     dtask_t *task = (dtask_t *)buffer;
+    int real_dst = DCOMPID_NONE;
+    unsigned int msgid = 0;
 
-    switch (task->type)
+    switch (task->datatype)
     {
-        case TaskDecode:
-        case TaskEncode:
-            ret = dproto_handle(task);
+        case DataModuleMsg:
+        case DataBinaryToModule:
             break;
-        case TaskInform:
-            ret = dmodule_handle(task);
+        case DataRawString:
+            rawstr_parse(task->data, &real_dst, &msgid);
+            task->dst_compid = real_dst;
+            task->msgid = msgid;
             break;
         default:
-            derror("unknown task type %d\n", task->type);
-            ret = Fail;
+            derror("unknown task datatype %d\n", task->datatype);
             break;
     }
 
-    return ret;
+    return dmodule_handle(buffer);
+}
+
+static void rawstr_parse(const char *rawstr, int *real_dst, unsigned int *msgid)
+{
+    *real_dst = DCOMPID_NONE;
+    *msgid = 0;
+
+    cJSON *root = cJSON_Parse(rawstr);
+    if (root == NULL)
+    {
+        derror("failed to parse rawstr %s\n", rawstr);
+        return ;
+    }
+
+    cJSON *dst = cJSON_GetObjectItem(root, "target");
+    if (dst == NULL)
+    {
+        derror("failed to parse rawstr %s, no target field\n", rawstr);
+        cJSON_Delete(root);
+        return ;
+    }
+
+    const dcomp_t *comp = find_dcomponent_by_name(dst->valuestring, Layer_Module);
+    if (comp == NULL)
+    {
+        derror("target not found\n");
+        cJSON_Delete(root);
+        return ;
+    }
+
+    *real_dst = comp->dcomp_id;
+    *msgid = MSGID_JSON_RAWSTR;
+
+    cJSON_Delete(root);
+    return ;
 }

@@ -6,20 +6,12 @@
 #include "core/dworker.h"
 #include "core/dcontext.h"
 #include "module/dmsgid.h"
-#include "proto/proto_api.h"
 #include "lib/cJSON.h"
 
 static dmod_t statmod;
 
 static int stat_handle_json_rawstr(dtask_t *task)
 {
-    dproto_data_t *req = (dproto_data_t *)task->data;
-    if (NULL == req || strncmp(req->json_data, "getstat", 7) != 0)
-    {
-        dprint("invalid req\n");
-        return Fail;
-    }
-
     char buf[TASK_DATA_MAXSIZE] = { 0 };
     int bytes = 0;
     dcomp_t *comp = NULL;

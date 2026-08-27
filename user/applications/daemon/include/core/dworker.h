@@ -8,19 +8,23 @@
 
 #define DCOMPID_NONE 0xFFFFFFFF
 
-enum dtask_type {
-    TaskInvalid = 0,
-    TaskEncode,  // task encode
-    TaskDecode, // task decode
-    TaskInform, // task inner module message
+enum dtask_datatype {
+    DataInvalid = 0,
+    // data is inner module message, this type must have dst_compid
+    DataModuleMsg,
+    // data is raw binary/string data from channel, this type must have dst_compid
+    DataBinaryToModule,
+    // data is raw binary/string data from channel, this type dst_compid is optional
+    // if there is no dst_compid, then the string must be translated
+    DataRawString,
 };
-typedef enum dtask_type dtask_type_e;
+typedef enum dtask_datatype dtask_datatype_e;
 
 struct daemon_task {
-    dtask_type_e type;
+    dtask_datatype_e datatype;
     int src_compid; // source component of task
     int dst_compid; // destination component of task
-    unsigned int msgid; // if this is an inform task, msgid is needed
+    unsigned int msgid; // message id of task
     unsigned int next_offset;
     unsigned int data_size;
     char data[0];    // flexible array member
@@ -57,7 +61,7 @@ typedef struct daemon_worker_manager dworker_mgr_t;
 int worker_manager_init(dworker_mgr_t* mgr);
 void worker_manager_destroy(dworker_mgr_t* mgr);
 // if type is not TaskInform, msgid is set to 0
-int task_enqueue(dtask_type_e type, int src, int dst,
+int task_enqueue(dtask_datatype_e datatype, int src, int dst,
     unsigned int msgid, unsigned int data_size, const char *data);
 
 #endif

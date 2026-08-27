@@ -1,62 +1,57 @@
+# easy rootfs construct
 mkdir proc sys dev var lib mnt lib64
-
-sudo mknod -m 660 mem c 1 1
-sudo mknod -m 660 tty2 c 4 2
-sudo mknod -m 660 tty3 c 4 3
-sudo mknod -m 660 tty4 c 4 4
-
-cp scripts/etc root/ -rf
-
-#devtmpfs    /dev    devtmpfs defaults   0   0
 
 [etc/fstab]
 proc		/proc	proc	defaults    0	0
 sysfs       /sys    sysfs   defaults    0	0
 tmpfs       /var    tmpfs   defaults    0	0
+devtmpfs    /dev    devtmpfs defaults   0   0
 
 [etc/init.d/rcS]
 mount -t debugfs none /sys/kernel/debug
-mdev -s
 
-
+# build a initramfs
 find . -print0 | cpio --null -ov --format=newc | gzip > ../initramfs.cpio.gz
 
+# decompress a initramfs
 mkdir tmpfs
 cd tmpfs
 gzip -dc ../initramfs.cpio.gz | cpio -idv
-ls -l
 
+# construct a ext4 filesystem image
 dd if=/dev/zero of=usb.img bs=1M count=16
 sudo mkfs.ext4 usb.img
 sudo mount -t ext4 usb.img /mnt/ -o loop
 sudo umount /mnt
 
-############### trying to build a verfs.img with 2 partitions by scripts #################
+# trying to build a verfs.img with 2 partitions by scripts
 dd if=dev/zero of=verfs.img bs=1M count=48
 
 sfdisk verfs.img << EOF
 1M,15M,L
 16M,16M,L
 EOF
-# explain: use sfdisk write a partition table to verfs.img
-# 1M,15M,L  : start from 1M, size 15M, type Linux
-# 16M,32M,L : start from 16M, size 32M, type Linux
-# sfdisk use need reserve 1M for MBR or GPT, so start from 1M
-# use fdisk -l verfs.img to check the partition table
+ $ explain: use sfdisk write a partition table to verfs.img
+ $ 1M,15M,L  : start from 1M, size 15M, type Linux
+ $ 16M,32M,L : start from 16M, size 32M, type Linux
+ $ sfdisk use need reserve 1M for MBR or GPT, so start from 1M
+ $ use fdisk -l verfs.img to check the partition table
 
 losetup -fP --show verfs.img # need su
-# mount a image file to a loop device, -f means find a free loop device, -P means scan partitions automatically
-# --show means print the name of the loop device
-# if there is more than one partition, the partitions will be like /dev/loopXp1, /dev/loopXp2
+ $ mount a image file to a loop device, -f means find a free loop device, -P means scan partitions automatically
+ $ --show means print the name of the loop device
+ $ if there is more than one partition, the partitions will be like /dev/loopXp1, /dev/loopXp2
 
-dd if=rootfs.img of=/dev/loop17p1 bs=1M conv=fsync # need su
-# conv=fsync means sync data to disk after finish
+dd if=rootfs.img of=/dev/loop17p1 bs=1M conv=fsync
+ $ need su, conv=fsync means sync data to disk after finish
 
-mkfs.ext4 -F /dev/loop17p2 # need su
+mkfs.ext4 -F /dev/loop17p2
+ $ need su
 
-losetup -d /dev/loop17 # need su
-############### trying to build a verfs.img with 2 partitions by scripts #################
+losetup -d /dev/loop17
+ $ need su
 
+# qemu using command
 ./qemu-system-aarch64 -M virt -cpu cortex-a53 -smp 4 -m 512M -kernel ../../linux-6.15.4/arch/arm64/boot/Image -initrd ../../initramfs.cpio.gz -append "root=/dev/ram0 rdinit=/linuxrc console=ttyAMA0,115200" -nographic -no-reboot
 ./qemu-system-arm -M virt-2.12 -m 256M -kernel ../../linux-6.15.4/arch/arm/boot/zImage -initrd ../../initramfs.cpio.gz -append "root=/dev/ram0 rdinit=/linuxrc" -nographic -device edu -no-reboot
 ./qemu-system-arm -M virt -machine dumpdtb=~/virt.dtb
@@ -68,45 +63,50 @@ qemu-system-aarch64 -M virt,gic-version=3 \
 	-nographic -no-reboot \
 	-machine dumpdtb=~/virt-initramfs.dtb
 
+# qemu monitor
+qemu-system-aarch64 ... -monitor telnet:127.0.0.1:9999,server,nowait
+telnet localhost 9999
+
+# add a usb storage device in qemu monitor
+drive_add 0 file=path_to_image,if=none,id=usb2disk,format=raw
+device_add usb-storage,bus=xhci.0,drive=usb2disk,id=usbstor2
+
+# delete a usb storage device in qemu monitor
+device_del usbstor2
+
+# dtc usage for transfer dtb and dts
 dtc -I dtb -O dts virt.dtb -o virt.dts
 dtc -I dts -O dtb virt.dts -o virt.dtb
 
+# uboot serial boot commands
 setenv bootargs root=/dev/sda2 rootwait rw init=/linuxrc console=ttyAMA0,115200
 usb start
 usb dev 0
 usb read 0x40200000 0x800 0x4000
 booti 0x40200000 - 0x40000000
 
+# make kernel modules
 make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) M=$(PWD) modules
 make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) M=$(PWD) clean
 
+# find a elf file needed and interpreter for user application
 readelf -l binfile | grep interpreter
 readelf -d binfile | grep NEEDED
-
-# qemu monitor
-qemu-system-aarch64 ... -monitor telnet:127.0.0.1:9999,server,nowait
-telnet localhost 9999
-# add a usb storage device in qemu monitor
-drive_add 0 file=path_to_image,if=none,id=usb2disk,format=raw
-device_add usb-storage,bus=xhci.0,drive=usb2disk,id=usbstor2
-# delete a usb storage device in qemu monitor
-device_del usbstor2
 
 # create start password
 python3 -c "import crypt; print(crypt.crypt('Qemu*pzx', crypt.mksalt(crypt.METHOD_SHA512)))"
 
 # rsa sign
-openssl genrsa -out private.pem 2048    # this is for sign
+openssl genrsa -out private.pem 2048
 openssl rsa -in private.pem -pubout -out public.pem
-openssl rsa -pubin -in public.pem -outform DER -out public.der  # this is for uboot pubkey
-xxd -i public.der > rsa_pubkey.c
+openssl rsa -pubin -in public.pem -outform DER -out public.der
 
 # FIT rsa sign (uboot doc/usage/fit/signature.rst)
 openssl genpkey -algorithm RSA -out pzx.key -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:65537
 openssl req -batch -new -x509 -key pzx.key -out pzx.crt
 openssl x509 -in pzx.crt -pubkey -noout > pzx.pub
 mkimage -f kernel.its kernel.itb -k keydir -K uboot.dtb -r
-# add this node to kernel.its for public key and then add rsa pub key info to uboot dtb
+ $ add this node to kernel.its for public key and then add rsa pub key info to uboot dtb
     pubkey {
         description = "version publickey";
         data = /incbin/("/dev/null");
@@ -132,36 +132,37 @@ cat bl1.bin full.bin > bl1_new.bin
 dd if=bl1_new.bin of=bl1.bin bs=1K count=256
 cat bl1.bin fip.bin > combined.bin
 truncate -s 64M combined.bin
-
-# need modify memory size, minus optee reserved size
+ $ need modify memory size, minus optee reserved size
 aarch64/u-boot-2024.10/lib/fdtdec.c
 
-# encrypt
-# 1. generate ramdom hex key (512bit for cryptsetup --key-size arg)
+# encrypt (unused now)
+ $ 1. generate ramdom hex key (512bit for cryptsetup --key-size arg)
 cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 64 | head -n 1
-#281057432b2ee1a738268a3629e61912c4349884d307ebb28aefb9f76949407e
-# prepare
+ $ 281057432b2ee1a738268a3629e61912c4349884d307ebb28aefb9f76949407e
+ $ prepare
 cp rootfs.img rootfs.enc
 sudo losetup -f --show rootfs.enc
-# /dev/loop5
+ $ /dev/loop5
 
 echo -n "281057432b2ee1a738268a3629e61912c4349884d307ebb28aefb9f76949407e" | sudo cryptsetup open --type plain --cipher "aes-xts-plain64" --key-size 256 /dev/loop5 my_encrypt -d -
 sudo dd if=rootfs.img of=/dev/mapper/my_encrypt bs=1M status=progress
 sudo cryptsetup close my_encrypt
 sudo losetup -d /dev/loop5
 
-# qemu add new board
-path [qemu-x.x.x/hw/arm/pzx.c]
-# config
-# path [qemu-x.x.xhw/arm/Kconfig]
-config ARM_PZX
-    bool
-    default y
-# path [qemu-x.x.x/hw/arm/meson.build]
-arm_ss.add(when: 'CONFIG_ARM_PZX', if_true: files('pzx.c'))
-
 # new git account
 git config --global user.name "pzx"
 git config --global user.email "panzx9865@qq.com"
 ssh-keygen -t rsa -C "panzx9865@qq.com"
 cat ~/.ssh/id_rsa.pub
+
+# qemu add new board
+path [qemu-x.x.x/hw/arm/pzx.c]
+path [qemu-x.x.xhw/arm/Kconfig]
+config ARM_PZX
+    bool
+    default y
+path [qemu-x.x.x/hw/arm/meson.build]
+arm_ss.add(when: 'CONFIG_ARM_PZX', if_true: files('pzx.c'))
+
+$ debug boot
+qemu-system-aarch64 -M pzx -drive if=sd,file=uboot.bin,format=raw -nographic

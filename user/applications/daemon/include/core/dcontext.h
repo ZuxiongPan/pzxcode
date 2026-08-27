@@ -12,7 +12,6 @@ struct daemon_worker_manager;
 enum daemon_layer {
     Layer_Channel = 0,
     Layer_Module,
-    Layer_Proto,
     Layer_Unknown,
 };
 typedef enum daemon_layer dlayer_e;

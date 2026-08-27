@@ -9,14 +9,14 @@
 #include "dlog.h"
 #include "dconf.h"
 #include "core/dworker.h"
-#include "core/dproto.h"
+#include "core/dmodule.h"
 #include "core/dchannel.h"
 
 static dchannel_t uevent_chnl;
 
 static int uevent_chnl_callback(dchannel_t *chnl)
 {
-    char buf[NETCHNL_RECV_BUF_SIZE];
+    char buf[TASK_DATA_MAXSIZE];
     memset(buf, 0, sizeof(buf));
     ssize_t len = 0;
 
@@ -35,8 +35,8 @@ static int uevent_chnl_callback(dchannel_t *chnl)
         return Fail;
     }
 
-    return task_enqueue(TaskDecode, chnl->dcomp.dcomp_id,
-        ProtoIDUevent, 0, len, buf);
+    return task_enqueue(DataBinaryToModule, chnl->dcomp.dcomp_id,
+        ModuleIDUevent, 0, len, buf);
 }
 
 const channel_ops_t uevent_chnl_ops = {

@@ -14,8 +14,6 @@
 
 #define MAX_DTIMER_COUNT 128
 
-// uds/uevent/net receive buffer size
-#define NETCHNL_RECV_BUF_SIZE 3072
 #define UDS_PATH "/var/armd.sock"
 #define CLIENT_MAXNUM 2
 #define TCP_PORT 8888

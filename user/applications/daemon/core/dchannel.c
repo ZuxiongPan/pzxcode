@@ -3,7 +3,6 @@
 
 #include "dlog.h"
 #include "dconf.h"
-#include "core/dproto.h"
 #include "core/dworker.h"
 #include "core/dchannel.h"
 

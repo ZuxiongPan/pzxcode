@@ -3,8 +3,8 @@
 #include "core/dcontext.h"
 #include "module/mod_api.h"
 
-extern int blkmod_init(void);
-extern void blkmod_exit(void);
+extern int ueventmod_init(void);
+extern void ueventmod_exit(void);
 extern int statmod_init(void);
 extern void statmod_exit(void);
 extern int upgrademod_init(void);
@@ -12,14 +12,14 @@ extern void upgrademod_exit(void);
 
 static const dcomp_init_f dmodule_initcalls[] = {
     statmod_init,
-    blkmod_init,
+    ueventmod_init,
     upgrademod_init,
     NULL,
 };
 
 static const dcomp_exit_f dmodule_exitcalls[] = {
     upgrademod_exit,
-    blkmod_exit,
+    ueventmod_exit,
     statmod_exit,
     NULL,
 };

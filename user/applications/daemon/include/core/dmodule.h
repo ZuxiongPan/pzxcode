@@ -3,7 +3,7 @@
 
 #include "core/dcontext.h"
 
-#define ModuleIDBlock (MODULEID_START + 1)
+#define ModuleIDUevent (MODULEID_START + 1)
 #define ModuleIDStatus (MODULEID_START + 2)
 #define ModuleIDUpgrade (MODULEID_START + 3)
 

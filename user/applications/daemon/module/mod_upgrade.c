@@ -6,15 +6,14 @@
 #include "core/dworker.h"
 #include "core/dcontext.h"
 #include "module/dmsgid.h"
-#include "proto/proto_api.h"
 #include "lib/cJSON.h"
 
 static dmod_t upgrademod;
 
 static int upgrade_handle_json_rawstr(dtask_t *task)
 {
-    dproto_data_t *req = (dproto_data_t *)task->data;
-    dprint("upgrade_handle_json_rawstr req = %s\n", req->json_data);
+    (void)task;
+    dprint("upgrade_handle_json_rawstr\n");
 
     return Success;
 }
