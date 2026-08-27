@@ -6,14 +6,20 @@
 #include "core/dworker.h"
 #include "core/dcontext.h"
 #include "module/dmsgid.h"
+#include "channel/chnl_api.h"
 #include "lib/cJSON.h"
 
 static dmod_t upgrademod;
+static int timerid = -1;
 
 static int upgrade_handle_json_rawstr(dtask_t *task)
 {
     (void)task;
     dprint("upgrade_handle_json_rawstr\n");
+    if (timerid > 0)
+    {
+        timer_del(timerid);
+    }
 
     return Success;
 }
@@ -34,6 +40,9 @@ static int upgrademod_onmsg(dmod_t *m, void *arg)
     {
         case MSGID_JSON_RAWSTR:
             ret = upgrade_handle_json_rawstr(task);
+            break;
+        case MSGID_TEST_TIMER:
+            dprint("receive a timer tick\n");
             break;
         default:
             dprint("invalid msgid 0x%x\n", task->msgid);
@@ -61,7 +70,8 @@ int upgrademod_init(void)
         return Fail;
     }
 
-    dprint("upgrade_module register ret = %d\n", ret);
+    timerid = timer_add(3000, 5000, true, ModuleIDUpgrade, MSGID_TEST_TIMER);
+    dprint("upgrade_module register ret = %d, timerid %d\n", ret, timerid);
     return ret;
 }
 

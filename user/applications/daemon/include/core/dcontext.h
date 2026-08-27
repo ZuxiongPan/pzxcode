@@ -18,7 +18,6 @@ typedef enum daemon_layer dlayer_e;
 
 #define CHANNELID_START (Layer_Channel << 16)
 #define MODULEID_START (Layer_Module << 16)
-#define PROTOID_START (Layer_Proto << 16)
 
 struct daemon_component {
     int dcomp_id;

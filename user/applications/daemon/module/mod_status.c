@@ -12,6 +12,7 @@ static dmod_t statmod;
 
 static int stat_handle_json_rawstr(dtask_t *task)
 {
+    (void)task;
     char buf[TASK_DATA_MAXSIZE] = { 0 };
     int bytes = 0;
     dcomp_t *comp = NULL;

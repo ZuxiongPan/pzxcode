@@ -11,12 +11,15 @@
 #include "dlog.h"
 #include "dconf.h"
 #include "core/dchannel.h"
+#include "core/dworker.h"
 
 typedef struct daemon_timer {
     int timer_id;
     uint64_t expire_ms;
     uint64_t interval_ms;
     bool repeat;
+    int modid;
+    unsigned int msgid;
 } dtimer_t;
 
 typedef struct dtimer_mgr {
@@ -158,6 +161,7 @@ static void timerfd_expired_process(void)
 {
     uint64_t now = get_current_ms();
     dtimer_t *timer = NULL;
+    int inner_ret = Success;
 
     while (true)
     {
@@ -167,8 +171,11 @@ static void timerfd_expired_process(void)
             break;
         }
 
+        inner_ret = task_enqueue(DataModuleMsg, timer_chnl.dcomp.dcomp_id, timer->modid,
+                    timer->msgid, 0, NULL);
+        dprint("enqueue timer %d task to module %d msg %x ret %d\n", timer->timer_id,
+            timer->modid, timer->msgid, inner_ret);
         heap_pop();
-        dprint("timer_id = %d\n", timer->timer_id);
         if (timer->repeat)
         {
             timer->expire_ms += timer->interval_ms;
@@ -263,7 +270,8 @@ void ch_timer_exit(void)
     dprint("dtimer channel exit\n");
 }
 
-int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat)
+int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat,
+            int modid, unsigned int msgid)
 {
     dtimer_t *timer = calloc(1, sizeof(dtimer_t));
     if (timer == NULL)
@@ -274,6 +282,8 @@ int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat)
     timer->expire_ms = get_current_ms() + timeout_ms;
     timer->interval_ms = interval_ms;
     timer->repeat = repeat;
+    timer->modid = modid;
+    timer->msgid = msgid;
     if (heap_push(timer) < 0)
     {
         free(timer);
