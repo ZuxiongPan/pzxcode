@@ -121,7 +121,7 @@ void load_uboot_form_sd(void)
     uint32_t uboot_offset = 0x100000;
     uint32_t *dest = (uint32_t *)0x80000000;
 
-    for( uint32_t sector = 0; sector < total_sectors; sector++)
+    for (uint32_t sector = 0; sector < total_sectors; sector++)
     {
         SD_DATATIMER = 0xffffffff;
         SD_DATALEN = 512;
@@ -138,7 +138,7 @@ void load_uboot_form_sd(void)
         }
     }
 
-    uart_puts("Code loaded to dram success.\n");
+    uart_puts("Uboot loaded to dram success.\n");
 }
 
 int main(void)

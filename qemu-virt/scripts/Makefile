@@ -93,7 +93,6 @@ boot:
 		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version.bin,format=raw \
 		-netdev user,id=net0,tftp=$(TOP_DIR),hostfwd=tcp::2222-:23,hostfwd=tcp::8888-:8888 \
 		-device virtio-net-pci,netdev=net0 \
-		-append "init=/linuxrc root=/dev/sda rootwait ro console=ttyAMA0,115200 earlycon" \
     	-nographic -no-reboot
 
 clean:

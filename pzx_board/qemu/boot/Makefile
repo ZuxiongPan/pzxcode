@@ -1,4 +1,4 @@
-COMPILER_DIR ?= /home/pzx/study/aarch64-none-linux-gnu-14.3/bin
+COMPILER_DIR ?= /home/pzx/aarch64/aarch64-none-linux-gnu-14.3/bin
 CC = $(COMPILER_DIR)/aarch64-none-linux-gnu-gcc
 OBJCOPY = $(COMPILER_DIR)/aarch64-none-linux-gnu-objcopy
 
