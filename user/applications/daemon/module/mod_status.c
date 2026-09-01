@@ -41,16 +41,16 @@ static int stat_handle_json_rawstr(dtask_t *task)
     
     bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "Queue Info:\n");
     pthread_mutex_lock(&worker_mgr->queue.mutex);
-    bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "count: %d, total: %d, drop: %d\n",
+    bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "count: %d, total: %d, drop: %d",
         worker_mgr->queue.count, worker_mgr->queue.total, worker_mgr->queue.drop);
     pthread_mutex_unlock(&worker_mgr->queue.mutex);
 
-    rawlog(buf);
+    // rawlog(buf);
 
-    return Success;
+    return task_enqueue(DataToOuter, statmod.dcomp.dcomp_id, task->src_compid, 0, bytes, buf);
 }
 
-static int statmod_onmsg(dmod_t *m, void *arg)
+static int statmod_ontask(dmod_t *m, void *arg)
 {
     (void)m;
     if (NULL == arg)
@@ -76,7 +76,7 @@ static int statmod_onmsg(dmod_t *m, void *arg)
 }
 
 static const mod_ops_t statmod_ops = {
-    .onmsg = statmod_onmsg,
+    .ontask = statmod_ontask,
 };
 
 int statmod_init(void)

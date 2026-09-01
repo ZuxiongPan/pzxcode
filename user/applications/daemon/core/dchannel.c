@@ -65,3 +65,31 @@ void dchannel_handle(void *arg)
 
     return ;
 }
+
+int dchannel_write_to_outer(void *arg)
+{
+    int ret = Success;
+    dtask_t *task = (dtask_t *)arg;
+    if (task == NULL)
+    {
+        derror("task is NULL\n");
+        return Fail;
+    }
+    
+    dcomp_t *dst = find_dcomponent_by_id(task->dst_compid, Layer_Channel);
+    if (NULL != dst)
+    {
+        dchannel_t *chnl = (dchannel_t *)dst;
+        if (NULL != chnl->ops->write_to_outer)
+        {
+            ret = chnl->ops->write_to_outer(task);
+        }
+    }
+    else
+    {
+        derror("dst is NULL\n");
+        ret = Fail;
+    }
+
+    return ret;
+}

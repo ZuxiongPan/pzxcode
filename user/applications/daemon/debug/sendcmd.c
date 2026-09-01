@@ -2,12 +2,29 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/un.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 
 #include "dconf.h"
 #include "lib/cJSON.h"
+
+static int wait_for_response(int fd, int timeout_sec)
+{
+    fd_set fds;
+    struct timeval tv;
+
+    FD_ZERO(&fds);
+    FD_SET(fd, &fds);
+    tv.tv_sec = timeout_sec;
+    tv.tv_usec = 0;
+
+    int ret = select(fd + 1, &fds, NULL, NULL, &tv);
+
+    return ret;
+}
 
 int main(int argc, const char *argv[])
 {
@@ -60,6 +77,17 @@ int main(int argc, const char *argv[])
     else
     {
         printf("send uds message success, len: %ld\n", len);
+    }
+
+    ret = wait_for_response(sockfd, 3);
+    if (ret > 0)
+    {
+        len = recv(sockfd, buf, sizeof(buf), 0);
+        if (len > 0)
+        {
+            buf[len] = '\0';
+            printf("receive uds message success, len: %ld, data:\n%s\n", len, buf);
+        }
     }
 
     close(sockfd);

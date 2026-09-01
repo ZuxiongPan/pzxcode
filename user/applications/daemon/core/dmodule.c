@@ -46,10 +46,10 @@ int dmodule_handle(void *arg)
     if (NULL != dst)
     {
         dmod_t *mod = (dmod_t *)dst;
-        if (NULL != mod->ops->onmsg)
+        if (NULL != mod->ops->ontask)
         {
-            ret = mod->ops->onmsg(mod, task);
-            dprint("dmodule_handle ret %d\n", ret);
+            ret = mod->ops->ontask(mod, task);
+            //dprint("dmodule_handle ret %d\n", ret);
         }
     }
 

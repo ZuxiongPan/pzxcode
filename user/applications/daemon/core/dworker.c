@@ -6,6 +6,7 @@
 #include "core/dworker.h"
 #include "core/dcontext.h"
 #include "core/dmodule.h"
+#include "core/dchannel.h"
 #include "module/dmsgid.h"
 #include "lib/cJSON.h"
 
@@ -136,9 +137,9 @@ int task_enqueue(dtask_datatype_e datatype, int src, int dst,
     queue->idle_offset = new_task->next_offset;
     queue->count++;
 
-    dprint("task info: datatype[%d], src[%x], dst[%x], msgid[%x], data_size[%d], next_offset[%x]\n",
+    //dprint("task info: datatype[%d], src[0x%x], dst[0x%x], msgid[0x%x], data_size[%d], next_offset[0x%x]\n", \
         datatype, src, dst, msgid, data_size, new_task->next_offset);
-    dprint("queue info: first_offset[%x], last_offset[%x], idle_offset[%x], count[%d]\n",
+    //dprint("queue info: first_offset[0x%x], last_offset[0x%x], idle_offset[0x%x], count[%d]\n", \
         queue->first_offset, queue->last_offset, queue->idle_offset, queue->count);
 
     pthread_cond_signal(&queue->cond);
@@ -216,23 +217,29 @@ static int process_task(char *buffer)
     dtask_t *task = (dtask_t *)buffer;
     int real_dst = DCOMPID_NONE;
     unsigned int msgid = 0;
+    int ret = Success;
 
     switch (task->datatype)
     {
         case DataModuleMsg:
         case DataBinaryToModule:
+            ret = dmodule_handle(buffer);
             break;
         case DataRawString:
             rawstr_parse(task->data, &real_dst, &msgid);
             task->dst_compid = real_dst;
             task->msgid = msgid;
+            ret = dmodule_handle(buffer);
+            break;
+        case DataToOuter:   
+            ret = dchannel_write_to_outer(buffer);
             break;
         default:
             derror("unknown task datatype %d\n", task->datatype);
             break;
     }
 
-    return dmodule_handle(buffer);
+    return ret;
 }
 
 static void rawstr_parse(const char *rawstr, int *real_dst, unsigned int *msgid)

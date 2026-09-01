@@ -20,7 +20,7 @@ typedef struct daemon_message dmsg_t;
 
 struct mod_ops {
     // arg here is the task pointer
-    int (*onmsg)(struct daemon_module *m, void *arg);
+    int (*ontask)(struct daemon_module *m, void *arg);
 };
 typedef struct mod_ops mod_ops_t;
 

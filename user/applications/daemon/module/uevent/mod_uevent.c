@@ -10,7 +10,7 @@ static dmod_t ueventmod;
 
 static int handle_uevent(const uevent_strs_t *info);
 
-static int ueventmod_onmsg(dmod_t *m, void *arg)
+static int ueventmod_ontask(dmod_t *m, void *arg)
 {
     (void)m;
     if (NULL == arg)
@@ -39,7 +39,7 @@ static int ueventmod_onmsg(dmod_t *m, void *arg)
 }
 
 static const mod_ops_t ueventmod_ops = {
-    .onmsg = ueventmod_onmsg,
+    .ontask = ueventmod_ontask,
 };
 
 int ueventmod_init(void)

@@ -41,6 +41,7 @@ static int uevent_chnl_callback(dchannel_t *chnl)
 
 const channel_ops_t uevent_chnl_ops = {
     .callback = uevent_chnl_callback,
+    .write_to_outer = NULL,
 };
 
 int ch_uevent_init(void)

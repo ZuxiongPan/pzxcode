@@ -16,7 +16,7 @@ static int upgrade_handle_json_rawstr(dtask_t *task)
 {
     (void)task;
     dprint("upgrade_handle_json_rawstr\n");
-    if (timerid > 0)
+    if (timerid >= 0)
     {
         timer_del(timerid);
     }
@@ -24,7 +24,7 @@ static int upgrade_handle_json_rawstr(dtask_t *task)
     return Success;
 }
 
-static int upgrademod_onmsg(dmod_t *m, void *arg)
+static int upgrademod_ontask(dmod_t *m, void *arg)
 {
     (void)m;
     if (NULL == arg)
@@ -43,6 +43,7 @@ static int upgrademod_onmsg(dmod_t *m, void *arg)
             break;
         case MSGID_TEST_TIMER:
             dprint("receive a timer tick\n");
+            ret = Success;
             break;
         default:
             dprint("invalid msgid 0x%x\n", task->msgid);
@@ -53,7 +54,7 @@ static int upgrademod_onmsg(dmod_t *m, void *arg)
 }
 
 static const mod_ops_t upgrademod_ops = {
-    .onmsg = upgrademod_onmsg,
+    .ontask = upgrademod_ontask,
 };
 
 int upgrademod_init(void)
@@ -70,7 +71,7 @@ int upgrademod_init(void)
         return Fail;
     }
 
-    timerid = timer_add(3000, 5000, true, ModuleIDUpgrade, MSGID_TEST_TIMER);
+    timerid = timer_add(3000, 5000, false, ModuleIDUpgrade, MSGID_TEST_TIMER);
     dprint("upgrade_module register ret = %d, timerid %d\n", ret, timerid);
     return ret;
 }

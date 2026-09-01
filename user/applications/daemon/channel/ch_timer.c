@@ -23,7 +23,7 @@ typedef struct daemon_timer {
 } dtimer_t;
 
 typedef struct dtimer_mgr {
-    dtimer_t **heap;
+    dtimer_t* heap[MAX_DTIMER_COUNT];
     int count;
     int next_tid;
     pthread_mutex_t lock;
@@ -173,7 +173,7 @@ static void timerfd_expired_process(void)
 
         inner_ret = task_enqueue(DataModuleMsg, timer_chnl.dcomp.dcomp_id, timer->modid,
                     timer->msgid, 0, NULL);
-        dprint("enqueue timer %d task to module %d msg %x ret %d\n", timer->timer_id,
+        dprint("enqueue timer %d task to module 0x%x msg 0x%x ret %d\n", timer->timer_id,
             timer->modid, timer->msgid, inner_ret);
         heap_pop();
         if (timer->repeat)
@@ -201,6 +201,7 @@ static int timer_chnl_callback(dchannel_t *chnl)
 
 const channel_ops_t timer_chnl_ops = {
     .callback = timer_chnl_callback,
+    .write_to_outer = NULL,
 };
 
 int ch_timer_init(void)
@@ -214,19 +215,12 @@ int ch_timer_init(void)
     pthread_mutex_init(&dtimer_mgr.lock, NULL);
     dtimer_mgr.count = 0;
     dtimer_mgr.next_tid = 0;
-    dtimer_mgr.heap = calloc(MAX_DTIMER_COUNT, sizeof(dtimer_t*));
-    if (dtimer_mgr.heap == NULL)
-    {
-        derror("failed to calloc timer heap\n");
-        return Fail;
-    }
 
     timer_chnl.ops = &timer_chnl_ops;
     timer_chnl.fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (timer_chnl.fd < 0)
     {
         derror("failed to create dtimer fd\n");
-        free(dtimer_mgr.heap);
         return Fail;
     }
 
@@ -235,7 +229,6 @@ int ch_timer_init(void)
     {
         derror("failed to register dtimer channel\n");
         close(timer_chnl.fd);
-        free(dtimer_mgr.heap);
         return Fail;
     }
 
@@ -253,14 +246,9 @@ void ch_timer_exit(void)
     timer_chnl.fd = -1;
 
     pthread_mutex_lock(&dtimer_mgr.lock);
-    if (dtimer_mgr.heap != NULL)
+    for (int i = 0; i < dtimer_mgr.count; i++)
     {
-        for (int i = 0; i < dtimer_mgr.count; i++)
-        {
-            free(dtimer_mgr.heap[i]);
-        }
-        free(dtimer_mgr.heap);
-        dtimer_mgr.heap = NULL;
+        free(dtimer_mgr.heap[i]);
     }
     dtimer_mgr.count = 0;
     dtimer_mgr.next_tid = 0;

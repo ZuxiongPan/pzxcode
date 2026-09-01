@@ -62,8 +62,21 @@ static int uds_client_chnl_callback(dchannel_t *chnl)
         DCOMPID_NONE, 0, len, buf);
 }
 
+static int uds_client_chnl_write_to_outer(void *arg)
+{
+    dtask_t *task = (dtask_t *)arg;
+    if (NULL == task || task->data_size == 0)
+    {
+        derror("there is no data to write\n");
+        return Fail;
+    }
+
+    return send(g_uds_mgr.client.fd, task->data, task->data_size, 0);
+}
+
 const channel_ops_t uds_client_chnl_ops = {
     .callback = uds_client_chnl_callback,
+    .write_to_outer = uds_client_chnl_write_to_outer,
 };
 
 static int uds_server_chnl_callback(dchannel_t *chnl)
@@ -116,6 +129,7 @@ static int uds_server_chnl_callback(dchannel_t *chnl)
 
 const channel_ops_t uds_server_chnl_ops = {
     .callback = uds_server_chnl_callback,
+    .write_to_outer = NULL,
 };
 
 int ch_uds_init(void)

@@ -14,6 +14,7 @@ struct daemon_channel;
 
 struct channel_ops{
     int (*callback)(struct daemon_channel *ch);
+    int (*write_to_outer)(void *arg);
 };
 typedef struct channel_ops channel_ops_t;
 
@@ -28,5 +29,6 @@ typedef struct daemon_channel dchannel_t;
 int dchannel_register(uint32_t events, dchannel_t *chnl);
 void dchannel_unregister(dchannel_t *chnl);
 void dchannel_handle(void *arg);
+int dchannel_write_to_outer(void *arg);
 
 #endif
