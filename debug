@@ -157,7 +157,7 @@ cat ~/.ssh/id_rsa.pub
 
 # qemu add new board
 path [qemu-x.x.x/hw/arm/pzx.c]
-path [qemu-x.x.xhw/arm/Kconfig]
+path [qemu-x.x.x/hw/arm/Kconfig]
 config ARM_PZX
     bool
     default y
