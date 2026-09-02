@@ -53,8 +53,20 @@
 
 		mmc0: mmc@500000 {
 			compatible = "arm,pl181", "arm,primecell";
-			reg = <0x0 0x00500000 0x0 0x00010000>;
+			reg = <0x0 0x00500000 0x0 0x00001000>;
 			interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		sysctl: pzxsysctl@600000 {
+			compatible = "syscon", "simple-mfd";
+			reg = <0x0 0x00600000 0x0 0x00001000>;
+		};
+
+		reboot {
+			compatible = "syscon-reboot";
+			regmap = <&sysctl>;
+			offset = <0x0>;
+			value = <0x1>;
 		};
 	};
 };

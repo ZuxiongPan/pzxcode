@@ -3,6 +3,7 @@
 #include <config.h>
 #include <init.h>
 #include <fdtdec.h>
+#include <asm/io.h>
 #include <asm/armv8/mmu.h>
 #include <asm/system.h>
 #include <asm/global_data.h>
@@ -58,8 +59,11 @@ int print_cpuinfo(void)
 	return 0;
 }
 
-void reset_cpu(ulong addr)
+void reset_cpu(void)
 {
+	uint64_t val = readl(0x600000);
+	printf("Reset CPU, reset register value: 0x%llx\n", val);
+	writel(0x1, 0x600000);
 	while(1)
 		;
 }

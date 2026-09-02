@@ -9,8 +9,10 @@
 #include "hw/sd/sd.h"
 #include "hw/char/pl011.h"
 #include "hw/loader.h"
+#include "hw/sysbus.h"
 #include "hw/qdev-properties.h"
 #include "target/arm/cpu.h"
+#include "system/runstate.h"
 #include "system/system.h"
 #include "system/blockdev.h"
 #include "system/block-backend.h"
@@ -31,6 +33,15 @@ struct PzxMachineState {
     MemoryRegion dram;
 };
 
+// self-defined device state
+#define TYPE_PZX_SYSCTL "pzx-sysctl"
+OBJECT_DECLARE_SIMPLE_TYPE(PzxSysctlState, PZX_SYSCTL)
+
+struct PzxSysctlState {
+    SysBusDevice parent;
+    MemoryRegion iomem;
+};
+
 enum {
     ID_MROM = 0,
     ID_SRAM,
@@ -38,6 +49,7 @@ enum {
     ID_GIC_REDIST,
     ID_UART,
     ID_SD,
+    ID_SYSCTL,
     ID_DRAM,
 };
 
@@ -51,6 +63,7 @@ static const MemMapEntry pzx_memmap[] = {
     [ID_SRAM] = { 0x00100000, 0x00200000 },
     [ID_UART] = { 0x00400000, 0x00001000 },
     [ID_SD] = { 0x00500000, 0x0001000 },
+    [ID_SYSCTL] = { 0x00600000, 0x00001000 },
     [ID_GIC_DIST] = { 0x01000000, 0x00010000 },
     [ID_GIC_REDIST] = { 0x010a0000, 0x00f00000 },
     [ID_DRAM] = { 0x80000000, 0x08000000 },
@@ -58,6 +71,45 @@ static const MemMapEntry pzx_memmap[] = {
 
 extern const unsigned char bootcode[];
 extern const int bootcode_size;
+
+// self-defined devices realization
+
+// sysctl device
+static uint64_t pzx_sysctl_read(void *opaque, hwaddr addr, unsigned size)
+{
+    return 0xffffffffffffffff;
+}
+
+static void pzx_sysctl_write(void *opaque, hwaddr addr, uint64_t value, unsigned size)
+{
+    switch (addr)
+    {
+        case 0x0:
+            // whatever value is written to this register, we just reset the system
+            qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
+            break;
+        default:
+            break;
+    }
+
+    return ;
+}
+
+static const MemoryRegionOps pzx_sysctl_ops = {
+    .read = pzx_sysctl_read,
+    .write = pzx_sysctl_write,
+    .endianness = DEVICE_LITTLE_ENDIAN,
+};
+
+static void pzx_sysctl_init(Object *obj)
+{
+    PzxSysctlState *state = PZX_SYSCTL(obj);
+    SysBusDevice *dev = SYS_BUS_DEVICE(obj);
+
+    memory_region_init_io(&state->iomem, obj, &pzx_sysctl_ops,
+            state, "pzx-sysctl", 0x1000);
+    sysbus_init_mmio(dev, &state->iomem);
+}
 
 static void pzx_machine_init(MachineState *machine)
 {
@@ -117,6 +169,10 @@ static void pzx_machine_init(MachineState *machine)
         qdev_realize_and_unref(sdcard, qdev_get_child_bus(sdhost, "sd-bus"), &error_fatal);
     }
 
+    DeviceState *sysctl = qdev_new(TYPE_PZX_SYSCTL);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(sysctl), &error_fatal);
+    sysbus_mmio_map(SYS_BUS_DEVICE(sysctl), 0, pzx_memmap[ID_SYSCTL].base);
+
     rom_add_blob_fixed("bootcode", bootcode, bootcode_size, pzx_memmap[ID_MROM].base);
 }
 
@@ -128,6 +184,13 @@ static void pzx_machine_class_init(ObjectClass *oc, const void *data)
     mc->init = pzx_machine_init;
 }
 
+static const TypeInfo pzx_sysctl_type_info = {
+    .name = TYPE_PZX_SYSCTL,
+    .parent = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(PzxSysctlState),
+    .instance_init = pzx_sysctl_init,
+};
+
 static const TypeInfo pzx_machine_type_info = {
     .name = TYPE_PZX_MACHINE,
     .parent = TYPE_MACHINE,
@@ -138,6 +201,7 @@ static const TypeInfo pzx_machine_type_info = {
 
 static void pzx_machine_register_type(void)
 {
+    type_register_static(&pzx_sysctl_type_info);
     type_register_static(&pzx_machine_type_info);
 }
 type_init(pzx_machine_register_type)

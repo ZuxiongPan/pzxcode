@@ -32,7 +32,7 @@ image:
 boot:
 	$(QEMU_DIR)/build/qemu-system-aarch64 -M pzx \
     	-drive file=$(TOP_DIR)/boot.bin,if=sd,format=raw \
-		-nographic
+		-nographic -no-reboot
 
 clean:
 	make uboot_clean
