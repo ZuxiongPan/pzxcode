@@ -31,6 +31,7 @@ image:
 
 boot:
 	$(QEMU_DIR)/build/qemu-system-aarch64 -M pzx \
+		-monitor telnet:127.0.0.1:9999,server,nowait \
     	-drive file=$(TOP_DIR)/boot.bin,if=sd,format=raw \
 		-nographic -no-reboot
 

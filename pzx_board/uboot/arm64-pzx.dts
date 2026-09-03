@@ -45,6 +45,12 @@
 			      <0x0 0x010a0000 0x0 0x00f00000>; /* GICR */
 		};
 
+		refclk: refclk24m {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <24000000>;
+		};
+
 		serial0: serial@400000 {
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0x00400000 0x0 0x00001000>;
@@ -52,9 +58,12 @@
 		};
 
 		mmc0: mmc@500000 {
-			compatible = "arm,pl181", "arm,primecell";
+			compatible = "arm,pl180", "arm,primecell";
 			reg = <0x0 0x00500000 0x0 0x00001000>;
 			interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&refclk>, <&refclk>;
+			clock-names = "mclk", "apb_pclk";
+			max-frequency = <12000000>;
 		};
 
 		sysctl: pzxsysctl@600000 {

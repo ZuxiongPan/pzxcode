@@ -61,8 +61,6 @@ int print_cpuinfo(void)
 
 void reset_cpu(void)
 {
-	uint64_t val = readl(0x600000);
-	printf("Reset CPU, reset register value: 0x%llx\n", val);
 	writel(0x1, 0x600000);
 	while(1)
 		;
