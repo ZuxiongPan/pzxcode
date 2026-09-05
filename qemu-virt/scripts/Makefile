@@ -91,7 +91,7 @@ boot:
 		-device qemu-xhci,id=xhci \
 		-device usb-storage,drive=usbdisk,bus=xhci.0 \
 		-drive if=none,id=usbdisk,file=$(TOP_DIR)/version.bin,format=raw \
-		-netdev user,id=net0,tftp=$(TOP_DIR),hostfwd=tcp::2222-:23,hostfwd=tcp::8888-:8888 \
+		-netdev user,id=net0,tftp=$(TOP_DIR),hostfwd=tcp::8888-:8888 \
 		-device virtio-net-pci,netdev=net0 \
     	-nographic -no-reboot
 

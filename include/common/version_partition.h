@@ -1,7 +1,7 @@
 #ifndef __VERSION_PARTITION_H__
 #define __VERSION_PARTITION_H__
 
-#define VERSION_NUMBER "QEMU-Virt"
+#define VERSION_NUMBER "QEMU-V1.0.1"
 #define STORDEV_NAME "/dev/sda"
 #define HEADER_SIZE 512 // every head size is 512B
 #define STORDEV_PHYSICAL_BLKSIZE 0x200

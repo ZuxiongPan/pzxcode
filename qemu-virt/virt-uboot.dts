@@ -47,26 +47,6 @@
 		compatible = "virtio,mmio";
 	};
 
-	gpio-keys {
-		compatible = "gpio-keys";
-
-		poweroff {
-			gpios = <&pl061 3 0>;
-			linux,code = <116>;
-			label = "GPIO Key Poweroff";
-		};
-	};
-
-	pl061: pl061@9030000 {
-		clock-names = "apb_pclk";
-		clocks = <&apb_pclk>;
-		interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>;
-		gpio-controller;
-		#gpio-cells = <2>;
-		compatible = "arm,pl061", "arm,primecell";
-		reg = <0x0 0x9030000 0x0 0x1000>;
-	};
-
 	pcie@10000000 {
 		interrupt-map-mask = <0x1800 0x0 0x0 0x07>;
 		interrupt-map = <0x0 0 0 1 &intc 0 0 GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>,
