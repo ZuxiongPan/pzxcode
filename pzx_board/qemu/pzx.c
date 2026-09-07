@@ -19,6 +19,7 @@
 #include "hw/arm/machines-qom.h"
 #include "hw/intc/arm_gicv3.h"
 #include "hw/intc/arm_gicv3_common.h"
+#include "net/net.h"
 
 #define TYPE_PZX_MACHINE MACHINE_TYPE_NAME("pzx")
 OBJECT_DECLARE_SIMPLE_TYPE(PzxMachineState, PZX_MACHINE)
@@ -50,12 +51,14 @@ enum {
     ID_UART,
     ID_SD,
     ID_SYSCTL,
+    ID_VIRTIO_NET,
     ID_DRAM,
 };
 
 enum {
     IRQ_UART = 32,
     IRQ_SD,
+    IRQ_VIRTIO_NET,
 };
 
 static const MemMapEntry pzx_memmap[] = {
@@ -64,6 +67,7 @@ static const MemMapEntry pzx_memmap[] = {
     [ID_UART] = { 0x00400000, 0x00001000 },
     [ID_SD] = { 0x00500000, 0x0001000 },
     [ID_SYSCTL] = { 0x00600000, 0x00001000 },
+    [ID_VIRTIO_NET] = { 0x00700000, 0x00000200 },
     [ID_GIC_DIST] = { 0x01000000, 0x00010000 },
     [ID_GIC_REDIST] = { 0x010a0000, 0x00f00000 },
     [ID_DRAM] = { 0x80000000, 0x08000000 },
@@ -172,6 +176,11 @@ static void pzx_machine_init(MachineState *machine)
     DeviceState *sysctl = qdev_new(TYPE_PZX_SYSCTL);
     sysbus_realize_and_unref(SYS_BUS_DEVICE(sysctl), &error_fatal);
     sysbus_mmio_map(SYS_BUS_DEVICE(sysctl), 0, pzx_memmap[ID_SYSCTL].base);
+
+    DeviceState *net_dev = qdev_new("virtio-mmio");
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(net_dev), &error_fatal);
+    sysbus_mmio_map(SYS_BUS_DEVICE(net_dev), 0, pzx_memmap[ID_VIRTIO_NET].base);
+    sysbus_connect_irq(SYS_BUS_DEVICE(net_dev), 0, qdev_get_gpio_in(state->gic, IRQ_VIRTIO_NET));
 
     rom_add_blob_fixed("bootcode", bootcode, bootcode_size, pzx_memmap[ID_MROM].base);
 }

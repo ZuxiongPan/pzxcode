@@ -77,5 +77,11 @@
 			offset = <0x0>;
 			value = <0x1>;
 		};
+
+		virtio_net: virtio@700000 {
+			compatible = "virtio,mmio";
+			reg = <0x0 0x00700000 0x0 0x00000200>;
+			interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
+		};
 	};
 };
