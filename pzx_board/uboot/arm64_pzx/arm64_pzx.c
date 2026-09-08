@@ -8,6 +8,11 @@
 #include <asm/system.h>
 #include <asm/global_data.h>
 #include <linux/sizes.h>
+#ifdef CONFIG_VIRTIO
+#include <dm.h>
+#include <virtio_types.h>
+#include <virtio.h>
+#endif
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -20,14 +25,16 @@ static struct mm_region pzx_mem_map[] = {
 		.attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) |
 			 PTE_BLOCK_NON_SHARE |
 			 PTE_BLOCK_PXN | PTE_BLOCK_UXN
-	}, {
+	},
+	{
 		/* DRAM (128MB at 0x80000000) */
 		.virt = 0x80000000UL,
 		.phys = 0x80000000UL,
 		.size = 0x08000000UL,
 		.attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
 			 PTE_BLOCK_INNER_SHARE
-	}, {
+	},
+	{
 		/* List terminator */
 		0,
 	}
@@ -37,6 +44,22 @@ struct mm_region *mem_map = pzx_mem_map;
 
 int board_init(void)
 {
+#ifdef CONFIG_VIRTIO
+	// do virtio scan
+	struct udevice *bus, *child;
+
+	uclass_first_device(UCLASS_VIRTIO, &bus);
+	if (!bus)
+		return -1;
+
+	while (bus)
+	{
+		device_foreach_child_probe(child, bus)
+				;
+		uclass_next_device(&bus);
+	}
+
+#endif
 	return 0;
 }
 

@@ -3,6 +3,9 @@
 
 #include "data_type.h"
 
+// these head mask must check endian
+// there is the same endian for x86 and arm, for simplicity we don't check it
+
 #define VERSION_HEADER_MAGIC0 0x53524556  // 'VERS'
 #define VERSION_HEADER_MAGIC1 0x534e4f49  // 'IONS'
 

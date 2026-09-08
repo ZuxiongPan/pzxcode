@@ -1,0 +1,15 @@
+include compile_cfg
+
+DAEMON_DIR := ./
+CHANNEL_DIR := $(DAEMON_DIR)/channel
+CORE_DIR := $(DAEMON_DIR)/core
+INIT_DIR := $(DAEMON_DIR)/init
+LIB_DIR := $(DAEMON_DIR)/lib
+MODULE_DIR := $(DAEMON_DIR)/module
+
+DIRS-y := $(CHANNEL_DIR) $(CORE_DIR) $(INIT_DIR) $(LIB_DIR) $(MODULE_DIR)
+
+OBJS-y :=
+MOD_SUBDIRS-y :=
+
+MOD_SUBDIRS-$(CONFIG_MODULE_UEVENT) := $(MODULE_DIR)/uevent

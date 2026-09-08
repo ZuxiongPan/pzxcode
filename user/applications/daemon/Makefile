@@ -1,22 +1,24 @@
+include config.mk
+
 TARGET := armd
 
-DAEMON_DIR := daemon
+define add_dir_objs
+OBJS-y += $(patsubst $(1)/%.c, $(1)/%.o, $(wildcard $(1)/*.c))
+endef
 
-CORE_OBJS := core/dcontext.o core/dworker.o core/dchannel.o core/dmodule.o
-CHNL_OBJS := channel/chnl_calls.o channel/ch_timer.o channel/ch_uevent.o channel/ch_uds.o
-MOD_OBJS := module/mod_calls.o module/mod_status.o module/mod_upgrade.o \
-	module/uevent/mod_uevent.o module/uevent/uevent_translator.o
-LIB_OBJS := lib/cJSON.o
+$(foreach dir, $(DIRS-y), $(eval $(call add_dir_objs,$(dir))))
+$(foreach dir, $(MOD_SUBDIRS-y), $(eval $(call add_dir_objs,$(dir))))
 
-OBJS := init/main.o $(CORE_OBJS) $(CHNL_OBJS) $(MOD_OBJS) $(LIB_OBJS)
-
-CFLAGS += -I./include -I./
+CFLAGS += -I$(DAEMON_DIR)/include -I$(DAEMON_DIR)
 LDFLAGS += -lpthread
 
 all: $(TARGET) sendcmd
 
-$(TARGET): $(OBJS)
+$(TARGET): $(OBJS-y)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 sendcmd: debug/sendcmd.o lib/cJSON.o
 	$(CC) $(CFLAGS) -o $@ $^
@@ -26,4 +28,4 @@ install:
 	cp sendcmd $(ROOT_DIR)/usr/bin/ -f
 
 clean:
-	rm -f $(TARGET) $(OBJS) debug/sendcmd.o sendcmd
+	rm -f $(TARGET) $(OBJS-y) debug/sendcmd.o sendcmd

@@ -1,3 +1,4 @@
+/**
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -85,3 +86,4 @@ int tcp_init(void)
 
     return 0;
 }
+*/
