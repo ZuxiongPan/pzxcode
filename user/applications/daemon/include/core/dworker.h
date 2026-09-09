@@ -6,8 +6,6 @@
 #include <stdatomic.h>
 #include <pthread.h>
 
-#define DCOMPID_NONE 0xFFFFFFFF
-
 enum dtask_datatype {
     DataInvalid = 0,
     // data is inner module message, this type must have dst_compid

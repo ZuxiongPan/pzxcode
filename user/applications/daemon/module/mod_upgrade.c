@@ -61,7 +61,7 @@ int upgrademod_init(void)
 {
     int ret = Success;
     memset(&upgrademod, 0, sizeof(dmod_t));
-    dcomponent_init(&upgrademod.dcomp, ModuleIDUpgrade, "mod_upgrade");
+    dcomponent_init(&upgrademod.dcomp, ModuleIDUpgrade, "upgrade");
     upgrademod.ops = &upgrademod_ops;
 
     ret = dmodule_register(&upgrademod);

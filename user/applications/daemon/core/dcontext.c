@@ -32,12 +32,10 @@ void daemon_context_init(void)
     int ret = Success;
     memset(&g_ctx, 0, sizeof(dctx_t));
     atomic_init(&g_ctx.status, false);
-    for (int i = Layer_Channel; i < Layer_Unknown; i++)
+    pthread_rwlock_init(&g_ctx.ht_rwlock, NULL);
+    for (int i = 0; i < COMPREC_HTABLE_SIZE; i++)
     {
-        pthread_rwlock_init(&g_ctx.records[i].rwlock, NULL);
-        g_ctx.records[i].sentinel.name = "sentinel";
-        g_ctx.records[i].sentinel.prev = &g_ctx.records[i].sentinel;
-        g_ctx.records[i].sentinel.next = &g_ctx.records[i].sentinel;
+        g_ctx.htable[i] = NULL;
     }
 
     g_ctx.worker_mgr = calloc(1, sizeof(dworker_mgr_t));
@@ -93,6 +91,11 @@ void daemon_context_destroy(void)
     return ;
 }
 
+static inline int dcomp_hash(unsigned int compid)
+{
+    return (compid % COMPREC_HTABLE_SIZE);
+}
+
 void dcomponent_init(dcomp_t *comp, int compid, const char *name)
 {
     if (comp == NULL)
@@ -101,94 +104,110 @@ void dcomponent_init(dcomp_t *comp, int compid, const char *name)
         return ;
     }
 
-    comp->dcomp_id = compid;
+    comp->dcompid = compid;
     comp->name = name;
-    comp->prev = comp;
-    comp->next = comp;
+    comp->next = NULL;
 }
 
-int dcomponent_record_add(dcomp_t *comp, dlayer_e layer)
+int dcomponent_record_add(dcomp_t *comp)
 {
-    if (comp == NULL || layer >= Layer_Unknown)
+    if (comp == NULL)
     {
         derror("component is invalid\n");
         return Fail;
     }
 
-    pthread_rwlock_wrlock(&g_ctx.records[layer].rwlock);
-    dcomp_t *sentinel = &g_ctx.records[layer].sentinel;
-    comp->prev = sentinel;
-    comp->next = sentinel->next;
-    sentinel->next->prev = comp;
-    sentinel->next = comp;
-    pthread_rwlock_unlock(&g_ctx.records[layer].rwlock);
+    int hash = dcomp_hash(comp->dcompid);
+    pthread_rwlock_wrlock(&g_ctx.ht_rwlock);
+    // here the id will not be duplicated, it may be a risk
+    comp->next = g_ctx.htable[hash];
+    g_ctx.htable[hash] = comp;
+    pthread_rwlock_unlock(&g_ctx.ht_rwlock);
 
     return Success;
 }
 
-void dcomponent_record_del(dcomp_t *comp, dlayer_e layer)
+void dcomponent_record_del(dcomp_t *comp)
 {
-    if (comp == NULL || layer >= Layer_Unknown)
+    if (comp == NULL)
     {
         derror("component is invalid\n");
         return ;
     }
 
-    pthread_rwlock_wrlock(&g_ctx.records[layer].rwlock);
-    comp->prev->next = comp->next;
-    comp->next->prev = comp->prev;
-    comp->prev = comp;
-    comp->next = comp;
-    pthread_rwlock_unlock(&g_ctx.records[layer].rwlock);
+    int hash = dcomp_hash(comp->dcompid);
+    pthread_rwlock_wrlock(&g_ctx.ht_rwlock);
+    dcomp_t *prev = NULL;
+    dcomp_t *cur = g_ctx.htable[hash];
+    while (cur != NULL)
+    {
+        if (cur->dcompid == comp->dcompid)
+        {
+            if (prev != NULL)
+            {
+                prev->next = cur->next;
+            }
+            else
+            {
+                g_ctx.htable[hash] = cur->next;
+            }
+            break;
+        }
+        prev = cur;
+        cur = cur->next;
+    }
+    pthread_rwlock_unlock(&g_ctx.ht_rwlock);
 
     return ;
 }
 
-dcomp_t* find_dcomponent_by_id(int compid, dlayer_e layer)
+dcomp_t* find_dcomponent_by_id(int compid)
 {
-    if (layer >= Layer_Unknown || compid < 0)
-    {
-        derror("invalid layer or compid\n");
-        return NULL;
-    }
-
+    int hash = dcomp_hash(compid);
     dcomp_t *comp = NULL;
-    pthread_rwlock_rdlock(&g_ctx.records[layer].rwlock);
-    comp = g_ctx.records[layer].sentinel.next;
-    while (comp != &g_ctx.records[layer].sentinel)
+    pthread_rwlock_rdlock(&g_ctx.ht_rwlock);
+    comp = g_ctx.htable[hash];
+    while (comp != NULL)
     {
-        if (comp->dcomp_id == compid)
+        if (comp->dcompid == compid)
         {
             break;
         }
         comp = comp->next;
     }
-    pthread_rwlock_unlock(&g_ctx.records[layer].rwlock);
+    pthread_rwlock_unlock(&g_ctx.ht_rwlock);
 
-    return (comp == &g_ctx.records[layer].sentinel) ? NULL : comp;
+    return comp;
 }
 
-dcomp_t* find_dcomponent_by_name(const char *name, dlayer_e layer)
+dcomp_t* find_dcomponent_by_name(const char *name)
 {
-    if (layer >= Layer_Unknown || name == NULL)
+    if (name == NULL)
     {
-        derror("invalid layer or name\n");
+        derror("invalid name\n");
         return NULL;
     }
 
     dcomp_t *comp = NULL;
-    pthread_rwlock_rdlock(&g_ctx.records[layer].rwlock);
-    comp = g_ctx.records[layer].sentinel.next;
-    while (comp != &g_ctx.records[layer].sentinel)
+    bool not_found = true;
+    int i = 0;
+    pthread_rwlock_rdlock(&g_ctx.ht_rwlock);
+    while (i < COMPREC_HTABLE_SIZE && not_found)
     {
-        if (strcmp(comp->name, name) == 0)
+        comp = g_ctx.htable[i];
+        while (comp != NULL)
         {
-            break;
+            if (strcmp(comp->name, name) == 0)
+            {
+                not_found = false;
+                break;
+            }
+            comp = comp->next;
         }
-        comp = comp->next;
+        i++;
     }
-    pthread_rwlock_unlock(&g_ctx.records[layer].rwlock);
+    pthread_rwlock_unlock(&g_ctx.ht_rwlock);
 
-    return (comp == &g_ctx.records[layer].sentinel) ? NULL : comp;
+    return comp;
 }
 

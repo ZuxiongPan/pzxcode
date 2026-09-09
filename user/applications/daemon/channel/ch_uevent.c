@@ -35,12 +35,12 @@ static int uevent_chnl_callback(dchannel_t *chnl)
         return Fail;
     }
 
-    return task_enqueue(DataBinaryToModule, chnl->dcomp.dcomp_id,
+    return task_enqueue(DataBinaryToModule, chnl->dcomp.dcompid,
         ModuleIDUevent, 0, len, buf);
 }
 
 const channel_ops_t uevent_chnl_ops = {
-    .callback = uevent_chnl_callback,
+    .read_from_outer = uevent_chnl_callback,
     .write_to_outer = NULL,
 };
 

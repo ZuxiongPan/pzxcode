@@ -9,15 +9,6 @@
 
 struct daemon_module;
 
-struct daemon_message {
-    int src_compid;
-    int dst_compid;
-    unsigned int msgid;
-    unsigned int content_size;
-    char content[0];
-};
-typedef struct daemon_message dmsg_t;
-
 struct mod_ops {
     // arg here is the task pointer
     int (*ontask)(struct daemon_module *m, void *arg);

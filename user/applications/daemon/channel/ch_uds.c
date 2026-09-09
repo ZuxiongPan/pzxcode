@@ -16,8 +16,8 @@
 
 typedef struct uds_mgr {
     dchannel_t server;
-    dchannel_t client;
-    atomic_bool client_inuse;
+    dchannel_t clients[CLIENT_MAXNUM];
+    atomic_int client_idx;
 } uds_mgr_t;
 
 static uds_mgr_t g_uds_mgr;
@@ -35,7 +35,6 @@ static int uds_client_chnl_callback(dchannel_t *chnl)
         close(chnl->fd);
         chnl->fd = -1;
         dchannel_unregister(chnl);
-        atomic_store(&g_uds_mgr.client_inuse, false);
         return Fail;
     }
 
@@ -50,7 +49,6 @@ static int uds_client_chnl_callback(dchannel_t *chnl)
             close(chnl->fd);
             chnl->fd = -1;
             dchannel_unregister(chnl);
-            atomic_store(&g_uds_mgr.client_inuse, false);
             derror("receive uds message failed, err: %d\n", errno);
         }
         
@@ -58,7 +56,7 @@ static int uds_client_chnl_callback(dchannel_t *chnl)
     }
 
     // the message from uds is a control message, we do not know where to put it
-    return task_enqueue(DataRawString, chnl->dcomp.dcomp_id,
+    return task_enqueue(DataRawString, chnl->dcomp.dcompid,
         DCOMPID_NONE, 0, len, buf);
 }
 
@@ -71,19 +69,36 @@ static int uds_client_chnl_write_to_outer(void *arg)
         return Fail;
     }
 
-    return send(g_uds_mgr.client.fd, task->data, task->data_size, 0);
+    int idx = 0;
+    while (idx < CLIENT_MAXNUM)
+    {
+        if (g_uds_mgr.clients[idx].dcomp.dcompid == task->dst_compid)
+        {
+            break;
+        }
+        idx++;
+    }
+
+    return send(g_uds_mgr.clients[idx].fd, task->data, task->data_size, 0);
 }
 
 const channel_ops_t uds_client_chnl_ops = {
-    .callback = uds_client_chnl_callback,
+    .read_from_outer = uds_client_chnl_callback,
     .write_to_outer = uds_client_chnl_write_to_outer,
 };
 
 static int uds_server_chnl_callback(dchannel_t *chnl)
 {
     int client_fd = -1;
+    int idx = 0;
+    int compid = DCOMPID_NONE;
 
-    if (!atomic_load(&g_uds_mgr.client_inuse))
+    while (idx < CLIENT_MAXNUM && g_uds_mgr.clients[idx].fd >= 0)
+    {
+        idx++;
+    }
+
+    if (idx < CLIENT_MAXNUM)
     {
         client_fd = accept(chnl->fd, NULL, NULL);
         if (client_fd < 0)
@@ -107,28 +122,30 @@ static int uds_server_chnl_callback(dchannel_t *chnl)
             return Fail;
         }
 
-        dcomponent_init(&g_uds_mgr.client.dcomp, ChannelIDUdsClient, "ch_uds_client");
-        g_uds_mgr.client.fd = client_fd;
-        g_uds_mgr.client.ops = &uds_client_chnl_ops;
-        if (dchannel_register(EPOLLIN, &g_uds_mgr.client) != Success)
+        compid = atomic_load(&g_uds_mgr.client_idx);
+        dcomponent_init(&g_uds_mgr.clients[idx].dcomp, compid, "uds_client");
+        g_uds_mgr.clients[idx].fd = client_fd;
+        g_uds_mgr.clients[idx].ops = &uds_client_chnl_ops;
+        if (dchannel_register(EPOLLIN, &g_uds_mgr.clients[idx]) != Success)
         {
             derror("uds channel register failed\n");
             close(client_fd);
+            g_uds_mgr.clients[idx].fd = -1;
             return Fail;
         }
-        atomic_store(&g_uds_mgr.client_inuse, true);
-        dprint("uds client fd = %d\n", client_fd);
+        atomic_fetch_add(&g_uds_mgr.client_idx, 1);
+        dprint("uds client fd = %d, compid = 0x%x\n", client_fd, compid);
     }
     else
     {
-        dprint("uds client is in use, only one client allowed at same time\n");
+        dprint("there is no available client slot\n");
     }
 
     return Success;
 }
 
 const channel_ops_t uds_server_chnl_ops = {
-    .callback = uds_server_chnl_callback,
+    .read_from_outer = uds_server_chnl_callback,
     .write_to_outer = NULL,
 };
 
@@ -139,8 +156,12 @@ int ch_uds_init(void)
 
     memset(&g_uds_mgr, 0, sizeof(uds_mgr_t));
     memset(&addr, 0, sizeof(addr));
-    atomic_init(&g_uds_mgr.client_inuse, false);
-    dcomponent_init(&g_uds_mgr.server.dcomp, ChannelIDUdsServer, "ch_uds_server");
+    atomic_init(&g_uds_mgr.client_idx, UDSCLIENT_IDSTART);
+    for (int i = 0; i < CLIENT_MAXNUM; i++)
+    {
+        g_uds_mgr.clients[i].fd = -1;
+    }
+    dcomponent_init(&g_uds_mgr.server.dcomp, ChannelIDUdsServer, "uds_server");
     g_uds_mgr.server.ops = &uds_server_chnl_ops;
     g_uds_mgr.server.fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (g_uds_mgr.server.fd < 0)
@@ -159,7 +180,7 @@ int ch_uds_init(void)
         return Fail;
     }
 
-    if (listen(g_uds_mgr.server.fd, CLIENT_MAXNUM) < 0)
+    if (listen(g_uds_mgr.server.fd, LISTENED_CLIENT_NUM) < 0)
     {
         derror("uds server cannot listen to client\n");
         close(g_uds_mgr.server.fd);
@@ -180,13 +201,16 @@ int ch_uds_init(void)
 
 void ch_uds_exit(void)
 {
-    if (atomic_load(&g_uds_mgr.client_inuse))
+    for (int i = 0; i < CLIENT_MAXNUM; i++)
     {
-        dchannel_unregister(&g_uds_mgr.client);
-        close(g_uds_mgr.client.fd);
-        g_uds_mgr.client.fd = -1;
-        atomic_store(&g_uds_mgr.client_inuse, false);
+        if (g_uds_mgr.clients[i].fd >= 0)
+        {
+            dchannel_unregister(&g_uds_mgr.clients[i]);
+            close(g_uds_mgr.clients[i].fd);
+            g_uds_mgr.clients[i].fd = -1;
+        }
     }
+
     dchannel_unregister(&g_uds_mgr.server);
     if (g_uds_mgr.server.fd >= 0)
     {

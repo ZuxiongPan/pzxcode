@@ -171,7 +171,7 @@ static void timerfd_expired_process(void)
             break;
         }
 
-        inner_ret = task_enqueue(DataModuleMsg, timer_chnl.dcomp.dcomp_id, timer->modid,
+        inner_ret = task_enqueue(DataModuleMsg, timer_chnl.dcomp.dcompid, timer->modid,
                     timer->msgid, 0, NULL);
         dprint("enqueue timer %d task to module 0x%x msg 0x%x ret %d\n", timer->timer_id,
             timer->modid, timer->msgid, inner_ret);
@@ -200,7 +200,7 @@ static int timer_chnl_callback(dchannel_t *chnl)
 }
 
 const channel_ops_t timer_chnl_ops = {
-    .callback = timer_chnl_callback,
+    .read_from_outer = timer_chnl_callback,
     .write_to_outer = NULL,
 };
 

@@ -9,35 +9,33 @@ typedef void (*dcomp_exit_f)(void);
 
 struct daemon_worker_manager;
 
-enum daemon_layer {
-    Layer_Channel = 0,
-    Layer_Module,
-    Layer_Unknown,
-};
-typedef enum daemon_layer dlayer_e;
+// mask definition
+// bit 0-23: the component id of type
+// bit 24-31: the type of this id, 00-component 01-uds client 02-tcp client
+#define DCOMPID_NONE 0xFFFFFFFF
+#define COMP_IDMASK 0x00ffffff
+#define COMP_TYPEMASK 0xff000000
+#define FIXEDCOMP_IDSTART 0x00000000
+#define UDSCLIENT_IDSTART 0x01000000
+#define TCPCLIENT_IDSTART 0x02000000
 
-#define CHANNELID_START (Layer_Channel << 16)
-#define MODULEID_START (Layer_Module << 16)
+// component layer id definition, bit 16-23 is the layer
+#define CHANNELID_START (0x1 << 16)
+#define MODULEID_START (0x2 << 16)
 
 struct daemon_component {
-    int dcomp_id;
+    int dcompid;
     const char *name;
-    struct daemon_component *prev;
     struct daemon_component *next;
 };
 typedef struct daemon_component dcomp_t;
-
-struct dlayer_record {
-    dcomp_t sentinel;
-    pthread_rwlock_t rwlock;
-};
-typedef struct dlayer_record dlayer_rec_t;
 
 struct daemon_context {
     atomic_bool status;
     int epfd;
     struct daemon_worker_manager *worker_mgr;
-    dlayer_rec_t records[Layer_Unknown];
+    dcomp_t *htable[COMPREC_HTABLE_SIZE];
+    pthread_rwlock_t ht_rwlock;
 };
 typedef struct daemon_context dctx_t;
 
@@ -46,9 +44,9 @@ void daemon_context_init(void);
 void daemon_context_run(void);
 void daemon_context_destroy(void);
 void dcomponent_init(dcomp_t *comp, int compid, const char *name);
-int dcomponent_record_add(dcomp_t *comp, dlayer_e layer);
-void dcomponent_record_del(dcomp_t *comp, dlayer_e layer);
-dcomp_t* find_dcomponent_by_id(int compid, dlayer_e layer);
-dcomp_t* find_dcomponent_by_name(const char *name, dlayer_e layer);
+int dcomponent_record_add(dcomp_t *comp);
+void dcomponent_record_del(dcomp_t *comp);
+dcomp_t* find_dcomponent_by_id(int compid);
+dcomp_t* find_dcomponent_by_name(const char *name);
 
 #endif

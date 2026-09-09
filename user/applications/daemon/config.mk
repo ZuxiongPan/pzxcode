@@ -1,6 +1,6 @@
 include compile_cfg
 
-DAEMON_DIR := ./
+DAEMON_DIR := .
 CHANNEL_DIR := $(DAEMON_DIR)/channel
 CORE_DIR := $(DAEMON_DIR)/core
 INIT_DIR := $(DAEMON_DIR)/init

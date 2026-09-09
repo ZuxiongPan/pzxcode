@@ -262,7 +262,7 @@ static void rawstr_parse(const char *rawstr, int *real_dst, unsigned int *msgid)
         return ;
     }
 
-    const dcomp_t *comp = find_dcomponent_by_name(dst->valuestring, Layer_Module);
+    const dcomp_t *comp = find_dcomponent_by_name(dst->valuestring);
     if (comp == NULL)
     {
         derror("target not found\n");
@@ -270,7 +270,7 @@ static void rawstr_parse(const char *rawstr, int *real_dst, unsigned int *msgid)
         return ;
     }
 
-    *real_dst = comp->dcomp_id;
+    *real_dst = comp->dcompid;
     *msgid = MSGID_JSON_RAWSTR;
 
     cJSON_Delete(root);

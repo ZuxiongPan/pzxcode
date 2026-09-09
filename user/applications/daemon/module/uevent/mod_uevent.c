@@ -46,7 +46,7 @@ int ueventmod_init(void)
 {
     int ret = Success;
     memset(&ueventmod, 0, sizeof(dmod_t));
-    dcomponent_init(&ueventmod.dcomp, ModuleIDUevent, "uevent_mod");
+    dcomponent_init(&ueventmod.dcomp, ModuleIDUevent, "netlink");
     ueventmod.ops = &ueventmod_ops;
 
     ret = dmodule_register(&ueventmod);

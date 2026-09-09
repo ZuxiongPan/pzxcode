@@ -14,14 +14,14 @@ int dchannel_register(uint32_t events, dchannel_t *chnl)
         return Fail;
     }
 
-    int ret = dcomponent_record_add(&chnl->dcomp, Layer_Channel);
+    int ret = dcomponent_record_add(&chnl->dcomp);
     if (ret != Success)
     {
         derror("failed to add channel[%s] to record\n",
             chnl->dcomp.name == NULL ? "no name" : chnl->dcomp.name);
         return Fail;
     }
-    dprint("channel[%s] id[0x%x]\n", chnl->dcomp.name ? chnl->dcomp.name : "no name", chnl->dcomp.dcomp_id);
+    dprint("channel[%s] id[0x%x]\n", chnl->dcomp.name ? chnl->dcomp.name : "no name", chnl->dcomp.dcompid);
 
     dctx_t *ctx = dctx_instance();
     struct epoll_event ev;
@@ -33,7 +33,7 @@ int dchannel_register(uint32_t events, dchannel_t *chnl)
     {
         derror("failed to add channel[%s] to epoll\n",
             chnl->dcomp.name == NULL ? "no name" : chnl->dcomp.name);
-        dcomponent_record_del(&chnl->dcomp, Layer_Channel);
+        dcomponent_record_del(&chnl->dcomp);
         return Fail;
     }
 
@@ -49,7 +49,7 @@ void dchannel_unregister(dchannel_t *chnl)
     }
     
     dctx_t *ctx = dctx_instance();
-    dcomponent_record_del(&chnl->dcomp, Layer_Channel);
+    dcomponent_record_del(&chnl->dcomp);
     epoll_ctl(ctx->epfd, EPOLL_CTL_DEL, chnl->fd, NULL);
 }
 
@@ -61,7 +61,7 @@ void dchannel_handle(void *arg)
         return ;
     }
 
-    chnl->ops->callback(chnl);
+    chnl->ops->read_from_outer(chnl);
 
     return ;
 }
@@ -76,7 +76,7 @@ int dchannel_write_to_outer(void *arg)
         return Fail;
     }
     
-    dcomp_t *dst = find_dcomponent_by_id(task->dst_compid, Layer_Channel);
+    dcomp_t *dst = find_dcomponent_by_id(task->dst_compid);
     if (NULL != dst)
     {
         dchannel_t *chnl = (dchannel_t *)dst;

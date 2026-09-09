@@ -19,22 +19,21 @@ static int stat_handle_json_rawstr(dtask_t *task)
     dctx_t *ctx = dctx_instance();
     dworker_mgr_t *worker_mgr = ctx->worker_mgr;
 
-    bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "Layer Info:\n");
-    for (int i = 0; i < Layer_Unknown; i++)
+    bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "Components:\n");
+    pthread_rwlock_rdlock(&ctx->ht_rwlock);
+    for (int i = 0; i < COMPREC_HTABLE_SIZE; i++)
     {
-        bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "Layer%02d", i);
-        pthread_rwlock_rdlock(&ctx->records[i].rwlock);
-        comp = ctx->records[i].sentinel.next;
-        while (comp != &ctx->records[i].sentinel)
+        comp = ctx->htable[i];
+        while (NULL != comp)
         {
             bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "->[0x%08x-%s]",
-                comp->dcomp_id, comp->name);
+                comp->dcompid, comp->name);
             comp = comp->next;
         }
-        pthread_rwlock_unlock(&ctx->records[i].rwlock);
-        bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "\n");
     }
+    pthread_rwlock_unlock(&ctx->ht_rwlock);
 
+    bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "\n");
     bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "Worker Info:\n");
     bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "workers: %d, busy: %d\n",
         worker_mgr->valid, atomic_load(&worker_mgr->busy));
@@ -47,7 +46,7 @@ static int stat_handle_json_rawstr(dtask_t *task)
 
     // rawlog(buf);
 
-    return task_enqueue(DataToOuter, statmod.dcomp.dcomp_id, task->src_compid, 0, bytes, buf);
+    return task_enqueue(DataToOuter, statmod.dcomp.dcompid, task->src_compid, 0, bytes, buf);
 }
 
 static int statmod_ontask(dmod_t *m, void *arg)
@@ -83,7 +82,7 @@ int statmod_init(void)
 {
     int ret = Success;
     memset(&statmod, 0, sizeof(dmod_t));
-    dcomponent_init(&statmod.dcomp, ModuleIDStatus, "mod_status");
+    dcomponent_init(&statmod.dcomp, ModuleIDStatus, "status");
     statmod.ops = &statmod_ops;
 
     ret = dmodule_register(&statmod);

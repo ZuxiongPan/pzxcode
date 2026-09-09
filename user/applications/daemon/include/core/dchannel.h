@@ -8,12 +8,12 @@
 #define ChannelIDTimer (CHANNELID_START + 1)
 #define ChannelIDUevent (CHANNELID_START + 2)
 #define ChannelIDUdsServer (CHANNELID_START + 3)
-#define ChannelIDUdsClient (CHANNELID_START + 4)
 
 struct daemon_channel;
 
 struct channel_ops{
-    int (*callback)(struct daemon_channel *ch);
+    int (*read_from_outer)(struct daemon_channel *ch);
+    // arg is the task which contain the data need to write to outer
     int (*write_to_outer)(void *arg);
 };
 typedef struct channel_ops channel_ops_t;
