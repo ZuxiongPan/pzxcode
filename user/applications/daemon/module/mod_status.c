@@ -5,6 +5,7 @@
 #include "core/dmodule.h"
 #include "core/dworker.h"
 #include "core/dcontext.h"
+#include "core/dfuncalls.h"
 #include "module/dmsgid.h"
 #include "lib/cJSON.h"
 
@@ -101,3 +102,6 @@ void statmod_exit(void)
     dmodule_unregister(&statmod);
     dprint("status module unregister done\n");
 }
+
+DCOMP_INIT_NORMPRIO(statmod_init);
+DCOMP_EXIT_NORMPRIO(statmod_exit);

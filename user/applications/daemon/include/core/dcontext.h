@@ -4,9 +4,6 @@
 #include <stdatomic.h>
 #include <pthread.h>
 
-typedef int (*dcomp_init_f)(void);
-typedef void (*dcomp_exit_f)(void);
-
 struct daemon_worker_manager;
 
 // mask definition

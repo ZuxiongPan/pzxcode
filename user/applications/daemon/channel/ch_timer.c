@@ -12,6 +12,7 @@
 #include "dconf.h"
 #include "core/dchannel.h"
 #include "core/dworker.h"
+#include "core/dfuncalls.h"
 
 typedef struct daemon_timer {
     int timer_id;
@@ -257,6 +258,9 @@ void ch_timer_exit(void)
 
     dprint("dtimer channel exit\n");
 }
+
+DCOMP_INIT_HIGHPRIO(ch_timer_init);
+DCOMP_EXIT_HIGHPRIO(ch_timer_exit);
 
 int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat,
             int modid, unsigned int msgid)

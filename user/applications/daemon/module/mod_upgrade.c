@@ -5,6 +5,7 @@
 #include "core/dmodule.h"
 #include "core/dworker.h"
 #include "core/dcontext.h"
+#include "core/dfuncalls.h"
 #include "module/dmsgid.h"
 #include "channel/chnl_api.h"
 #include "lib/cJSON.h"
@@ -81,3 +82,6 @@ void upgrademod_exit(void)
     dmodule_unregister(&upgrademod);
     dprint("upgrade module unregister done\n");
 }
+
+DCOMP_INIT_LOWPRIO(upgrademod_init);
+DCOMP_EXIT_LOWPRIO(upgrademod_exit);

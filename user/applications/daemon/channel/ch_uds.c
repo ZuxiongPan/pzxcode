@@ -12,7 +12,7 @@
 #include "dconf.h"
 #include "core/dworker.h"
 #include "core/dchannel.h"
-#include "channel/chnl_api.h"
+#include "core/dfuncalls.h"
 
 typedef struct uds_mgr {
     dchannel_t server;
@@ -220,3 +220,6 @@ void ch_uds_exit(void)
     unlink(UDS_PATH);
     dprint("uds channel exit\n");
 }
+
+DCOMP_INIT_LOWPRIO(ch_uds_init);
+DCOMP_EXIT_LOWPRIO(ch_uds_exit);

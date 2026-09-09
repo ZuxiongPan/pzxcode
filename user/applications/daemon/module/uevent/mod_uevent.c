@@ -4,6 +4,7 @@
 #include "dconf.h"
 #include "core/dmodule.h"
 #include "core/dworker.h"
+#include "core/dfuncalls.h"
 #include "uevent_translator.h"
 
 static dmod_t ueventmod;
@@ -65,6 +66,9 @@ void ueventmod_exit(void)
     dmodule_unregister(&ueventmod);
     dprint("uevent module unregister done\n");
 }
+
+DCOMP_INIT_NORMPRIO(ueventmod_init);
+DCOMP_EXIT_NORMPRIO(ueventmod_exit);
 
 static int handle_uevent(const uevent_strs_t *info)
 {

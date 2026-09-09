@@ -11,6 +11,7 @@
 #include "core/dworker.h"
 #include "core/dmodule.h"
 #include "core/dchannel.h"
+#include "core/dfuncalls.h"
 
 static dchannel_t uevent_chnl;
 
@@ -93,3 +94,6 @@ void ch_uevent_exit(void)
     uevent_chnl.fd = -1;
     dprint("uevent channel exit\n");
 }
+
+DCOMP_INIT_HIGHPRIO(ch_uevent_init);
+DCOMP_EXIT_HIGHPRIO(ch_uevent_exit);
