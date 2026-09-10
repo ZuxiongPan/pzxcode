@@ -6,48 +6,49 @@
 #include "core/dworker.h"
 #include "core/dcontext.h"
 #include "core/dfuncalls.h"
+#include "channel/chnl_api.h"
 #include "module/dmsgid.h"
 #include "lib/cJSON.h"
 
 static dmod_t statmod;
 
-static int stat_handle_json_rawstr(dtask_t *task)
+static void stat_handle_json_cmd(dtask_t *task)
 {
-    (void)task;
-    char buf[TASK_DATA_MAXSIZE] = { 0 };
+    const char *json_str = task->data;
     int bytes = 0;
-    dcomp_t *comp = NULL;
-    dctx_t *ctx = dctx_instance();
-    dworker_mgr_t *worker_mgr = ctx->worker_mgr;
+    char buf[TASK_DATA_MAXSIZE] = { 0 };
 
-    bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "Components:\n");
-    pthread_rwlock_rdlock(&ctx->ht_rwlock);
-    for (int i = 0; i < COMPREC_HTABLE_SIZE; i++)
+    cJSON *json = cJSON_Parse(json_str);
+    if (NULL == json)
     {
-        comp = ctx->htable[i];
-        while (NULL != comp)
-        {
-            bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "->[0x%08x-%s]",
-                comp->dcompid, comp->name);
-            comp = comp->next;
-        }
+        dprint("invalid json string\n");
+        return ;
     }
-    pthread_rwlock_unlock(&ctx->ht_rwlock);
 
-    bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "\n");
-    bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "Worker Info:\n");
-    bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "workers: %d, busy: %d\n",
-        worker_mgr->valid, atomic_load(&worker_mgr->busy));
-    
-    bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "Queue Info:\n");
-    pthread_mutex_lock(&worker_mgr->queue.mutex);
-    bytes += snprintf(buf + bytes, TASK_DATA_MAXSIZE - bytes, "count: %d, total: %d, drop: %d",
-        worker_mgr->queue.count, worker_mgr->queue.total, worker_mgr->queue.drop);
-    pthread_mutex_unlock(&worker_mgr->queue.mutex);
+    cJSON *arg1 = cJSON_GetObjectItem(json, "arg1");
+    if (NULL == arg1)
+    {
+        dprint("no request in cmd\n");
+        cJSON_Delete(json);
+        return ;
+    }
 
-    // rawlog(buf);
+    if (strcmp(arg1->valuestring, "context") == 0)
+    {
+        bytes = dctx_info(buf, sizeof(buf));
+    }
+    else if (strcmp(arg1->valuestring, "timer") == 0)
+    {
+        bytes = dtimer_info(buf, sizeof(buf));
+    }
+    else
+    {
+        bytes = snprintf(buf, sizeof(buf), "invalid request %s for status module\n", arg1->valuestring);
+    }
 
-    return task_enqueue(DataToOuter, statmod.dcomp.dcompid, task->src_compid, 0, bytes, buf);
+    task_enqueue(DataToOuter, statmod.dcomp.dcompid, task->src_compid, 0, bytes, buf);
+
+    return ;
 }
 
 static int statmod_ontask(dmod_t *m, void *arg)
@@ -59,13 +60,13 @@ static int statmod_ontask(dmod_t *m, void *arg)
         return Fail;
     }
 
-    int ret = Fail;
+    int ret = Success;
     dtask_t *task = (dtask_t *)arg;
 
     switch (task->msgid)
     {
-        case MSGID_JSON_RAWSTR:
-            ret = stat_handle_json_rawstr(task);
+        case MSGID_JSON_CMD:
+            stat_handle_json_cmd(task);
             break;
         default:
             dprint("invalid msgid 0x%x\n", task->msgid);

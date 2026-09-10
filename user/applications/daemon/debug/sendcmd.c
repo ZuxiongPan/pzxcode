@@ -28,9 +28,9 @@ static int wait_for_response(int fd, int timeout_sec)
 
 int main(int argc, const char *argv[])
 {
-    if (argc != 3)
+    if (argc < 2)
     {
-        printf("usage: %s <mod> <req> <arg1> <arg2> ...\n", argv[0]);
+        printf("usage: %s <mod> <arg1> <arg2> ...\n", argv[0]);
         return -1;
     }
 
@@ -62,8 +62,20 @@ int main(int argc, const char *argv[])
         sleep(1);
     }
 
-    snprintf(buf, sizeof(buf), "{\"target\":\"%s\",\"request\":\"%s\"}", argv[1], argv[2]);
-    len = send(sockfd, buf, strlen(buf), 0);
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "target", argv[1]);
+    cJSON_AddStringToObject(json, "type", "cmd");
+    for (int i = 2; i < argc; i++)
+    {
+        snprintf(buf, sizeof(buf), "arg%d", i - 1);
+        cJSON_AddStringToObject(json, buf, argv[i]);
+    }
+    char *send_str = cJSON_Print(json);
+
+    len = send(sockfd, send_str, strlen(send_str), 0);
+    cJSON_Delete(json);
+    cJSON_free(send_str);
+
     if (len < 0)
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
@@ -79,7 +91,7 @@ int main(int argc, const char *argv[])
         printf("send uds message success, len: %ld\n", len);
     }
 
-    ret = wait_for_response(sockfd, 3);
+    ret = wait_for_response(sockfd, 5);
     if (ret > 0)
     {
         len = recv(sockfd, buf, sizeof(buf), 0);
@@ -88,6 +100,10 @@ int main(int argc, const char *argv[])
             buf[len] = '\0';
             printf("receive uds message success, len: %ld, data:\n%s\n", len, buf);
         }
+    }
+    else
+    {
+        printf("no response from uds server\n");
     }
 
     close(sockfd);

@@ -45,5 +45,6 @@ int dcomponent_record_add(dcomp_t *comp);
 void dcomponent_record_del(dcomp_t *comp);
 dcomp_t* find_dcomponent_by_id(int compid);
 dcomp_t* find_dcomponent_by_name(const char *name);
+int dctx_info(char *inbuf, int bufsize);
 
 #endif

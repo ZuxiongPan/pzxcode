@@ -328,3 +328,24 @@ void timer_del(int timer_id)
         timerfd_reprogram();
     }
 }
+
+int dtimer_info(char *inbuf, int bufsize)
+{
+    if (inbuf == NULL || bufsize <= 0)
+    {
+        derror("invalid input\n");
+        return 0;
+    }
+
+    int bytes = snprintf(inbuf, bufsize, "Timer info:\n");
+    pthread_mutex_lock(&dtimer_mgr.lock);
+    for (int i = 0; i < dtimer_mgr.count; i++)
+    {
+        dtimer_t *timer = dtimer_mgr.heap[i];
+        bytes += snprintf(inbuf + bytes, bufsize - bytes, "timer %d: target compid [0x%x], msgid [0x%x], repeat %s\n",
+            timer->timer_id, timer->modid, timer->msgid, timer->repeat ? "yes" : "no");
+    }
+    pthread_mutex_unlock(&dtimer_mgr.lock);
+
+    return bytes;
+}

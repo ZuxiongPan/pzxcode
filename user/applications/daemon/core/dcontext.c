@@ -211,3 +211,43 @@ dcomp_t* find_dcomponent_by_name(const char *name)
     return comp;
 }
 
+int dctx_info(char *inbuf, int bufsize)
+{
+    if (inbuf == NULL || bufsize <= 0)
+    {
+        derror("invalid input\n");
+        return 0;
+    }
+
+    int bytes = 0;
+    dcomp_t *comp = NULL;
+    dworker_mgr_t *worker_mgr = g_ctx.worker_mgr;
+
+    bytes += snprintf(inbuf + bytes, bufsize - bytes, "Components:\n");
+    pthread_rwlock_rdlock(&g_ctx.ht_rwlock);
+    for (int i = 0; i < COMPREC_HTABLE_SIZE; i++)
+    {
+        bytes += snprintf(inbuf + bytes, bufsize - bytes, "ht[%d]", i);
+        comp = g_ctx.htable[i];
+        while (NULL != comp)
+        {
+            bytes += snprintf(inbuf + bytes, bufsize - bytes, "->[0x%08x-%s]",
+                comp->dcompid, comp->name);
+            comp = comp->next;
+        }
+        bytes += snprintf(inbuf + bytes, bufsize - bytes, "\n");
+    }
+    pthread_rwlock_unlock(&g_ctx.ht_rwlock);
+
+    bytes += snprintf(inbuf + bytes, bufsize - bytes, "Worker Info:\n");
+    bytes += snprintf(inbuf + bytes, bufsize - bytes, "workers: %d, busy: %d\n",
+        worker_mgr->valid, atomic_load(&worker_mgr->busy));
+    
+    bytes += snprintf(inbuf + bytes, bufsize - bytes, "Queue Info:\n");
+    pthread_mutex_lock(&worker_mgr->queue.mutex);
+    bytes += snprintf(inbuf + bytes, bufsize - bytes, "count: %d, total: %d, drop: %d",
+        worker_mgr->queue.count, worker_mgr->queue.total, worker_mgr->queue.drop);
+    pthread_mutex_unlock(&worker_mgr->queue.mutex);
+
+    return bytes;
+}

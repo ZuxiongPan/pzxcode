@@ -271,8 +271,17 @@ static void rawstr_parse(const char *rawstr, int *real_dst, unsigned int *msgid)
     }
 
     *real_dst = comp->dcompid;
-    *msgid = MSGID_JSON_RAWSTR;
 
+    cJSON *type = cJSON_GetObjectItem(root, "type");
+    if (type == NULL)
+    {
+        *msgid = MSGID_JSON_RAWSTR;
+    }
+    else
+    {
+        *msgid = MSGID_JSON_CMD;
+    }
+    
     cJSON_Delete(root);
     return ;
 }

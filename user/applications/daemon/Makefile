@@ -16,6 +16,7 @@ all: $(TARGET) sendcmd
 
 $(TARGET): $(OBJS-y)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	$(CROSS_COMPILER_PREFIX)strip $@
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
