@@ -40,6 +40,7 @@ dctx_t* dctx_instance(void);
 void daemon_context_init(void);
 void daemon_context_run(void);
 void daemon_context_destroy(void);
+void stop_daemon_evloop(void);
 void dcomponent_init(dcomp_t *comp, int compid, const char *name);
 int dcomponent_record_add(dcomp_t *comp);
 void dcomponent_record_del(dcomp_t *comp);

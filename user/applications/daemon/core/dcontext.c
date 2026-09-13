@@ -75,8 +75,6 @@ void daemon_context_run(void)
 
 void daemon_context_destroy(void)
 {
-    atomic_store(&g_ctx.status, false);
-
     if (g_ctx.worker_mgr != NULL)
     {
         worker_manager_destroy(g_ctx.worker_mgr);
@@ -89,6 +87,11 @@ void daemon_context_destroy(void)
     }
 
     return ;
+}
+
+void stop_daemon_evloop(void)
+{
+    atomic_store(&g_ctx.status, false);
 }
 
 static inline int dcomp_hash(unsigned int compid)

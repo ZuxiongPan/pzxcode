@@ -1,4 +1,3 @@
-#include <signal.h>
 #include "dlog.h"
 #include "dconf.h"
 #include "core/dcontext.h"
@@ -11,23 +10,8 @@ static void dcomp_highprio_exit(void);
 static void dcomp_normprio_exit(void);
 static void dcomp_lowprio_exit(void);
 
-static void signal_handler(int signum)
-{  
-    dcomp_lowprio_exit();
-    dcomp_normprio_exit();
-    dcomp_highprio_exit();
-
-    daemon_context_destroy();
-    ddebug("receive signal %d, the event loop ended\n", signum);
-
-    return ;
-}
-
 int main(/*int argc, const char *argv[]*/)
 {
-    signal(SIGINT, signal_handler);
-    signal(SIGTERM, signal_handler);
-
     daemon_context_init();
 
     dcomp_highprio_init();
@@ -35,6 +19,12 @@ int main(/*int argc, const char *argv[]*/)
     dcomp_lowprio_init();
 
     daemon_context_run();
+
+    dcomp_lowprio_exit();
+    dcomp_normprio_exit();
+    dcomp_highprio_exit();
+
+    daemon_context_destroy();
 
     return Success;
 }

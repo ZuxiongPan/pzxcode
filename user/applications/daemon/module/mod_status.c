@@ -94,7 +94,7 @@ int statmod_init(void)
         return Fail;
     }
 
-    dprint("blkmod_init ret = %d\n", ret);
+    dprint("status module register ret = %d\n", ret);
     return ret;
 }
 

@@ -6,6 +6,11 @@
 
 #define MSGID_SYS_START 0x00000000
 
+#define MSGID_SYS_SIGNAL (MSGID_SYS_START + 1)
+// this timer id only for sys infomation, if the module need timer
+// use the self-defined msgid
+#define MSGID_SYS_TIMER (MSGID_SYS_START + 2)
+
 #define MSGID_TEST_RELATED (MSGID_SYS_START | 0x00010000)
 #define MSGID_TEST_TIMER (MSGID_TEST_RELATED + 1)
 
