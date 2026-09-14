@@ -22,7 +22,6 @@ static inline dtask_t* get_task_addr(task_queue_t *queue, unsigned int offset)
 static void* worker_thread(void* arg)
 {
     (void)arg;
-    int inner_ret = Success;
     char buffer[task_max_needed];
     dctx_t *ctx = dctx_instance();
     dtask_t *task = NULL;
@@ -51,8 +50,8 @@ static void* worker_thread(void* arg)
         queue->count--;
         pthread_mutex_unlock(&queue->mutex);
         /* process task */
-        inner_ret = process_task(buffer);
-        ddebug("process task ret %d\n", inner_ret);
+        process_task(buffer);
+        //ddebug("process task ret %d\n", inner_ret);
         atomic_fetch_sub(&ctx->worker_mgr->busy, 1);
     }
 
@@ -137,10 +136,10 @@ int task_enqueue(dtask_datatype_e datatype, int src, int dst,
     queue->idle_offset = new_task->next_offset;
     queue->count++;
 
-    //dprint("task info: datatype[%d], src[0x%x], dst[0x%x], msgid[0x%x], data_size[%d], next_offset[0x%x]\n", \
+    /*dprint("task info: datatype[%d], src[0x%x], dst[0x%x], msgid[0x%x], data_size[%d], next_offset[0x%x]\n", \
         datatype, src, dst, msgid, data_size, new_task->next_offset);
-    //dprint("queue info: first_offset[0x%x], last_offset[0x%x], idle_offset[0x%x], count[%d]\n", \
-        queue->first_offset, queue->last_offset, queue->idle_offset, queue->count);
+    dprint("queue info: first_offset[0x%x], last_offset[0x%x], idle_offset[0x%x], count[%d]\n", \
+        queue->first_offset, queue->last_offset, queue->idle_offset, queue->count); */
 
     pthread_cond_signal(&queue->cond);
     pthread_mutex_unlock(&queue->mutex);

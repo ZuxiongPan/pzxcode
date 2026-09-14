@@ -29,7 +29,6 @@ static int signal_read_from_outer(dchannel_t *chnl)
     }
     signo = info.ssi_signo;
 
-    dprint("receive signal %d\n", signo);
     return task_enqueue(DataModuleMsg, chnl->dcomp.dcompid, ModuleIDSignal,
         MSGID_SYS_SIGNAL, sizeof(signo), (const char *)&signo);
 }
@@ -42,22 +41,15 @@ static const channel_ops_t signal_ops = {
 int ch_signal_init(void)
 {
     int ret = Success;
-    sigset_t mask;
     memset(&signal_chnl, 0, sizeof(dchannel_t));
+    sigset_t mask;
 
-    dcomponent_init(&signal_chnl.dcomp, ChannelIDSignal, "ch_signal");
     sigemptyset(&mask);
     sigaddset(&mask, SIGINT);
     sigaddset(&mask, SIGTERM);
     sigaddset(&mask, SIGCHLD);
 
-    ret = sigprocmask(SIG_BLOCK, &mask, NULL);
-    if (ret < 0)
-    {
-        derror("sigprocmask failed");
-        return Fail;
-    }
-
+    dcomponent_init(&signal_chnl.dcomp, ChannelIDSignal, "ch_signal");
     signal_chnl.ops = &signal_ops;
     signal_chnl.fd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
     if (signal_chnl.fd < 0)
@@ -68,7 +60,7 @@ int ch_signal_init(void)
 
     ret = dchannel_register(EPOLLIN, &signal_chnl);
 
-    dprint("signal channel fd = %d, register ret %d\n", signal_chnl.fd, ret);
+    dprint("signal channel fd = %d\n", signal_chnl.fd);
     return ret;
 }
 
@@ -81,6 +73,7 @@ void ch_signal_exit(void)
     }
     signal_chnl.fd = -1;
 
+    dprint("signal channel exit\n");
     return ;
 }
 

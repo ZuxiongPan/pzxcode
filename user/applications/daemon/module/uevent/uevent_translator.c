@@ -52,14 +52,14 @@ void uevent_translate(const char *data, unsigned int size, uevent_strs_t *info)
         ptr += strlen(ptr) + 1;
     }
 
-    dprint("------ uevent message ------\n");
-    rawlog("\tseqnum = %s\n", info->seqnum ? info->seqnum : "null");
+    //dprint("------ uevent message ------\n");
+    //rawlog("\tseqnum = %s\n", info->seqnum ? info->seqnum : "null");
     //rawlog("\taction = %s\n", info->action ? info->action : "null");
     //rawlog("\tdevpath = %s\n", info->devpath ? info->devpath : "null");
     //rawlog("\tsubsystem = %s\n", info->subsystem ? info->subsystem : "null");
     //rawlog("\tdevname = %s\n", info->devname : "null");
     //rawlog("\tdevtype = %s\n", info->devtype : "null");
-    dprint("---- uevent message end ----\n");
+    //dprint("---- uevent message end ----\n");
 
     return ;
 }

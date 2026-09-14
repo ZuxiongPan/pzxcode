@@ -88,5 +88,5 @@ void signalmod_exit(void)
     dprint("signal module unregister done\n");
 }
 
-DCOMP_INIT_HIGHPRIO(signalmod_init);
-DCOMP_EXIT_HIGHPRIO(signalmod_exit);
+DCOMP_INIT_NORMPRIO(signalmod_init);
+DCOMP_EXIT_NORMPRIO(signalmod_exit);

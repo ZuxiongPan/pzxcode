@@ -162,7 +162,6 @@ static void timerfd_expired_process(void)
 {
     uint64_t now = get_current_ms();
     dtimer_t *timer = NULL;
-    int inner_ret = Success;
 
     while (true)
     {
@@ -172,10 +171,10 @@ static void timerfd_expired_process(void)
             break;
         }
 
-        inner_ret = task_enqueue(DataModuleMsg, timer_chnl.dcomp.dcompid, timer->modid,
+        task_enqueue(DataModuleMsg, timer_chnl.dcomp.dcompid, timer->modid,
                     timer->msgid, 0, NULL);
-        dprint("enqueue timer %d task to module 0x%x msg 0x%x ret %d\n", timer->timer_id,
-            timer->modid, timer->msgid, inner_ret);
+        /*dprint("enqueue timer %d task to module 0x%x msg 0x%x ret %d\n", timer->timer_id,
+            timer->modid, timer->msgid, inner_ret);*/
         heap_pop();
         if (timer->repeat)
         {
