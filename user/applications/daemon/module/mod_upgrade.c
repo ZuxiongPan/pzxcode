@@ -9,20 +9,49 @@
 #include "module/dmsgid.h"
 #include "channel/chnl_api.h"
 #include "lib/cJSON.h"
+#include "lib/run.h"
 
 static dmod_t upgrademod;
-static int timerid = -1;
 
-static int upgrade_handle_json_rawstr(dtask_t *task)
+static void upgrade_handle_json_cmd(dtask_t *task)
 {
-    (void)task;
-    dprint("upgrade_handle_json_rawstr\n");
-    if (timerid >= 0)
+    const char *json_str = task->data;
+
+    cJSON *json = cJSON_Parse(json_str);
+    if (NULL == json)
     {
-        timer_del(timerid);
+        dprint("invalid json string\n");
+        return ;
     }
 
-    return Success;
+    cJSON *arg1 = cJSON_GetObjectItem(json, "arg1");
+    if (NULL == arg1)
+    {
+        dprint("no request in cmd\n");
+        cJSON_Delete(json);
+        return ;
+    }
+
+    if (strcmp(arg1->valuestring, "update") == 0)
+    {
+        // 1. use ftp download firmware
+        char *downargs[] = {
+            "tftp", "-g", "-l", "/var/fw.bin", "-r", "upgrade.bin", "10.0.2.2", NULL
+        };
+        pid_t ftp = run_new_program("tftp", downargs);
+        if (ftp < 0)
+        {
+            derror("download upgrade file failed\n");
+            return ;
+        }
+        else
+        {
+            // wait for 100s downloading
+            timer_add(100*1000, 0, false, upgrademod.dcomp.dcompid, MSGID_TEST_TIMER);
+        }
+    }
+
+    return ;
 }
 
 static int upgrademod_ontask(dmod_t *m, void *arg)
@@ -34,17 +63,16 @@ static int upgrademod_ontask(dmod_t *m, void *arg)
         return Fail;
     }
 
-    int ret = Fail;
+    int ret = Success;
     dtask_t *task = (dtask_t *)arg;
 
     switch (task->msgid)
     {
-        case MSGID_JSON_RAWSTR:
-            ret = upgrade_handle_json_rawstr(task);
+        case MSGID_JSON_CMD:
+            upgrade_handle_json_cmd(task);
             break;
         case MSGID_TEST_TIMER:
-            dprint("receive a timer tick\n");
-            ret = Success;
+            dprint("downloading finished\n");
             break;
         default:
             dprint("invalid msgid 0x%x\n", task->msgid);
@@ -72,8 +100,7 @@ int upgrademod_init(void)
         return Fail;
     }
 
-    timerid = timer_add(3000, 5000, false, ModuleIDUpgrade, MSGID_TEST_TIMER);
-    dprint("upgrade_module register ret = %d, timerid %d\n", ret, timerid);
+    dprint("upgrade_module register ret = %d\n", ret);
     return ret;
 }
 

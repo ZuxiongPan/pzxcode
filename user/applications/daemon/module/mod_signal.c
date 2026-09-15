@@ -1,5 +1,7 @@
 #include <string.h>
 #include <signal.h>
+#include <errno.h>
+#include <sys/wait.h>
 
 #include "dlog.h"
 #include "dconf.h"
@@ -18,16 +20,45 @@ static int handle_signal(uint32_t signo)
     {
         case SIGINT:
         case SIGTERM:
-            dprint("receive signal %d, the event loop ended\n", signo);
+            demerg("receive signal %d, the event loop ended\n", signo);
             stop_daemon_evloop();
             // this timer is used for stop the pending of daemon_context_run
             timer_add(100, 0, false, DCOMPID_NONE, MSGID_SYS_TIMER);
             break;
         case SIGCHLD:
-            dprint("receive signal %d, child process exited\n", signo);
+            int status = 0;
+            pid_t child = 0;
+            do
+            {
+                child = waitpid(-1, &status, WNOHANG);
+                if(child > 0)
+                {
+                    dprint("child process %d exited with status 0x%x\n", child, status);
+                }
+                else if (child == 0)
+                {
+                    dprint("no child process exited\n");
+                }
+                else if (child < 0)
+                {
+                    if (errno == EINTR)
+                    {
+                        continue;
+                    }
+                    else if (errno == ECHILD)
+                    {   // there is no child process derived from this process
+                        break;
+                    }
+                    else
+                    {
+                        derror("waitpid failed, errno = %d\n", errno);
+                        break;
+                    }
+                }
+            } while(child > 0);
             break;
         default:
-            dprint("unknown signal %d\n", signo);
+            derror("unknown signal %d\n", signo);
             break;
     }
 
