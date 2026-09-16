@@ -32,9 +32,9 @@ static int uds_client_chnl_callback(dchannel_t *chnl)
     if (len == 0)
     {
         dprint("uds client closed by peer\n");
+        dchannel_unregister(chnl);
         close(chnl->fd);
         chnl->fd = -1;
-        dchannel_unregister(chnl);
         return Fail;
     }
 
@@ -46,9 +46,9 @@ static int uds_client_chnl_callback(dchannel_t *chnl)
         }
         else
         {
+            dchannel_unregister(chnl);
             close(chnl->fd);
             chnl->fd = -1;
-            dchannel_unregister(chnl);
             derror("receive uds message failed, err: %d\n", errno);
         }
         
@@ -77,6 +77,12 @@ static int uds_client_chnl_write_to_outer(void *arg)
             break;
         }
         idx++;
+    }
+    
+    if (idx >= CLIENT_MAXNUM)
+    {
+        derror("uds client not found\n");
+        return Fail;
     }
 
     return send(g_uds_mgr.clients[idx].fd, task->data, task->data_size, 0);
@@ -203,9 +209,9 @@ void ch_uds_exit(void)
 {
     for (int i = 0; i < CLIENT_MAXNUM; i++)
     {
+        dchannel_unregister(&g_uds_mgr.clients[i]);
         if (g_uds_mgr.clients[i].fd >= 0)
         {
-            dchannel_unregister(&g_uds_mgr.clients[i]);
             close(g_uds_mgr.clients[i].fd);
             g_uds_mgr.clients[i].fd = -1;
         }

@@ -46,8 +46,9 @@ static void upgrade_handle_json_cmd(dtask_t *task)
         }
         else
         {
-            // wait for 100s downloading
-            timer_add(100*1000, 0, false, upgrademod.dcomp.dcompid, MSGID_TEST_TIMER);
+            // wait for 3min downloading
+            dprint("start downloading upgrade file, pid %d\n", ftp);
+            timer_add(180*1000, 0, false, upgrademod.dcomp.dcompid, MSGID_TEST_TIMER);
         }
     }
 
@@ -72,7 +73,11 @@ static int upgrademod_ontask(dmod_t *m, void *arg)
             upgrade_handle_json_cmd(task);
             break;
         case MSGID_TEST_TIMER:
-            dprint("downloading finished\n");
+            dprint("downloading timeout\n");
+            char *upgrade[] = {
+                "verctrl", "--upgrade", "/var/fw.bin", NULL
+            };
+            run_new_program("verctrl", upgrade);
             break;
         default:
             dprint("invalid msgid 0x%x\n", task->msgid);
