@@ -29,6 +29,7 @@ config:
 	cp $(CODE_DIR)/qemu-virt/uboot_defconfig $(UBOOT_DIR)/configs/
 	rm -f $(UBOOT_DIR)/arch/arm/dts/qemu-arm64.dts
 	cp $(CODE_DIR)/qemu-virt/virt-uboot.dts $(UBOOT_DIR)/arch/arm/dts/qemu-arm64.dts -f
+	sed -i 's/^#define BOOT_METHOD_CUSTOM .*/#define BOOT_METHOD_CUSTOM 1/' $(CODE_DIR)/include/boot/boot_method.h
 
 uboot:
 	make -C $(UBOOT_DIR) ARCH=arm CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) uboot_defconfig

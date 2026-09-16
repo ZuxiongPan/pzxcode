@@ -8,9 +8,13 @@ CROSS_COMPILER_PREFIX := $(CROSS_COMPILER_DIR)/bin/aarch64-none-linux-gnu-
 
 export TOP_DIR CODE_DIR UBOOT_DIR QEMU_DIR CROSS_COMPILER_PREFIX
 
-.PHONY: all uboot uboot_clean clean boot image
+.PHONY: all prepare uboot uboot_clean clean boot image
 
-all: uboot image
+all: prepare uboot image
+
+prepare:
+	sed -i 's/^#define BOOT_METHOD_CUSTOM .*/#define BOOT_METHOD_CUSTOM 0/' $(CODE_DIR)/include/boot/boot_method.h
+	[ -L $(UBOOT_DIR)/cusuboot ] || ln -sf $(CODE_DIR)/uboot $(UBOOT_DIR)/cusuboot
 
 uboot:
 	make -C $(UBOOT_DIR) ARCH=arm CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) arm64_pzx_defconfig
@@ -18,6 +22,7 @@ uboot:
 
 uboot_clean:
 	make -C $(UBOOT_DIR) ARCH=arm CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
+	rm -f $(UBOOT_DIR)/cusuboot
 
 image:
 	make -C ./loader all

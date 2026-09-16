@@ -22,4 +22,3 @@ if [ ! -n "$(ls -A $ROOT_DIR)" ]; then
     mkdir -p $ROOT_DIR/var
     cp -rf $CODE_DIR/qemu-virt/scripts/baserootfs/* $ROOT_DIR/
 fi
-
