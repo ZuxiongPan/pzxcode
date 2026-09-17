@@ -7,29 +7,60 @@
 
 #ifdef CONFIG_VERHEADER_ENCRYPT
 #include "common/aes_key.h"
-#include "mbedtls/aes.h"
+#include "openssl/evp.h"
 
 int aes256_cbc_decrypt(uint8_t *data, unsigned int datalen, uint8_t *iv)
 {
-    mbedtls_aes_context aes_ctx;
-    int ret = 0;
+    EVP_CIPHER_CTX *ctx = NULL;
+    uint8_t *tmp = NULL;
+    int outlen = 0, finallen = 0;
 
-    mbedtls_aes_init(&aes_ctx);
-    ret = mbedtls_aes_setkey_dec(&aes_ctx, aes_key, 256);
-    if(ret)
+    ctx = EVP_CIPHER_CTX_new();
+    if (!ctx)
     {
-        printf("set aes key failed, ret %d\n", ret);
-        mbedtls_aes_free(&aes_ctx);
-        return ret;
+        printf("EVP_CIPHER_CTX_new failed\n");
+        return -ENOMEM;
     }
 
-    ret = mbedtls_aes_crypt_cbc(&aes_ctx, MBEDTLS_AES_DECRYPT, datalen,
-        iv, data, data);
-    
-    mbedtls_aes_free(&aes_ctx);
-    printf("%s decrypt ret %d\n", __FUNCTION__, ret);
+    if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, aes_key, iv))
+    {
+        printf("EVP_DecryptInit_ex failed\n");
+        EVP_CIPHER_CTX_free(ctx);
+        return -1;
+    }
 
-    return ret;
+    EVP_CIPHER_CTX_set_padding(ctx, 0);
+
+    tmp = malloc(datalen);
+    if (!tmp)
+    {
+        printf("malloc temp buffer for decrypt failed\n");
+        EVP_CIPHER_CTX_free(ctx);
+        return -ENOMEM;
+    }
+
+    if (1 != EVP_DecryptUpdate(ctx, tmp, &outlen, data, datalen))
+    {
+        printf("EVP_DecryptUpdate failed\n");
+        free(tmp);
+        EVP_CIPHER_CTX_free(ctx);
+        return -1;
+    }
+
+    if (1 != EVP_DecryptFinal_ex(ctx, tmp + outlen, &finallen))
+    {
+        printf("EVP_DecryptFinal_ex failed\n");
+        free(tmp);
+        EVP_CIPHER_CTX_free(ctx);
+        return -1;
+    }
+
+    memcpy(data, tmp, outlen + finallen);
+    free(tmp);
+    EVP_CIPHER_CTX_free(ctx);
+
+    printf("%s decrypt success, outlen %d\n", __FUNCTION__, outlen + finallen);
+    return 0;
 }
 #endif
 

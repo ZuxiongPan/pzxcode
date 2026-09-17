@@ -166,3 +166,8 @@ arm_ss.add(when: 'CONFIG_ARM_PZX', if_true: files('pzx.c'))
 
 $ debug boot
 qemu-system-aarch64 -M pzx -drive if=sd,file=uboot.bin,format=raw -nographic
+
+# openssl compile
+./Configure linux-aarch64 --prefix=./build no-asm --cross-compile-prefix=aarch64-none-linux-gnu-
+make -j4
+make install

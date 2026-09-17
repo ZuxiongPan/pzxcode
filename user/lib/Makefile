@@ -6,7 +6,7 @@ export CC CFLAGS LDFLAGS
 
 dirs-y :=
 
-dirs-y += mbedtls-2.28.10/
+dirs-y += openssl-3.5.8/
 
 .PHONY: all install clean
 

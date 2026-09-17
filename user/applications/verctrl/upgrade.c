@@ -7,10 +7,8 @@
 #include <sys/stat.h>
 #include <linux/errno.h>
 
-#include "mbedtls/pk.h"
-#include "mbedtls/md.h"
-#include "mbedtls/sha256.h"
-#include "mbedtls/error.h"
+#include "openssl/evp.h"
+#include "openssl/pem.h"
 #include "common/version_info.h"
 #include "common/version_header.h"
 #include "common/version_partition.h"
@@ -36,8 +34,6 @@ static int upgrade_fragment(char *upgfile_name)
     unsigned int offset = 0;
     unsigned char hash[32];
     struct stat upg_stat = {0};
-    mbedtls_sha256_context sha_ctx;
-    mbedtls_pk_context pk;
 
     memset(buf, 0, sizeof(buf));
     ret = get_value_from_verinfo(PROC_BACKVEROFF_NAME, buf, sizeof(buf));
@@ -118,8 +114,16 @@ static int upgrade_fragment(char *upgfile_name)
     }
 
     // check and write
-    mbedtls_sha256_init(&sha_ctx);
-    mbedtls_sha256_starts(&sha_ctx, 0);
+    EVP_MD_CTX *md_ctx = EVP_MD_CTX_new();
+    if (!md_ctx)
+    {
+        printf("EVP_MD_CTX_new failed\n");
+        close(ufd);
+        close(dfd);
+        free(verbuf);
+        return -ENOMEM;
+    }
+    EVP_DigestInit_ex(md_ctx, EVP_sha256(), NULL);
     while(rdbytes < signed_size)
     {
         toread = (signed_size - rdbytes > FRAGMENT_SIZE) ?
@@ -130,14 +134,15 @@ static int upgrade_fragment(char *upgfile_name)
             rdok = false;
             break;
         }
-        mbedtls_sha256_update(&sha_ctx, verbuf, toread);
+        EVP_DigestUpdate(md_ctx, verbuf, toread);
         rdbytes += toread;
         ret = write(dfd, verbuf, toread);
     }
     printf("write %u bytes to device %s ret %u\n", rdbytes, STORDEV_NAME, ret);
 
-    mbedtls_sha256_finish(&sha_ctx, hash);
-    mbedtls_sha256_free(&sha_ctx);
+    unsigned int hashlen = 0;
+    EVP_DigestFinal_ex(md_ctx, hash, &hashlen);
+    EVP_MD_CTX_free(md_ctx);
     close(ufd);
     close(dfd);
     free(verbuf);
@@ -148,18 +153,39 @@ static int upgrade_fragment(char *upgfile_name)
         return -EIO;
     }
 
-    mbedtls_pk_init(&pk);
-    ret = mbedtls_pk_parse_public_keyfile(&pk, PUBKEY_FILEPATH);
-    if(ret)
+    FILE *keyfile = fopen(PUBKEY_FILEPATH, "r");
+    if (!keyfile)
     {
-        printf("failed get pub key from file %s, ret %d\n", PUBKEY_FILEPATH, ret);
-        mbedtls_pk_free(&pk);
-        return ret;
+        printf("failed to open pub key file %s\n", PUBKEY_FILEPATH);
+        return -ENOENT;
+    }
+    EVP_PKEY *pkey = PEM_read_PUBKEY(keyfile, NULL, NULL, NULL);
+    fclose(keyfile);
+    if (!pkey)
+    {
+        printf("failed to read pub key from %s\n", PUBKEY_FILEPATH);
+        return -1;
     }
 
-    ret = mbedtls_pk_verify(&pk, MBEDTLS_MD_SHA256, hash, 0,
-        sighead->signature, sighead->sig_size);
-    if(ret)
+    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new(pkey, NULL);
+    if (!pctx || EVP_PKEY_verify_init(pctx) <= 0)
+    {
+        printf("EVP_PKEY_CTX_new or verify_init failed\n");
+        EVP_PKEY_free(pkey);
+        return -1;
+    }
+
+    if (EVP_PKEY_CTX_set_signature_md(pctx, EVP_sha256()) <= 0)
+    {
+        printf("EVP_PKEY_CTX_set_signature_md failed\n");
+        EVP_PKEY_CTX_free(pctx);
+        EVP_PKEY_free(pkey);
+        return -1;
+    }
+
+    ret = EVP_PKEY_verify(pctx, sighead->signature, sighead->sig_size,
+        hash, hashlen);
+    if (1 != ret)
     {
         printf("rsa verify failed, ret %d\n", ret);
     }
@@ -168,8 +194,9 @@ static int upgrade_fragment(char *upgfile_name)
         printf("rsa verify success\n");
     }
 
-    mbedtls_pk_free(&pk);
-    return ret;
+    EVP_PKEY_CTX_free(pctx);
+    EVP_PKEY_free(pkey);
+    return (ret == 1) ? 0 : ret;
 }
 
 #else
@@ -201,29 +228,51 @@ static int upgrade_version_check_normal(const uint8_t *buf, uint32_t size)
         return -EPROTO;
     }
 
-    mbedtls_pk_context pk;
     unsigned char hash[32];
+    unsigned int hashlen = 0;
     const struct signature_header *sighead = (struct signature_header *)buf;
 
-    ret = mbedtls_sha256_ret(buf + VERSION_HEADER_OFFSET, size - VERSION_HEADER_OFFSET, hash, 0);
-    if(ret)
+    ret = EVP_Digest(buf + VERSION_HEADER_OFFSET, size - VERSION_HEADER_OFFSET,
+        hash, &hashlen, EVP_sha256(), NULL);
+    if(1 != ret)
     {
         printf("sha256 calculation failed, ret %d\n", ret);
-        return ret;
+        return -1;
     }
 
-    mbedtls_pk_init(&pk);
-    ret = mbedtls_pk_parse_public_keyfile(&pk, PUBKEY_FILEPATH);
-    if(ret)
+    FILE *keyfile = fopen(PUBKEY_FILEPATH, "r");
+    if (!keyfile)
     {
-        printf("failed get pub key from file %s, ret %d\n", PUBKEY_FILEPATH, ret);
-        mbedtls_pk_free(&pk);
-        return ret;
+        printf("failed to open pub key file %s\n", PUBKEY_FILEPATH);
+        return -ENOENT;
+    }
+    EVP_PKEY *pkey = PEM_read_PUBKEY(keyfile, NULL, NULL, NULL);
+    fclose(keyfile);
+    if (!pkey)
+    {
+        printf("failed to read pub key from %s\n", PUBKEY_FILEPATH);
+        return -1;
     }
 
-    ret = mbedtls_pk_verify(&pk, MBEDTLS_MD_SHA256, hash, 0,
-        sighead->signature, sighead->sig_size);
-    if(ret)
+    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new(pkey, NULL);
+    if (!pctx || EVP_PKEY_verify_init(pctx) <= 0)
+    {
+        printf("EVP_PKEY_CTX_new or verify_init failed\n");
+        EVP_PKEY_free(pkey);
+        return -1;
+    }
+
+    if (EVP_PKEY_CTX_set_signature_md(pctx, EVP_sha256()) <= 0)
+    {
+        printf("EVP_PKEY_CTX_set_signature_md failed\n");
+        EVP_PKEY_CTX_free(pctx);
+        EVP_PKEY_free(pkey);
+        return -1;
+    }
+
+    ret = EVP_PKEY_verify(pctx, sighead->signature, sighead->sig_size,
+        hash, hashlen);
+    if (1 != ret)
     {
         printf("rsa verify failed, ret %d\n", ret);
     }
@@ -232,8 +281,9 @@ static int upgrade_version_check_normal(const uint8_t *buf, uint32_t size)
         printf("rsa verify success\n");
     }
 
-    mbedtls_pk_free(&pk);
-    return ret;
+    EVP_PKEY_CTX_free(pctx);
+    EVP_PKEY_free(pkey);
+    return (ret == 1) ? 0 : ret;
 }
 
 static int upgrade_normal(char *upgfile_name)

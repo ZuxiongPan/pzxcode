@@ -9,7 +9,7 @@
 #define EPOLL_EVENTS 256
 #define COMPREC_HTABLE_SIZE 19
 
-#define TASK_QUEUE_BYTES (2 * 1024 * 1024)
+#define TASK_QUEUE_BYTES (512 * 1024)
 #define TASK_DATA_MAXSIZE 4096  // limit task data size
 #define WORKER_MAXNUM 4
 
