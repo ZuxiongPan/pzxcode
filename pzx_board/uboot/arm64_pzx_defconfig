@@ -33,7 +33,7 @@ CONFIG_CMD_DHCP=y
 CONFIG_BOOTP_DHCP=y
 
 CONFIG_USE_BOOTCOMMAND=y
-CONFIG_BOOTCOMMAND="virtio scan;pzxboot"
+CONFIG_BOOTCOMMAND="virtio scan;setenv ipaddr 10.0.2.15;setenv serverip 10.0.2.2;tftp ${loadaddr} kernel.itb"
 
 CONFIG_FIT=y
 CONFIG_FIT_SIGNATURE=y
