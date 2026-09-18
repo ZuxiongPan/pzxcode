@@ -171,3 +171,21 @@ qemu-system-aarch64 -M pzx -drive if=sd,file=uboot.bin,format=raw -nographic
 ./Configure linux-aarch64 --prefix=./build no-asm --cross-compile-prefix=aarch64-none-linux-gnu-
 make -j4
 make install
+
+# curl compile
+mkdir build
+CC=~/aarch64/aarch64-none-linux-gnu-14.3/bin/aarch64-none-linux-gnu-gcc \
+AR=~/aarch64/aarch64-none-linux-gnu-14.3/bin/aarch64-none-linux-gnu-ar \
+RANLIB=~/aarch64/aarch64-none-linux-gnu-14.3/bin/aarch64-none-linux-gnu-ranlib \
+STRIP=~/aarch64/aarch64-none-linux-gnu-14.3/bin/aarch64-none-linux-gnu-strip \
+./configure \
+    --host=aarch64-none-linux-gnu \
+    --prefix=/home/pzx/curl-8.22.0/build \
+    --without-ssl \
+    --without-libpsl \
+    --disable-manual
+make -j4
+make install
+
+# curl commands
+curl tftp://10.0.2.2/upgrade.bin -o fw.bin

@@ -7,6 +7,7 @@ export CC CFLAGS LDFLAGS
 dirs-y :=
 
 dirs-y += openssl-3.5.8/
+dirs-y += curl-8.22.0/
 
 .PHONY: all install clean
 
