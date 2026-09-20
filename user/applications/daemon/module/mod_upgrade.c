@@ -9,47 +9,33 @@
 #include "module/dmsgid.h"
 #include "channel/chnl_api.h"
 #include "lib/cJSON.h"
-#include "lib/run.h"
+#include "lib/util.h"
 
 static dmod_t upgrademod;
 
-static void upgrade_handle_json_cmd(dtask_t *task)
+static void upgrade_handle_simple_str(dtask_t *task)
 {
-    const char *json_str = task->data;
+    const char *str = task->data;
 
-    cJSON *json = cJSON_Parse(json_str);
-    if (NULL == json)
+    if (strstr(str, "update"))
     {
-        dprint("invalid json string\n");
-        return ;
-    }
-
-    cJSON *arg1 = cJSON_GetObjectItem(json, "arg1");
-    if (NULL == arg1)
-    {
-        dprint("no request in cmd\n");
-        cJSON_Delete(json);
-        return ;
-    }
-
-    if (strcmp(arg1->valuestring, "update") == 0)
-    {
-        // 1. use ftp download firmware
         char *downargs[] = {
-            "tftp", "-g", "-l", "/var/fw.bin", "-r", "upgrade.bin", "10.0.2.2", NULL
+            "verctrl", "--upgrade", NULL
         };
-        pid_t ftp = run_new_program("tftp", downargs);
-        if (ftp < 0)
+        pid_t upgrade = run_new_program("verctrl", downargs);
+        if (upgrade < 0)
         {
             derror("download upgrade file failed\n");
             return ;
         }
         else
         {
-            // wait for 3min downloading
-            dprint("start downloading upgrade file, pid %d\n", ftp);
-            timer_add(180*1000, 0, false, upgrademod.dcomp.dcompid, MSGID_TEST_TIMER);
+            dprint("start upgrading, pid %d\n", upgrade);
         }
+    }
+    else if (strstr(str, "result"))
+    {
+        dprint("receive upgrade info %s\n", str);
     }
 
     return ;
@@ -69,15 +55,10 @@ static int upgrademod_ontask(dmod_t *m, void *arg)
 
     switch (task->msgid)
     {
-        case MSGID_JSON_CMD:
-            upgrade_handle_json_cmd(task);
+        case MSGID_SIMPLE_STR:
+            upgrade_handle_simple_str(task);
             break;
         case MSGID_TEST_TIMER:
-            dprint("downloading timeout\n");
-            char *upgrade[] = {
-                "verctrl", "--upgrade", "/var/fw.bin", NULL
-            };
-            run_new_program("verctrl", upgrade);
             break;
         default:
             dprint("invalid msgid 0x%x\n", task->msgid);

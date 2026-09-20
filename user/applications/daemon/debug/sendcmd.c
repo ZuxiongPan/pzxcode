@@ -28,17 +28,25 @@ static int wait_for_response(int fd, int timeout_sec)
 
 int main(int argc, const char *argv[])
 {
-    if (argc < 2)
+    if (argc < 3)
     {
-        printf("usage: %s <mod> <arg1> <arg2> ...\n", argv[0]);
+        printf("usage: %s <type> <target> <arg1> <arg2> ...\n", argv[0]);
+        printf("type: 1-simple string, 2-json string\n");
         return -1;
     }
 
     int sockfd = -1;
-    int ret = -1;
+    int ret = -1, tmp = 0;
+    int type = strtol(argv[1], NULL, 10);
     ssize_t len = -1;
     struct sockaddr_un addr;
     char buf[TASK_DATA_MAXSIZE];
+
+    if (type != 1 && type != 2)
+    {
+        printf("type: 1-simple string, 2-json string\n");
+        return -1;
+    }
 
     sockfd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (sockfd < 0)
@@ -59,22 +67,32 @@ int main(int argc, const char *argv[])
             close(sockfd);
             return -1;
         }
-        sleep(1);
     }
 
-    cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "target", argv[1]);
-    cJSON_AddStringToObject(json, "type", "cmd");
-    for (int i = 2; i < argc; i++)
+    if (type == 1)
     {
-        snprintf(buf, sizeof(buf), "arg%d", i - 1);
-        cJSON_AddStringToObject(json, buf, argv[i]);
+        tmp = snprintf(buf, sizeof(buf), "/%s", argv[2]);
+        for (int i = 3; i < argc; i++)
+        {
+            tmp += snprintf(buf + tmp, sizeof(buf), "/%s", argv[i]);
+        }
+        len = send(sockfd, buf, tmp, 0);
     }
-    char *send_str = cJSON_Print(json);
-
-    len = send(sockfd, send_str, strlen(send_str), 0);
-    cJSON_Delete(json);
-    cJSON_free(send_str);
+    else if (type == 2)
+    {
+        cJSON *json = cJSON_CreateObject();
+        cJSON_AddStringToObject(json, "target", argv[2]);
+        for (int i = 3; i < argc; i++)
+        {
+            memset(buf, 0, sizeof(buf));
+            snprintf(buf, sizeof(buf), "arg%d", i - 3);
+            cJSON_AddStringToObject(json, buf, argv[i]);
+        }
+        char *sendstr = cJSON_Print(json);
+        len = send(sockfd, sendstr, strlen(sendstr), 0);
+        cJSON_Delete(json);
+        cJSON_free(sendstr);
+    }
 
     if (len < 0)
     {
@@ -94,6 +112,7 @@ int main(int argc, const char *argv[])
     ret = wait_for_response(sockfd, 5);
     if (ret > 0)
     {
+        memset(buf, 0, sizeof(buf));
         len = recv(sockfd, buf, sizeof(buf), 0);
         if (len > 0)
         {

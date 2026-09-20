@@ -5,15 +5,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <linux/errno.h>
-#include "common/data_type.h"
+#include "verctrl.h"
 #include "common/version_info.h"
 #include "common/version_header.h"
 #include "common/version_partition.h"
-
-extern int get_value_from_verinfo(const char *name, char *valbuf, unsigned int bufsize);
-#ifdef CONFIG_VERHEADER_ENCRYPT
-extern int aes256_cbc_decrypt(uint8_t *data, unsigned int datalen, uint8_t *iv);
-#endif
 
 static int simple_check_version(const uint8_t *buf)
 {
@@ -54,6 +49,7 @@ int version_sync(void)
     unsigned int curoff = 0;
     unsigned int backoff = 0;
 
+    inform_to_armd(UPG_CHECKING);
     // get version offset in storage device
     memset(buf, 0, sizeof(buf));
     ret = get_value_from_verinfo(PROC_CURVEROFF_NAME, buf, sizeof(buf));
@@ -110,15 +106,19 @@ int version_sync(void)
 
     if(!simple_check_version(verbuf))
     {
+        inform_to_armd(UPG_CHECK_FAILED);
         printf("cannot synchronize version\n");
         free(verbuf);
         close(fd);
         return -ECANCELED;
     }
 
+    inform_to_armd(UPG_CHECKED);
+    inform_to_armd(UPG_WRITING);
     lseek(fd, backoff, SEEK_SET);
     ret = write(fd, verbuf, VERSION_PARTITION_SIZE);
     printf("write %u/0x%x bytes to offset 0x%x\n", ret, ret, backoff);
+    inform_to_armd(UPG_WRITTEN);
 
     free(verbuf);
     close(fd);

@@ -1,5 +1,5 @@
-#ifndef _RUN_H_
-#define _RUN_H_
+#ifndef _UTIL_H_
+#define _UTIL_H_
 
 #include <sys/types.h>
 

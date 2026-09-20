@@ -56,7 +56,7 @@ static int uds_client_chnl_callback(dchannel_t *chnl)
     }
 
     // the message from uds is a control message, we do not know where to put it
-    return task_enqueue(DataRawString, chnl->dcomp.dcompid,
+    return task_enqueue(DataRawBinary, chnl->dcomp.dcompid,
         DCOMPID_NONE, 0, len, buf);
 }
 

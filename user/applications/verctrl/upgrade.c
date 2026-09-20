@@ -6,17 +6,13 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <linux/errno.h>
+#include "verctrl.h"
 
 #include "openssl/evp.h"
 #include "openssl/pem.h"
 #include "common/version_info.h"
 #include "common/version_header.h"
 #include "common/version_partition.h"
-
-#define PUBKEY_FILEPATH "/etc/pzx.pub"
-
-extern int get_value_from_verinfo(const char *name, char *valbuf, unsigned int bufsize);
-extern uint32_t pzx_crc32(const uint8_t *data, uint32_t length);
 
 #ifdef CONFIG_UPGRADE_FRAGMENT
 static int upgrade_fragment(char *upgfile_name)
@@ -35,6 +31,7 @@ static int upgrade_fragment(char *upgfile_name)
     unsigned char hash[32];
     struct stat upg_stat = {0};
 
+    inform_to_armd(UPG_CHECKING);
     memset(buf, 0, sizeof(buf));
     ret = get_value_from_verinfo(PROC_BACKVEROFF_NAME, buf, sizeof(buf));
     if(!ret)
@@ -78,6 +75,7 @@ static int upgrade_fragment(char *upgfile_name)
     sighead = (struct signature_header *)sighead_buf;
     if(SIGN_HEADER_MAGIC0 != sighead->magic[0] || SIGN_HEADER_MAGIC1 != sighead->magic[1])
     {
+        inform_to_armd(UPG_CHECK_FAILED);
         printf("signature header is invalid, value: 0x%x, 0x%x\n",
             sighead->magic[0], sighead->magic[1]);
         return false;
@@ -86,11 +84,13 @@ static int upgrade_fragment(char *upgfile_name)
     printf("signature header crc is 0x%x, calculated crc is 0x%x\n", sighead->header_crc, crc);
     if(crc != sighead->header_crc)
     {
+        inform_to_armd(UPG_CHECK_FAILED);
         printf("upgrade file signature is invalid\n");
         close(ufd);
         return -EPROTO;
     }
 
+    inform_to_armd(UPG_WRITING);
     dfd = open(STORDEV_NAME, O_RDWR);
     if(dfd < 0)
     {
@@ -131,6 +131,7 @@ static int upgrade_fragment(char *upgfile_name)
         ret = read(ufd, verbuf, toread);
         if(ret != toread)
         {
+            inform_to_armd(UPG_WRITE_FAILED);
             rdok = false;
             break;
         }
@@ -295,6 +296,7 @@ static int upgrade_normal(char *upgfile_name)
     unsigned int offset = 0;
     struct stat upg_stat = {0};
 
+    inform_to_armd(UPG_CHECKING);
     memset(buf, 0, sizeof(buf));
     ret = get_value_from_verinfo(PROC_BACKVEROFF_NAME, buf, sizeof(buf));
     if(!ret)
@@ -347,10 +349,13 @@ static int upgrade_normal(char *upgfile_name)
     if(upgrade_version_check_normal(verbuf, upg_stat.st_size))
     {
         printf("check version failed\n");
+        inform_to_armd(UPG_CHECK_FAILED);
         free(verbuf);
         return -ECANCELED;
     }
 
+    inform_to_armd(UPG_CHECKED);
+    inform_to_armd(UPG_WRITING);
     fd = open(STORDEV_NAME, O_RDWR);
     if(fd < 0)
     {
@@ -361,6 +366,7 @@ static int upgrade_normal(char *upgfile_name)
     lseek(fd, offset, SEEK_SET);
     ret = write(fd, verbuf, upg_stat.st_size);
     printf("write %u/0x%x bytes to offset 0x%x\n", ret, ret, offset);
+    inform_to_armd(UPG_WRITTEN);
 
     free(verbuf);
     close(fd);
@@ -368,11 +374,11 @@ static int upgrade_normal(char *upgfile_name)
 }
 #endif
 
-int upgrade(char *upgfile_name)
+int write_upgrade_file(char *upgfile_name)
 {
 #ifdef CONFIG_UPGRADE_FRAGMENT
     return upgrade_fragment(upgfile_name);
 #else
-    return upgrde_normal(upgfile_name);
+    return upgrade_normal(upgfile_name);
 #endif
 }

@@ -10,6 +10,8 @@
 #include "module/dmsgid.h"
 #include "lib/cJSON.h"
 
+#define MODULE_TMPNAME_MAXSIZE 32
+
 static const int task_max_needed = TASK_DATA_MAXSIZE + sizeof(dtask_t);
 static int process_task(char *buffer);
 static void rawstr_parse(const char *rawstr, int *real_dst, unsigned int *msgid);
@@ -224,7 +226,7 @@ static int process_task(char *buffer)
         case DataBinaryToModule:
             ret = dmodule_handle(buffer);
             break;
-        case DataRawString:
+        case DataRawBinary:
             rawstr_parse(task->data, &real_dst, &msgid);
             task->dst_compid = real_dst;
             task->msgid = msgid;
@@ -246,41 +248,61 @@ static void rawstr_parse(const char *rawstr, int *real_dst, unsigned int *msgid)
     *real_dst = DCOMPID_NONE;
     *msgid = 0;
 
-    cJSON *root = cJSON_Parse(rawstr);
-    if (root == NULL)
+    if (*rawstr == '/')
     {
-        derror("failed to parse rawstr %s\n", rawstr);
-        return ;
+        const char *target = rawstr + 1;
+        const char *type = strchr(target, '/');
+        char module[MODULE_TMPNAME_MAXSIZE] = { 0 };
+        unsigned long len = (type - target);
+        if (len > sizeof(module))
+        {
+            len = sizeof(module) - 1;
+        }
+        strncpy(module, target, len);
+        module[len] = '\0';
+        const dcomp_t *comp = find_dcomponent_by_name(module);
+        if (comp == NULL)
+        {
+            derror("target not found\n");
+            return ;
+        }
+        *real_dst = comp->dcompid;
+        *msgid = MSGID_SIMPLE_STR;
     }
-
-    cJSON *dst = cJSON_GetObjectItem(root, "target");
-    if (dst == NULL)
+    else if (*rawstr == '{')
     {
-        derror("failed to parse rawstr %s, no target field\n", rawstr);
-        cJSON_Delete(root);
-        return ;
-    }
+        cJSON *root = cJSON_Parse(rawstr);
+        if (root == NULL)
+        {
+            derror("failed to parse rawstr %s\n", rawstr);
+            return ;
+        }
 
-    const dcomp_t *comp = find_dcomponent_by_name(dst->valuestring);
-    if (comp == NULL)
-    {
-        derror("target not found\n");
-        cJSON_Delete(root);
-        return ;
-    }
+        cJSON *dst = cJSON_GetObjectItem(root, "target");
+        if (dst == NULL)
+        {
+            derror("failed to parse rawstr %s, no target field\n", rawstr);
+            cJSON_Delete(root);
+            return ;
+        }
 
-    *real_dst = comp->dcompid;
+        const dcomp_t *comp = find_dcomponent_by_name(dst->valuestring);
+        if (comp == NULL)
+        {
+            derror("target not found\n");
+            cJSON_Delete(root);
+            return ;
+        }
 
-    cJSON *type = cJSON_GetObjectItem(root, "type");
-    if (type == NULL)
-    {
+        *real_dst = comp->dcompid;
         *msgid = MSGID_JSON_RAWSTR;
+
+        cJSON_Delete(root);
     }
     else
     {
-        *msgid = MSGID_JSON_CMD;
+        derror("invalid rawstr %s\n", rawstr);
     }
-    
-    cJSON_Delete(root);
+
     return ;
 }

@@ -1,6 +1,6 @@
 #include <spawn.h>
 
-#include "lib/run.h"
+#include "lib/util.h"
 
 extern char *environ[];
 

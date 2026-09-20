@@ -14,7 +14,7 @@ enum dtask_datatype {
     DataBinaryToModule,
     // data is raw binary/string data from channel, this type dst_compid is optional
     // if there is no dst_compid, then the string must be translated
-    DataRawString,
+    DataRawBinary,
     // data is passed to outer process, this type must have dst_compid
     DataToOuter,
 };

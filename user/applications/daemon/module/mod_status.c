@@ -12,38 +12,23 @@
 
 static dmod_t statmod;
 
-static void stat_handle_json_cmd(dtask_t *task)
+static void stat_handle_simple_str(dtask_t *task)
 {
-    const char *json_str = task->data;
+    const char *str = task->data;
     int bytes = 0;
     char buf[TASK_DATA_MAXSIZE] = { 0 };
 
-    cJSON *json = cJSON_Parse(json_str);
-    if (NULL == json)
-    {
-        dprint("invalid json string\n");
-        return ;
-    }
-
-    cJSON *arg1 = cJSON_GetObjectItem(json, "arg1");
-    if (NULL == arg1)
-    {
-        dprint("no request in cmd\n");
-        cJSON_Delete(json);
-        return ;
-    }
-
-    if (strcmp(arg1->valuestring, "context") == 0)
+    if (strstr(str, "context"))
     {
         bytes = dctx_info(buf, sizeof(buf));
     }
-    else if (strcmp(arg1->valuestring, "timer") == 0)
+    else if (strstr(str, "timer"))
     {
         bytes = dtimer_info(buf, sizeof(buf));
     }
     else
     {
-        bytes = snprintf(buf, sizeof(buf), "invalid request %s for status module\n", arg1->valuestring);
+        bytes = snprintf(buf, sizeof(buf), "invalid request [%s] for status module\n", str);
     }
 
     task_enqueue(DataToOuter, statmod.dcomp.dcompid, task->src_compid, 0, bytes, buf);
@@ -65,8 +50,8 @@ static int statmod_ontask(dmod_t *m, void *arg)
 
     switch (task->msgid)
     {
-        case MSGID_JSON_CMD:
-            stat_handle_json_cmd(task);
+        case MSGID_SIMPLE_STR:
+            stat_handle_simple_str(task);
             break;
         default:
             dprint("invalid msgid 0x%x\n", task->msgid);
