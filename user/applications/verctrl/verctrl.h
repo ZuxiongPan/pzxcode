@@ -23,6 +23,8 @@ enum upgrade_stage {
 #define UDS_PATH "/var/armd.sock"
 #define PUBKEY_FILEPATH "/etc/pzx.pub"
 #define UPG_MSG_MAXLEN 128
+#define CONFIG_UPGRADE_FRAGMENT
+#define FRAGMENT_SIZE 0x100000
 
 int init_uds_socket(void);
 int inform_to_armd(enum upgrade_stage stage);
@@ -35,9 +37,7 @@ int version_sync(void);
 int write_upgrade_file(char *upgfile_name);
 
 int get_value_from_verinfo(const char *name, char *valbuf, unsigned int bufsize);
-#ifdef CONFIG_VERHEADER_ENCRYPT
 int aes256_cbc_decrypt(uint8_t *data, unsigned int datalen, uint8_t *iv);
-#endif
 
 uint32_t pzx_crc32(const uint8_t *data, uint32_t length);
 uint32_t pzx_crc32_segment(const uint8_t *data, uint32_t length, uint32_t crc);

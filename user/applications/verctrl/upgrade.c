@@ -91,7 +91,7 @@ static int upgrade_fragment(char *upgfile_name)
     }
 
     inform_to_armd(UPG_WRITING);
-    dfd = open(STORDEV_NAME, O_RDWR);
+    dfd = open(IMGSTOR_DEVNAME, O_RDWR);
     if(dfd < 0)
     {
         printf("open storage device failed\n");
@@ -100,7 +100,7 @@ static int upgrade_fragment(char *upgfile_name)
     }
     lseek(dfd, offset, SEEK_SET);
     ret = write(dfd, sighead_buf, VERSION_HEADER_OFFSET);
-    printf("write %u bytes to device %s ret %u\n", VERSION_HEADER_OFFSET, STORDEV_NAME, ret);
+    printf("write %u bytes to device %s ret %u\n", VERSION_HEADER_OFFSET, IMGSTOR_DEVNAME, ret);
 
     signed_size = sighead->signed_size;
     lseek(ufd, VERSION_HEADER_OFFSET, SEEK_SET);
@@ -139,7 +139,7 @@ static int upgrade_fragment(char *upgfile_name)
         rdbytes += toread;
         ret = write(dfd, verbuf, toread);
     }
-    printf("write %u bytes to device %s ret %u\n", rdbytes, STORDEV_NAME, ret);
+    printf("write %u bytes to device %s ret %u\n", rdbytes, IMGSTOR_DEVNAME, ret);
 
     unsigned int hashlen = 0;
     EVP_DigestFinal_ex(md_ctx, hash, &hashlen);
@@ -356,7 +356,7 @@ static int upgrade_normal(char *upgfile_name)
 
     inform_to_armd(UPG_CHECKED);
     inform_to_armd(UPG_WRITING);
-    fd = open(STORDEV_NAME, O_RDWR);
+    fd = open(IMGSTOR_DEVNAME, O_RDWR);
     if(fd < 0)
     {
         printf("open storage device failed\n");

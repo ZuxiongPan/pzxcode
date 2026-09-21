@@ -7,13 +7,13 @@
 #include <ctype.h>
 #include <linux/errno.h>
 
+#include "common/version_partition.h"
+#include "common/version_header.h"
 #ifdef CONFIG_VERHEADER_ENCRYPT
 #include <openssl/evp.h>
 #include <openssl/aes.h>
 #include "common/aes_key.h"
 #endif
-#include "common/version_partition.h"
-#include "common/version_header.h"
 #define FILEPATH_MAXLEN 256
 
 char kernel_filepath[FILEPATH_MAXLEN] = {0};

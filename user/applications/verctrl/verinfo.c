@@ -5,7 +5,6 @@
 #include <linux/errno.h>
 #include "common/version_info.h"
 
-#ifdef CONFIG_VERHEADER_ENCRYPT
 #include "common/aes_key.h"
 #include "openssl/evp.h"
 
@@ -62,8 +61,6 @@ int aes256_cbc_decrypt(uint8_t *data, unsigned int datalen, uint8_t *iv)
     printf("%s decrypt success, outlen %d\n", __FUNCTION__, outlen + finallen);
     return 0;
 }
-#endif
-
 
 #define LINE_BUFSIZE 256
 #define KEY_BUFSIZE 128

@@ -1,5 +1,5 @@
 CC := $(CROSS_COMPILER_PREFIX)gcc
-CFLAGS := -Wall -Wextra -O2 -include $(CODE_DIR)/include/pzx_config.h
+CFLAGS := -Wall -Wextra -O2
 LDFLAGS := 
 
 export CC CFLAGS LDFLAGS

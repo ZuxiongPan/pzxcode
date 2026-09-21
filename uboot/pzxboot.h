@@ -4,7 +4,6 @@
 #include <asm/types.h>
 #include <blk.h>
 
-#include "pzx_config.h"
 #include "common/version_header.h"
 #include "common/version_partition.h"
 

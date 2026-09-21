@@ -24,6 +24,8 @@
 #define VERSION_COUNTS 2
 #define RSASIGN_NAME "sha256,rsa2048"
 
+#define CONFIG_VERHEADER_ENCRYPT
+
 struct version_header {
     uint32_t magic[2];
 

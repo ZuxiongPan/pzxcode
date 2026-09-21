@@ -17,7 +17,7 @@ cd -
 
 #dd if=/dev/zero of=$TOP_DIR/version.bin bs=1M count=128
 
-$CODE_DIR/host/buildversion/buildversion \
+$CODE_DIR/buildversion/buildversion \
     -k $TOP_DIR/kernel.itb \
     -r $TOP_DIR/rootfs.squash \
     -u $TOP_DIR/upgrade.bin \

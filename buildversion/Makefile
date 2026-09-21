@@ -1,7 +1,7 @@
 CC := gcc
 
 CFLAGS := -Wall -Wextra -O2
-CFLAGS += -I$(CODE_DIR)/include -lcrypto -lssl -include $(CODE_DIR)/include/pzx_config.h
+CFLAGS += -I$(CODE_DIR)/include -lcrypto -lssl
 
 SRCS := $(wildcard *.c)
 

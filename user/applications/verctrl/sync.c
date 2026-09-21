@@ -77,10 +77,10 @@ int version_sync(void)
         return -EINVAL;
     }
 
-    fd = open(STORDEV_NAME, O_RDWR);
+    fd = open(IMGSTOR_DEVNAME, O_RDWR);
     if(fd < 0)
     {
-        printf("open %s failed\n", STORDEV_NAME);
+        printf("open %s failed\n", IMGSTOR_DEVNAME);
         return -ENOENT;
     }
 
