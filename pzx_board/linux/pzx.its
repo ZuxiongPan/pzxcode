@@ -1,0 +1,56 @@
+
+/dts-v1/;
+/ {
+    description = "arm64 Linux Kernel FIT Image";
+    #address-cells = <1>;
+
+    images {
+        kernel {
+            description = "qemu-virt image";
+            data = /incbin/("/home/pzx/aarch64/linux-6.15.4/arch/arm64/boot/Image");
+            type = "kernel";
+            arch = "arm64";
+            os = "linux";
+            compression = "none";
+            load = <0x81000000>;
+            entry = <0x81000000>;
+
+            hash-1 {
+                algo = "sha256";
+            };
+        };
+
+        fdt {
+            description = "pzx arm64 dtb";
+            data = /incbin/("/home/pzx/aarch64/linux-6.15.4/arch/arm64/boot/dts/arm/pzx-arm64.dtb");
+            type = "flat_dt";
+            arch = "arm64";
+            compression = "none";
+
+            hash-1 {
+                algo = "sha256";
+            };
+        };
+/*  this is for generate rsa public key node
+        pubkey {
+            description = "version publickey";
+            data = /incbin/("/dev/null");
+
+            signature {
+                algo = "sha256,rsa2048";
+                key-name-hint = "pzx";
+            };
+        };
+*/
+    };
+
+    configurations {
+        default = "defcfg";
+
+        defcfg {
+            description = "pzx uImage";
+            kernel = "kernel";
+            fdt = "fdt";
+        };
+    };
+};

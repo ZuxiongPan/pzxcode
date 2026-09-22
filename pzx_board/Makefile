@@ -3,6 +3,7 @@ TOP_DIR := $(shell cd ../.. && pwd)
 CODE_DIR := $(TOP_DIR)/pzxcode
 UBOOT_DIR := $(TOP_DIR)/u-boot-2024.10
 QEMU_DIR := $(TOP_DIR)/qemu-10.2.4
+KERNEL_DIR := $(TOP_DIR)/linux-6.15.4
 CROSS_COMPILER_DIR := $(TOP_DIR)/aarch64-none-linux-gnu-14.3
 CROSS_COMPILER_PREFIX := $(CROSS_COMPILER_DIR)/bin/aarch64-none-linux-gnu-
 
@@ -15,6 +16,7 @@ all: prepare uboot image
 prepare:
 	sed -i 's/^#define BOOT_METHOD_CUSTOM .*/#define BOOT_METHOD_CUSTOM 0/' $(CODE_DIR)/include/boot/boot_method.h
 	[ -L $(UBOOT_DIR)/cusuboot ] || ln -sf $(CODE_DIR)/uboot $(UBOOT_DIR)/cusuboot
+	[ -L $(KERNEL_DIR)/cuskernel ] || ln -sf $(CODE_DIR)/linux $(KERNEL_DIR)/cuskernel
 
 uboot:
 	make -C $(UBOOT_DIR) ARCH=arm CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) arm64_pzx_defconfig
@@ -23,6 +25,16 @@ uboot:
 uboot_clean:
 	make -C $(UBOOT_DIR) ARCH=arm CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
 	rm -f $(UBOOT_DIR)/cusuboot
+
+kernel:
+	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) pzx_arm64_defconfig
+	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) -j8
+	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) modules
+	$(UBOOT_DIR)/tools/mkimage -f $(CODE_DIR)/pzx_board/linux/pzx.its $(TOP_DIR)/pzx.itb
+
+kernel_clean:
+	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
+	rm -f $(KERNEL_DIR)/cuskernel
 
 image:
 	make -C ./loader all
@@ -44,3 +56,4 @@ boot:
 
 clean:
 	make uboot_clean
+	make kernel_clean

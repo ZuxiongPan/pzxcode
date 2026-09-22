@@ -1,0 +1,5 @@
+linux-/arch/arm64/boot/dts/arm/arm64-pzx.dts
+linux/arch/arm64/configs/pzx_arm64_defconfig
+
+[linux-/arch/arm64/boot/dts/arm/Makefile]
+dtb-y += arm64-pzx.dtb

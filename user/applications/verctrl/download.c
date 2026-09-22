@@ -45,7 +45,7 @@ int download_upgrade_file(void)
         
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &file_data);
         
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
         
         res = curl_easy_perform(curl);
         
