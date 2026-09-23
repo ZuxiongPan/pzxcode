@@ -12,10 +12,10 @@
 static int sockfd = -1;
 
 static const char *upgrade_stage[] = {
-    [UPG_BEGIN] = "begin",
     [UPG_DOWNLOADING] = "downloading",
     [UPG_DOWNLOAD_FAILED] = "download failed",
     [UPG_DOWNLOADED] = "downloaded",
+    [UPG_BEGIN] = "begin",
     [UPG_CHECKING] = "checking",
     [UPG_CHECK_FAILED] = "check failed",
     [UPG_CHECKED] = "checked",

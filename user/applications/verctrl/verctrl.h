@@ -4,10 +4,10 @@
 #include "common/data_type.h"
 
 enum upgrade_stage {
-    UPG_BEGIN = 0,
-    UPG_DOWNLOADING,
+    UPG_DOWNLOADING = 0,
     UPG_DOWNLOAD_FAILED,
     UPG_DOWNLOADED,
+    UPG_BEGIN,
     UPG_CHECKING,
     UPG_CHECK_FAILED,
     UPG_CHECKED,

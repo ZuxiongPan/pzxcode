@@ -5,9 +5,10 @@
 #define IMGSTOR_DEVNAME "/dev/sda"
 #define HEADER_SIZE 512 // every head size is 512B
 #define STORDEV_PHYSICAL_BLKSIZE 0x200
+#define STORDEV_EMPTY_DATA 0x00
 #define STORDEV_PARTTABLE_SIZE (STORDEV_PHYSICAL_BLKSIZE * 34)
 #define KERNEL_PARTITION_SIZE 0x00600000    // headers + kernel image
-#define ROOTFS_PARTITION_SIZE 0x03000000
+#define ROOTFS_PARTITION_SIZE 0x02000000
 #define VERSION_PARTITION_SIZE (KERNEL_PARTITION_SIZE + ROOTFS_PARTITION_SIZE)
 
 /** GPT part table, there is n Logical Block Addresses(LBA) in storage device

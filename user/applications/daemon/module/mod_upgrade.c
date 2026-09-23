@@ -35,7 +35,7 @@ static void upgrade_handle_simple_str(dtask_t *task)
     }
     else if (strstr(str, "result"))
     {
-        dprint("receive upgrade info %s\n", str);
+        dprint("receive upgrade info [%s]\n", str);
     }
 
     return ;

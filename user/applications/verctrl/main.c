@@ -23,18 +23,12 @@ int main(int argc, char *argv[])
     
     if(!strncmp(argv[1], "--sync", sizeof("--sync")))
     {
-        inform_to_armd(UPG_BEGIN);
         ret = version_sync();
         printf("synchonize version return %d\n", ret);
-        if(ret == 0)
-        {
-            inform_to_armd(UPG_SUCCESS);
-        }
         inform_to_armd(UPG_END);
     }
     else if(!strncmp(argv[1], "--upgrade", sizeof("--upgrade")))
     {
-        inform_to_armd(UPG_BEGIN);
         ret = download_upgrade_file();
         if (ret < 0)
         {
@@ -43,10 +37,6 @@ int main(int argc, char *argv[])
         else
         {
             ret = write_upgrade_file(DOWNLOAD_FILE_PATH);
-            if (ret == 0)
-            {
-                inform_to_armd(UPG_SUCCESS);
-            }
         }
         inform_to_armd(UPG_END);
     }

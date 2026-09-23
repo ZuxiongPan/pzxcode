@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 #include "dlog.h"
 #include "uevent_translator.h"
@@ -17,6 +18,18 @@ static const keyinfo_t uevent_keys[] = {
     [KeyDevtype] = { .key = "DEVTYPE=", .len = 8 },
     [KeySeqNum] = { .key = "SEQNUM=", .len = 7 },
 };
+
+static int seqnum;
+pthread_rwlock_t seqnum_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+
+int get_uevent_seqnum(void)
+{
+    int ret = 0;
+    pthread_rwlock_rdlock(&seqnum_rwlock);
+    ret = seqnum;
+    pthread_rwlock_unlock(&seqnum_rwlock);
+    return ret;
+}
 
 void uevent_translate(const char *data, unsigned int size, uevent_strs_t *info)
 {
@@ -52,6 +65,9 @@ void uevent_translate(const char *data, unsigned int size, uevent_strs_t *info)
         ptr += strlen(ptr) + 1;
     }
 
+    pthread_rwlock_wrlock(&seqnum_rwlock);
+    sscanf(info->seqnum, "%d", &seqnum);
+    pthread_rwlock_unlock(&seqnum_rwlock);
     //dprint("------ uevent message ------\n");
     //rawlog("\tseqnum = %s\n", info->seqnum ? info->seqnum : "null");
     //rawlog("\taction = %s\n", info->action ? info->action : "null");

@@ -23,7 +23,7 @@ static int upgrade_fragment(char *upgfile_name)
     char buf[16] = {0};
     bool rdok = true;
     uint8_t *verbuf = NULL;
-    uint8_t sighead_buf[VERSION_HEADER_OFFSET];
+    uint8_t sighead_buf[HEADER_SIZE];
     uint32_t signed_size = 0, rdbytes = 0, crc = 0;
     int toread = 0;
     const struct signature_header *sighead = NULL;
@@ -31,7 +31,7 @@ static int upgrade_fragment(char *upgfile_name)
     unsigned char hash[32];
     struct stat upg_stat = {0};
 
-    inform_to_armd(UPG_CHECKING);
+    inform_to_armd(UPG_BEGIN);
     memset(buf, 0, sizeof(buf));
     ret = get_value_from_verinfo(PROC_BACKVEROFF_NAME, buf, sizeof(buf));
     if(!ret)
@@ -61,11 +61,11 @@ static int upgrade_fragment(char *upgfile_name)
     }
 
     lseek(ufd, 0, SEEK_SET);
-    ret = read(ufd, sighead_buf, VERSION_HEADER_OFFSET);
-    if(VERSION_HEADER_OFFSET != ret)
+    ret = read(ufd, sighead_buf, HEADER_SIZE);
+    if(HEADER_SIZE != ret)
     {
         printf("read %u/0x%x bytes from file %s failed, real readlen %u/0x%x\n", 
-            VERSION_HEADER_OFFSET, VERSION_HEADER_OFFSET, upgfile_name, ret, ret);
+            HEADER_SIZE, HEADER_SIZE, upgfile_name, ret, ret);
         close(ufd);
         return -EIO;
     }
@@ -75,17 +75,18 @@ static int upgrade_fragment(char *upgfile_name)
     sighead = (struct signature_header *)sighead_buf;
     if(SIGN_HEADER_MAGIC0 != sighead->magic[0] || SIGN_HEADER_MAGIC1 != sighead->magic[1])
     {
-        inform_to_armd(UPG_CHECK_FAILED);
         printf("signature header is invalid, value: 0x%x, 0x%x\n",
             sighead->magic[0], sighead->magic[1]);
-        return false;
+        inform_to_armd(UPG_CHECK_FAILED);
+        close(ufd);
+        return -EINVAL;
     }
     crc = pzx_crc32(sighead_buf, sizeof(struct signature_header) - sizeof(uint32_t));
     printf("signature header crc is 0x%x, calculated crc is 0x%x\n", sighead->header_crc, crc);
     if(crc != sighead->header_crc)
     {
-        inform_to_armd(UPG_CHECK_FAILED);
         printf("upgrade file signature is invalid\n");
+        inform_to_armd(UPG_CHECK_FAILED);
         close(ufd);
         return -EPROTO;
     }
@@ -95,12 +96,13 @@ static int upgrade_fragment(char *upgfile_name)
     if(dfd < 0)
     {
         printf("open storage device failed\n");
+        inform_to_armd(UPG_WRITE_FAILED);
         close(ufd);
         return -ENOENT;
     }
     lseek(dfd, offset, SEEK_SET);
-    ret = write(dfd, sighead_buf, VERSION_HEADER_OFFSET);
-    printf("write %u bytes to device %s ret %u\n", VERSION_HEADER_OFFSET, IMGSTOR_DEVNAME, ret);
+    ret = write(dfd, sighead_buf, HEADER_SIZE);
+    printf("write %u bytes to device %s ret %u\n", HEADER_SIZE, IMGSTOR_DEVNAME, ret);
 
     signed_size = sighead->signed_size;
     lseek(ufd, VERSION_HEADER_OFFSET, SEEK_SET);
@@ -108,6 +110,7 @@ static int upgrade_fragment(char *upgfile_name)
     if(NULL == verbuf)
     {
         printf("get fragment buffer faied\n");
+        inform_to_armd(UPG_WRITE_FAILED);
         close(ufd);
         close(dfd);
         return -ENOMEM;
@@ -131,7 +134,6 @@ static int upgrade_fragment(char *upgfile_name)
         ret = read(ufd, verbuf, toread);
         if(ret != toread)
         {
-            inform_to_armd(UPG_WRITE_FAILED);
             rdok = false;
             break;
         }
@@ -151,9 +153,11 @@ static int upgrade_fragment(char *upgfile_name)
     if(!rdok)
     {
         printf("read file %s failed, already read %u/0x%x bytes\n", upgfile_name, rdbytes, rdbytes);
+        inform_to_armd(UPG_WRITE_FAILED);
         return -EIO;
     }
 
+    inform_to_armd(UPG_WRITTEN);
     FILE *keyfile = fopen(PUBKEY_FILEPATH, "r");
     if (!keyfile)
     {
@@ -165,15 +169,16 @@ static int upgrade_fragment(char *upgfile_name)
     if (!pkey)
     {
         printf("failed to read pub key from %s\n", PUBKEY_FILEPATH);
-        return -1;
+        return -EINVAL;
     }
 
+    inform_to_armd(UPG_CHECKING);
     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new(pkey, NULL);
     if (!pctx || EVP_PKEY_verify_init(pctx) <= 0)
     {
         printf("EVP_PKEY_CTX_new or verify_init failed\n");
         EVP_PKEY_free(pkey);
-        return -1;
+        return -ENOMEM;
     }
 
     if (EVP_PKEY_CTX_set_signature_md(pctx, EVP_sha256()) <= 0)
@@ -181,7 +186,7 @@ static int upgrade_fragment(char *upgfile_name)
         printf("EVP_PKEY_CTX_set_signature_md failed\n");
         EVP_PKEY_CTX_free(pctx);
         EVP_PKEY_free(pkey);
-        return -1;
+        return -EINVAL;
     }
 
     ret = EVP_PKEY_verify(pctx, sighead->signature, sighead->sig_size,
@@ -189,15 +194,19 @@ static int upgrade_fragment(char *upgfile_name)
     if (1 != ret)
     {
         printf("rsa verify failed, ret %d\n", ret);
+        inform_to_armd(UPG_CHECK_FAILED);
+        ret = -EPROTO;
     }
     else
     {
+        inform_to_armd(UPG_CHECKED);
         printf("rsa verify success\n");
+        ret = 0;
     }
 
     EVP_PKEY_CTX_free(pctx);
     EVP_PKEY_free(pkey);
-    return (ret == 1) ? 0 : ret;
+    return ret;
 }
 
 #else
@@ -296,7 +305,6 @@ static int upgrade_normal(char *upgfile_name)
     unsigned int offset = 0;
     struct stat upg_stat = {0};
 
-    inform_to_armd(UPG_CHECKING);
     memset(buf, 0, sizeof(buf));
     ret = get_value_from_verinfo(PROC_BACKVEROFF_NAME, buf, sizeof(buf));
     if(!ret)
@@ -349,13 +357,10 @@ static int upgrade_normal(char *upgfile_name)
     if(upgrade_version_check_normal(verbuf, upg_stat.st_size))
     {
         printf("check version failed\n");
-        inform_to_armd(UPG_CHECK_FAILED);
         free(verbuf);
         return -ECANCELED;
     }
 
-    inform_to_armd(UPG_CHECKED);
-    inform_to_armd(UPG_WRITING);
     fd = open(IMGSTOR_DEVNAME, O_RDWR);
     if(fd < 0)
     {
@@ -366,7 +371,6 @@ static int upgrade_normal(char *upgfile_name)
     lseek(fd, offset, SEEK_SET);
     ret = write(fd, verbuf, upg_stat.st_size);
     printf("write %u/0x%x bytes to offset 0x%x\n", ret, ret, offset);
-    inform_to_armd(UPG_WRITTEN);
 
     free(verbuf);
     close(fd);

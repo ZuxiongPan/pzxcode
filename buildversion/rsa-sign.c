@@ -16,9 +16,7 @@
 #include "common/version_header.h"
 
 extern uint32_t pzx_crc32(const uint8_t *data, uint32_t length);
-#ifdef CONFIG_VERHEADER_ENCRYPT
 extern const uint8_t* get_aes_iv(void);
-#endif
 
 int rsa_sign(char *filepath, char *keypath)
 {
@@ -65,7 +63,7 @@ int rsa_sign(char *filepath, char *keypath)
         return -ENOENT;
     }
     fseek(fp, 0, SEEK_END);
-    sign_size = ftell(fp) - VERSION_HEADER_OFFSET;
+    sign_size = ftell(fp) - HEADER_SIZE;
 
     buf = malloc(sign_size);
     if(NULL == buf)
@@ -140,7 +138,7 @@ int rsa_sign(char *filepath, char *keypath)
 
     EVP_MD_CTX_free(context);
     EVP_PKEY_free(pkey);
-    printf("sign success, signature size is %lu, signature:\n", sig_size);
+    printf("sign success, signature size is %lu, signature: ", sig_size);
     for(unsigned int i = 0; i < sig_size; i++)
     {
         printf("%02x", sig[i]);

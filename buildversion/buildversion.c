@@ -26,11 +26,9 @@ static int get_options(int argc, char *const *argv);
 static void print_usage(void);
 static int build_upgrade_file(void);
 static int build_version_file(void);
-#ifdef CONFIG_VERHEADER_ENCRYPT
 static uint8_t aes_iv[16];
 static int aes256_cbc_encrypt_header(uint8_t *data, int data_len);
 const uint8_t* get_aes_iv(void);
-#endif
 
 extern int rsa_sign(char *filepath, char *keypath);
 
@@ -96,7 +94,6 @@ static void version_header_init(struct version_header *pheader)
     return ;
 }
 
-#ifdef CONFIG_VERHEADER_ENCRYPT
 static int aes256_cbc_encrypt_header(uint8_t *data, int data_len)
 {
     // init aes iv
@@ -113,6 +110,7 @@ static int aes256_cbc_encrypt_header(uint8_t *data, int data_len)
     printf("read %d bytes from /dev/urandom\n", ret);
     close(fd);
 
+    printf("aes init vector: ");
     for(int i = 0; i < 16; i++)
     {
         printf("0x%02x ", aes_iv[i]);
@@ -134,6 +132,7 @@ static int aes256_cbc_encrypt_header(uint8_t *data, int data_len)
         return -EBADR;
     }
 
+    // this need encrypt data size is multiple of 16Bytes
     EVP_CIPHER_CTX_set_padding(ctx, 0);
 
     ret = EVP_CipherUpdate(ctx, data, &out_len, data, data_len);
@@ -151,11 +150,11 @@ static int aes256_cbc_encrypt_header(uint8_t *data, int data_len)
         EVP_CIPHER_CTX_free(ctx);
         return -EBADR;
     }
+    printf("encrypt success, out_len %d, final len %d\n", out_len, len);
 
     EVP_CIPHER_CTX_free(ctx);
     return 0;
 }
-#endif
 
 static int build_upgrade_file(void)
 {
@@ -200,12 +199,12 @@ static int build_upgrade_file(void)
     printf("!!! write kernel image to upgrade file start ...\n");
     fseek(upgrade, KERNEL_OFFSET, SEEK_SET);
     fseek(kernel, 0, SEEK_SET);
-    memset(buf, 0, STORDEV_PHYSICAL_BLKSIZE);
+    memset(buf, STORDEV_EMPTY_DATA, STORDEV_PHYSICAL_BLKSIZE);
     while(fread(buf, 1, STORDEV_PHYSICAL_BLKSIZE, kernel) > 0)
     {
         fwrite(buf, 1, STORDEV_PHYSICAL_BLKSIZE, upgrade);
         pheader->kernel_size += STORDEV_PHYSICAL_BLKSIZE;
-        memset(buf, 0, STORDEV_PHYSICAL_BLKSIZE);
+        memset(buf, STORDEV_EMPTY_DATA, STORDEV_PHYSICAL_BLKSIZE);
     }
     printf("... write kernel image to upgrade file end, kernel size %u !!!\n",
         pheader->kernel_size);
@@ -223,20 +222,19 @@ static int build_upgrade_file(void)
     printf("!!! write rootfs image to upgrade file start ...\n");
     fseek(upgrade, KERNEL_PARTITION_SIZE, SEEK_SET);
     fseek(rootfs, 0, SEEK_SET);
-    memset(buf, 0, STORDEV_PHYSICAL_BLKSIZE);
+    memset(buf, STORDEV_EMPTY_DATA, STORDEV_PHYSICAL_BLKSIZE);
     while(fread(buf, 1, STORDEV_PHYSICAL_BLKSIZE, rootfs) > 0)
     {
         fwrite(buf, 1, STORDEV_PHYSICAL_BLKSIZE, upgrade);
         pheader->rootfs_size += STORDEV_PHYSICAL_BLKSIZE;
-        memset(buf, 0, STORDEV_PHYSICAL_BLKSIZE);
+        memset(buf, STORDEV_EMPTY_DATA, STORDEV_PHYSICAL_BLKSIZE);
     }
     printf("... write rootfs image to upgrade file end, rootfs size %u !!!\n",
         pheader->rootfs_size);
     fclose(rootfs);
     free(buf);
 
-    // until here, the first 512Bytes of version.bin is empty
-    file_size = KERNEL_OFFSET + pheader->kernel_size + pheader->rootfs_size;
+    file_size = KERNEL_PARTITION_SIZE + pheader->rootfs_size;
     if(file_size > VERSION_PARTITION_SIZE)
     {
         printf("upgrade file size is %u, larger than partition\n", file_size);
@@ -314,12 +312,10 @@ static int build_version_file(void)
     return 0;
 }
 
-#ifdef CONFIG_VERHEADER_ENCRYPT
 const uint8_t* get_aes_iv(void)
 {
     return aes_iv;
 }
-#endif
 
 static int get_options(int argc, char *const *argv)
 {

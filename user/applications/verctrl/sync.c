@@ -10,35 +10,7 @@
 #include "common/version_header.h"
 #include "common/version_partition.h"
 
-static int simple_check_version(const uint8_t *buf)
-{
-    bool ret = false;
-    struct signature_header *sighead = (struct signature_header *)buf;
-#ifdef CONFIG_VERHEADER_ENCRYPT
-    uint8_t data[HEADER_SIZE] = {0};
-    uint8_t iv[16] = {0};
-    memcpy(data, buf + VERSION_HEADER_OFFSET, HEADER_SIZE);
-    memcpy(iv, sighead->aes_iv, 16);
-    aes256_cbc_decrypt(data, HEADER_SIZE, iv);
-    struct version_header *verhead = (struct version_header *)data;
-#else
-    struct version_header *verhead = (struct version_header *)(buf + VERSION_HEADER_OFFSET);
-#endif
-
-    if(SIGN_HEADER_MAGIC0 == sighead->magic[0] && SIGN_HEADER_MAGIC1 == sighead->magic[1]
-        && VERSION_HEADER_MAGIC0 == verhead->magic[0] && VERSION_HEADER_MAGIC1 == verhead->magic[1])
-    {
-        printf("this version is valid\n");
-        ret = true;
-    }
-    else
-    {
-        printf("this version is invalid\n");
-        ret = false;
-    }
-
-    return ret;
-}
+#define MEGABYTES (1024 * 1024)
 
 int version_sync(void)
 {
@@ -48,8 +20,9 @@ int version_sync(void)
     uint8_t *verbuf = NULL;
     unsigned int curoff = 0;
     unsigned int backoff = 0;
+    int total = 0;
 
-    inform_to_armd(UPG_CHECKING);
+    inform_to_armd(UPG_BEGIN);
     // get version offset in storage device
     memset(buf, 0, sizeof(buf));
     ret = get_value_from_verinfo(PROC_CURVEROFF_NAME, buf, sizeof(buf));
@@ -77,6 +50,7 @@ int version_sync(void)
         return -EINVAL;
     }
 
+    inform_to_armd(UPG_WRITING);
     fd = open(IMGSTOR_DEVNAME, O_RDWR);
     if(fd < 0)
     {
@@ -84,7 +58,7 @@ int version_sync(void)
         return -ENOENT;
     }
 
-    verbuf = malloc(VERSION_PARTITION_SIZE);
+    verbuf = malloc(MEGABYTES);
     if(NULL == verbuf)
     {
         printf("there is no enough memory for sync\n");
@@ -92,33 +66,33 @@ int version_sync(void)
         return -ENOMEM;
     }
 
-    lseek(fd, curoff, SEEK_SET);
-    ret = read(fd, verbuf, VERSION_PARTITION_SIZE);
-    if(VERSION_PARTITION_SIZE != ret)
+    while (total < VERSION_PARTITION_SIZE)
     {
-        printf("read %u/0x%x bytes from offset 0x%x failed, real readlen %u/0x%x\n", 
-            VERSION_PARTITION_SIZE, VERSION_PARTITION_SIZE, curoff, ret, ret);
-        free(verbuf);
-        close(fd);
-        return -EIO;
+        lseek(fd, curoff + total, SEEK_SET);
+        ret = read(fd, verbuf, MEGABYTES);
+        if (ret < 0)
+        {
+            printf("read from current version failed\n");
+            break;
+        }
+        lseek(fd, backoff + total, SEEK_SET);
+        ret = write(fd, verbuf, ret);
+        if(ret < 0)
+        {
+            printf("write to backup version failed\n");
+            break;
+        }
+        total += ret;
     }
-    printf("read %u/0x%x bytes from offset 0x%x\n", ret, ret, curoff);
-
-    if(!simple_check_version(verbuf))
+    printf("write %u/0x%x bytes from offset 0x%x to offset 0x%x\n", total, total, curoff, backoff);
+    if (total != VERSION_PARTITION_SIZE)
     {
-        inform_to_armd(UPG_CHECK_FAILED);
-        printf("cannot synchronize version\n");
-        free(verbuf);
-        close(fd);
-        return -ECANCELED;
+        inform_to_armd(UPG_WRITE_FAILED);
     }
-
-    inform_to_armd(UPG_CHECKED);
-    inform_to_armd(UPG_WRITING);
-    lseek(fd, backoff, SEEK_SET);
-    ret = write(fd, verbuf, VERSION_PARTITION_SIZE);
-    printf("write %u/0x%x bytes to offset 0x%x\n", ret, ret, backoff);
-    inform_to_armd(UPG_WRITTEN);
+    else
+    {
+        inform_to_armd(UPG_SUCCESS);
+    }
 
     free(verbuf);
     close(fd);

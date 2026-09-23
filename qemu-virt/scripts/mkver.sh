@@ -22,4 +22,4 @@ $CODE_DIR/buildversion/buildversion \
     -r $TOP_DIR/rootfs.squash \
     -u $TOP_DIR/upgrade.bin \
     -p $CODE_DIR/rsakeys/pzx.key
-    # -v $TOP_DIR/version.bin
+    #-v $TOP_DIR/version.bin
