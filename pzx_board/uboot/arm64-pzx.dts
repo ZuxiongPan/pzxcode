@@ -42,7 +42,7 @@
 			#interrupt-cells = <3>;
 			interrupt-controller;
 			reg = <0x0 0x01000000 0x0 0x00010000>, /* GICD */
-			      <0x0 0x010a0000 0x0 0x00f00000>; /* GICR */
+			      <0x0 0x01040000 0x0 0x00080000>; /* GICR */
 		};
 
 		refclk: refclk24m {

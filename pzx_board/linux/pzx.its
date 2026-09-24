@@ -7,11 +7,11 @@
     images {
         kernel {
             description = "qemu-virt image";
-            data = /incbin/("/home/pzx/aarch64/linux-6.15.4/arch/arm64/boot/Image");
+            data = /incbin/("/home/pzx/aarch64/linux-6.15.4/arch/arm64/boot/Image.gz");
             type = "kernel";
             arch = "arm64";
             os = "linux";
-            compression = "none";
+            compression = "gzip";
             load = <0x81000000>;
             entry = <0x81000000>;
 
@@ -31,6 +31,19 @@
                 algo = "sha256";
             };
         };
+
+        ramdisk {
+            description = "pzx arm64 initramfs";
+            data = /incbin/("/home/pzx/aarch64/initramfs.cpio.gz");
+            type = "ramdisk";
+            arch = "arm64";
+            os = "linux";
+            
+            hash-1 {
+                algo = "sha256";
+            };
+        };
+
 /*  this is for generate rsa public key node
         pubkey {
             description = "version publickey";
@@ -51,6 +64,7 @@
             description = "pzx uImage";
             kernel = "kernel";
             fdt = "fdt";
+            ramdisk = "ramdisk";
         };
     };
 };

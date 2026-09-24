@@ -11,12 +11,18 @@ export TOP_DIR CODE_DIR UBOOT_DIR QEMU_DIR CROSS_COMPILER_PREFIX
 
 .PHONY: all prepare uboot uboot_clean clean boot image
 
-all: prepare uboot image
+all: prepare uboot kernel image
 
 prepare:
 	sed -i 's/^#define BOOT_METHOD_CUSTOM .*/#define BOOT_METHOD_CUSTOM 0/' $(CODE_DIR)/include/boot/boot_method.h
 	[ -L $(UBOOT_DIR)/cusuboot ] || ln -sf $(CODE_DIR)/uboot $(UBOOT_DIR)/cusuboot
 	[ -L $(KERNEL_DIR)/cuskernel ] || ln -sf $(CODE_DIR)/linux $(KERNEL_DIR)/cuskernel
+	cp $(CODE_DIR)/pzx_board/linux/pzx_arm64_defconfig $(KERNEL_DIR)/arch/arm64/configs/ -f
+	cp $(CODE_DIR)/pzx_board/linux/pzx-arm64.dts $(KERNEL_DIR)/arch/arm64/boot/dts/arm/ -f
+	cp $(CODE_DIR)/pzx_board/uboot/arm64_pzx $(UBOOT_DIR)/board/ -rf
+	cp $(CODE_DIR)/pzx_board/uboot/arm64_pzx.h $(UBOOT_DIR)/include/configs/ -f
+	cp $(CODE_DIR)/pzx_board/uboot/arm64-pzx.dts $(UBOOT_DIR)/arch/arm/dts/ -f
+	cp $(CODE_DIR)/pzx_board/uboot/arm64_pzx_defconfig $(UBOOT_DIR)/configs/ -f
 
 uboot:
 	make -C $(UBOOT_DIR) ARCH=arm CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) arm64_pzx_defconfig
@@ -30,7 +36,6 @@ kernel:
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) pzx_arm64_defconfig
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) -j8
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) modules
-	$(UBOOT_DIR)/tools/mkimage -f $(CODE_DIR)/pzx_board/linux/pzx.its $(TOP_DIR)/pzx.itb
 
 kernel_clean:
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
@@ -45,6 +50,7 @@ image:
 	dd if=$(TOP_DIR)/boottmp.bin of=$(TOP_DIR)/boot.bin bs=1M count=4
 	rm -f $(TOP_DIR)/loader.bin $(TOP_DIR)/zero.bin $(TOP_DIR)/loadertmp.bin $(TOP_DIR)/boottmp.bin
 	make -C ./loader clean
+	$(UBOOT_DIR)/tools/mkimage -f $(CODE_DIR)/pzx_board/linux/pzx.its $(TOP_DIR)/pzx.itb
 
 boot:
 	$(QEMU_DIR)/build/qemu-system-aarch64 -M pzx \

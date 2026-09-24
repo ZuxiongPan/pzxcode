@@ -69,7 +69,7 @@ static const MemMapEntry pzx_memmap[] = {
     [ID_SYSCTL] = { 0x00600000, 0x00001000 },
     [ID_VIRTIO_NET] = { 0x00700000, 0x00000200 },
     [ID_GIC_DIST] = { 0x01000000, 0x00010000 },
-    [ID_GIC_REDIST] = { 0x010a0000, 0x00f00000 },
+    [ID_GIC_REDIST] = { 0x01040000, 0x00080000 },
     [ID_DRAM] = { 0x80000000, 0x08000000 },
 };
 

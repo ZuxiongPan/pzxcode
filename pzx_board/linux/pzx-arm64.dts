@@ -55,7 +55,33 @@
 			#interrupt-cells = <3>;
 			interrupt-controller;
 			reg = <0x0 0x01000000 0x0 0x00010000>, /* GICD */
-			      <0x0 0x010a0000 0x0 0x00f00000>; /* GICR */
+			      <0x0 0x01040000 0x0 0x00080000>; /* GICR */
+		};
+
+		reserved-memory {
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges;
+
+			mblkrsv: memblkrsv@45000000 {
+				reg = <0x0 0x85000000 0x0 0x800000>;
+				no-map;
+			};
+
+			mblkencrsv: memblk_encrsv@45800000 {
+				reg = <0x0 0x85800000 0x0 0x800000>;
+				no-map;
+			};
+		};
+
+		memblk {
+			compatible = "pzx,memblk";
+			memory-region = <&mblkrsv>;
+		};
+
+		memblkenc {
+			compatible = "pzx,memblkenc";
+			memory-region = <&mblkencrsv>;
 		};
 
 		serial0: serial@400000 {
