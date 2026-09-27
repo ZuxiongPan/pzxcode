@@ -12,13 +12,6 @@ fi
 
 if [ ! -n "$(ls -A $ROOT_DIR)" ]; then
     echo "need copy basefilesystem"
-    mkdir -p $ROOT_DIR/proc
-    mkdir -p $ROOT_DIR/sys
-    mkdir -p $ROOT_DIR/dev
-    mkdir -p $ROOT_DIR/mnt
-    mkdir -p $ROOT_DIR/lib64
-    mkdir -p $ROOT_DIR/lib
-    mkdir -p $ROOT_DIR/modules
-    mkdir -p $ROOT_DIR/var
+    mkdir -p $ROOT_DIR/{proc,sys,dev,mnt,lib64,lib,modules,var}
     cp -rf $CODE_DIR/qemu-virt/scripts/baserootfs/* $ROOT_DIR/
 fi

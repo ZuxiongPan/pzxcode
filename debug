@@ -11,11 +11,12 @@ devtmpfs    /dev    devtmpfs defaults   0   0
 mount -t debugfs none /sys/kernel/debug
 
 # build a initramfs
+ln -sf bin/busybox init
 find . -print0 | cpio --null -ov --format=newc | gzip > ../initramfs.cpio.gz
 
 # decompress a initramfs
-mkdir tmpfs
-cd tmpfs
+mkdir tmp
+cd tmp
 gzip -dc ../initramfs.cpio.gz | cpio -idv
 
 # construct a ext4 filesystem image
@@ -189,3 +190,5 @@ make install
 
 # curl commands
 curl tftp://10.0.2.2/upgrade.bin -o fw.bin
+
+# kernel debug: add 'loglevel=8 debug' in bootargs
