@@ -4,14 +4,17 @@ CODE_DIR := $(TOP_DIR)/pzxcode
 UBOOT_DIR := $(TOP_DIR)/u-boot-2024.10
 QEMU_DIR := $(TOP_DIR)/qemu-10.2.4
 KERNEL_DIR := $(TOP_DIR)/linux-6.15.4
+BUSYBOX_DIR := $(TOP_DIR)/busybox-1.36.0
+ROOT_DIR := $(TOP_DIR)/root
 CROSS_COMPILER_DIR := $(TOP_DIR)/aarch64-none-linux-gnu-14.3
 CROSS_COMPILER_PREFIX := $(CROSS_COMPILER_DIR)/bin/aarch64-none-linux-gnu-
 
 export TOP_DIR CODE_DIR UBOOT_DIR QEMU_DIR CROSS_COMPILER_PREFIX
 
-.PHONY: all prepare uboot uboot_clean clean boot image
+.PHONY: all prepare uboot uboot_clean clean kernel_clean \
+	busybox busybox_clean image boot
 
-all: prepare uboot kernel image
+all: prepare uboot kernel busybox image
 
 prepare:
 	sed -i 's/^#define BOOT_METHOD_CUSTOM .*/#define BOOT_METHOD_CUSTOM 0/' $(CODE_DIR)/include/boot/boot_method.h
@@ -23,6 +26,9 @@ prepare:
 	cp $(CODE_DIR)/pzx_board/uboot/arm64_pzx.h $(UBOOT_DIR)/include/configs/ -f
 	cp $(CODE_DIR)/pzx_board/uboot/arm64-pzx.dts $(UBOOT_DIR)/arch/arm/dts/ -f
 	cp $(CODE_DIR)/pzx_board/uboot/arm64_pzx_defconfig $(UBOOT_DIR)/configs/ -f
+	mkdir -p $(ROOT_DIR)/proc $(ROOT_DIR)/sys $(ROOT_DIR)/dev $(ROOT_DIR)/mnt 
+	mkdir -p $(ROOT_DIR)/lib64 $(ROOT_DIR)/lib/modules $(ROOT_DIR)/var
+	cp $(CODE_DIR)/pzx_board/baserootfs/* $(ROOT_DIR)/ -rf
 
 uboot:
 	make -C $(UBOOT_DIR) ARCH=arm CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) arm64_pzx_defconfig
@@ -40,6 +46,16 @@ kernel:
 kernel_clean:
 	make -C $(KERNEL_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
 	rm -f $(KERNEL_DIR)/cuskernel
+
+busybox:
+	make -C $(BUSYBOX_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) defconfig
+	sed -i 's/# CONFIG_STATIC is not set/CONFIG_STATIC=y/' $(BUSYBOX_DIR)/.config
+	make -C $(BUSYBOX_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) -j4
+	make -C $(BUSYBOX_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) \
+		CONFIG_PREFIX=$(ROOT_DIR) install
+
+busybox_clean:
+	make -C $(BUSYBOX_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
 
 image:
 	make -C ./loader all
@@ -63,3 +79,5 @@ boot:
 clean:
 	make uboot_clean
 	make kernel_clean
+	make busybox_clean
+	rm -rf $(ROOT_DIR)/*

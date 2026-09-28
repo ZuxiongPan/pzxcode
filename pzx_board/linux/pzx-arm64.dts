@@ -13,7 +13,7 @@
 
 	chosen {
 		stdout-path = &serial0;
-		bootargs = "console=ttyAMA0,115200 earlycon=pl011,0x400000 init=/linuxrc";
+		bootargs = "console=ttyAMA0,115200 earlycon=pl011,0x400000 rdinit=/linuxrc";
 	};
 
 	cpus {
@@ -57,19 +57,19 @@
 			reg = <0x0 0x01000000 0x0 0x00010000>, /* GICD */
 			      <0x0 0x01040000 0x0 0x00080000>; /* GICR */
 		};
-
+/*
 		reserved-memory {
 			#address-cells = <2>;
 			#size-cells = <2>;
 			ranges;
 
 			mblkrsv: memblkrsv@45000000 {
-				reg = <0x0 0x85000000 0x0 0x800000>;
+				reg = <0x0 0x84000000 0x0 0x100000>;
 				no-map;
 			};
 
 			mblkencrsv: memblk_encrsv@45800000 {
-				reg = <0x0 0x85800000 0x0 0x800000>;
+				reg = <0x0 0x84100000 0x0 0x100000>;
 				no-map;
 			};
 		};
@@ -83,7 +83,7 @@
 			compatible = "pzx,memblkenc";
 			memory-region = <&mblkencrsv>;
 		};
-
+*/
 		serial0: serial@400000 {
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0x00400000 0x0 0x00001000>;
