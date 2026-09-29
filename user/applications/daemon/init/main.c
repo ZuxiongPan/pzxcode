@@ -47,12 +47,12 @@ static void signal_set_mask(void)
 
 static void dcomp_highprio_init(void)
 {
-    extern dcomp_init_f __start_highprio_initfuncs[];
-    extern dcomp_init_f __stop_highprio_initfuncs[];
+    extern dcomp_init_f __attribute__((weak)) __start_highprio_initfuncs[];
+    extern dcomp_init_f __attribute__((weak)) __stop_highprio_initfuncs[];
 
     int inner_ret = Success;
     dcomp_init_f *func = __start_highprio_initfuncs;
-    while (func < __stop_highprio_initfuncs)
+    while (func < __stop_highprio_initfuncs && *func != NULL)
     {
         inner_ret = (*func)();
         dprint("highprio init %p ret %d\n", func, inner_ret);
@@ -64,12 +64,12 @@ static void dcomp_highprio_init(void)
 
 static void dcomp_normprio_init(void)
 {
-    extern dcomp_init_f __start_normprio_initfuncs[];
-    extern dcomp_init_f __stop_normprio_initfuncs[];
+    extern dcomp_init_f __attribute__((weak)) __start_normprio_initfuncs[];
+    extern dcomp_init_f __attribute__((weak)) __stop_normprio_initfuncs[];
 
     int inner_ret = Success;
     dcomp_init_f *func = __start_normprio_initfuncs;
-    while (func < __stop_normprio_initfuncs)
+    while (func < __stop_normprio_initfuncs && *func != NULL)
     {
         inner_ret = (*func)();
         dprint("normprio init %p ret %d\n", func, inner_ret);
@@ -81,12 +81,12 @@ static void dcomp_normprio_init(void)
 
 static void dcomp_lowprio_init(void)
 {
-    extern dcomp_init_f __start_lowprio_initfuncs[];
-    extern dcomp_init_f __stop_lowprio_initfuncs[];
+    extern dcomp_init_f __attribute__((weak)) __start_lowprio_initfuncs[];
+    extern dcomp_init_f __attribute__((weak)) __stop_lowprio_initfuncs[];
 
     int inner_ret = Success;
     dcomp_init_f *func = __start_lowprio_initfuncs;
-    while (func < __stop_lowprio_initfuncs)
+    while (func < __stop_lowprio_initfuncs && *func != NULL)
     {
         inner_ret = (*func)();
         dprint("lowprio init %p ret %d\n", func, inner_ret);
@@ -98,11 +98,11 @@ static void dcomp_lowprio_init(void)
 
 static void dcomp_highprio_exit(void)
 {
-    extern dcomp_exit_f __start_highprio_exitfuncs[];
-    extern dcomp_exit_f __stop_highprio_exitfuncs[];
+    extern dcomp_exit_f __attribute__((weak)) __start_highprio_exitfuncs[];
+    extern dcomp_exit_f __attribute__((weak)) __stop_highprio_exitfuncs[];
 
     dcomp_exit_f *func = __start_highprio_exitfuncs;
-    while (func < __stop_highprio_exitfuncs)
+    while (func < __stop_highprio_exitfuncs && *func != NULL)
     {
         (*func)();
         func++;
@@ -113,11 +113,11 @@ static void dcomp_highprio_exit(void)
 
 static void dcomp_normprio_exit(void)
 {
-    extern dcomp_exit_f __start_normprio_exitfuncs[];
-    extern dcomp_exit_f __stop_normprio_exitfuncs[];
+    extern dcomp_exit_f __attribute__((weak)) __start_normprio_exitfuncs[];
+    extern dcomp_exit_f __attribute__((weak)) __stop_normprio_exitfuncs[];
 
     dcomp_exit_f *func = __start_normprio_exitfuncs;
-    while (func < __stop_normprio_exitfuncs)
+    while (func < __stop_normprio_exitfuncs && *func != NULL)
     {
         (*func)();
         func++;
@@ -128,11 +128,11 @@ static void dcomp_normprio_exit(void)
 
 static void dcomp_lowprio_exit(void)
 {
-    extern dcomp_exit_f __start_lowprio_exitfuncs[];
-    extern dcomp_exit_f __stop_lowprio_exitfuncs[];
+    extern dcomp_exit_f __attribute__((weak)) __start_lowprio_exitfuncs[];
+    extern dcomp_exit_f __attribute__((weak)) __stop_lowprio_exitfuncs[];
 
     dcomp_exit_f *func = __start_lowprio_exitfuncs;
-    while (func < __stop_lowprio_exitfuncs)
+    while (func < __stop_lowprio_exitfuncs && *func != NULL)
     {
         (*func)();
         func++;

@@ -38,6 +38,22 @@
 		reg = <0x0 0x80000000 0x0 0x08000000>; /* 128MB DRAM */
 	};
 
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		mblkrsv: memblkrsv@86800000 {
+			reg = <0x0 0x86800000 0x0 0x400000>;
+			no-map;
+		};
+
+		mblkencrsv: memblk_encrsv@86c00000 {
+			reg = <0x0 0x86c00000 0x0 0x400000>;
+			no-map;
+		};
+	};
+	
 	timer {
 		compatible = "arm,armv8-timer";
 		interrupts = <GIC_PPI 13 IRQ_TYPE_LEVEL_LOW>, <GIC_PPI 14 IRQ_TYPE_LEVEL_LOW>,
@@ -57,22 +73,6 @@
 			reg = <0x0 0x01000000 0x0 0x00010000>, /* GICD */
 			      <0x0 0x01040000 0x0 0x00080000>; /* GICR */
 		};
-/*
-		reserved-memory {
-			#address-cells = <2>;
-			#size-cells = <2>;
-			ranges;
-
-			mblkrsv: memblkrsv@45000000 {
-				reg = <0x0 0x84000000 0x0 0x100000>;
-				no-map;
-			};
-
-			mblkencrsv: memblk_encrsv@45800000 {
-				reg = <0x0 0x84100000 0x0 0x100000>;
-				no-map;
-			};
-		};
 
 		memblk {
 			compatible = "pzx,memblk";
@@ -83,13 +83,19 @@
 			compatible = "pzx,memblkenc";
 			memory-region = <&mblkencrsv>;
 		};
-*/
+
 		serial0: serial@400000 {
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0x00400000 0x0 0x00001000>;
 			interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&refclk>, <&refclk>;
 			clock-names = "uart-clock", "apb_pclk";
+		};
+
+		virtio_net: virtio@700000 {
+			compatible = "virtio,mmio";
+			reg = <0x0 0x00700000 0x0 0x00000200>;
+			interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
 		};
 	};
 };
