@@ -13,8 +13,8 @@ mount -t devpts devpts /dev/pts
 # qemu inner virtual gateway IP is 10.0.2.2
 #ifconfig eth0 10.0.2.15 netmask 255.255.255.0 up
 
-hostname pzx
+# hostname pzx
 
-#armd &
+armd &
 # direct connect
 # telnetd &

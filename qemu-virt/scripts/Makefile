@@ -11,6 +11,7 @@ CROSS_COMPILER_DIR := $(TOP_DIR)/aarch64-none-linux-gnu-14.3
 CROSS_COMPILER_PREFIX := $(CROSS_COMPILER_DIR)/bin/aarch64-none-linux-gnu-
 
 export TOP_DIR CODE_DIR KERNEL_DIR UBOOT_DIR QEMU_DIR ROOT_DIR CROSS_COMPILER_PREFIX
+export QEMU_VIRT=y
 
 .PHONY: all prepare config uboot kernel busybox user version \
 	uboot_clean kernel_clean busybox_clean user_clean clean \

@@ -9,12 +9,13 @@ ROOT_DIR := $(TOP_DIR)/root
 CROSS_COMPILER_DIR := $(TOP_DIR)/aarch64-none-linux-gnu-14.3
 CROSS_COMPILER_PREFIX := $(CROSS_COMPILER_DIR)/bin/aarch64-none-linux-gnu-
 
-export TOP_DIR CODE_DIR UBOOT_DIR QEMU_DIR CROSS_COMPILER_PREFIX
+export TOP_DIR CODE_DIR UBOOT_DIR QEMU_DIR ROOT_DIR CROSS_COMPILER_PREFIX
+export PZX_BOARD=y
 
 .PHONY: all prepare uboot uboot_clean clean kernel_clean \
-	busybox busybox_clean image boot
+	busybox busybox_clean image boot user user_clean
 
-all: prepare uboot kernel busybox
+all: prepare uboot kernel busybox user
 
 prepare:
 	sed -i 's/^#define BOOT_METHOD_CUSTOM .*/#define BOOT_METHOD_CUSTOM 0/' $(CODE_DIR)/include/boot/boot_method.h
@@ -27,7 +28,7 @@ prepare:
 	cp $(CODE_DIR)/pzx_board/uboot/arm64-pzx.dts $(UBOOT_DIR)/arch/arm/dts/ -f
 	cp $(CODE_DIR)/pzx_board/uboot/arm64_pzx_defconfig $(UBOOT_DIR)/configs/ -f
 	mkdir -p $(ROOT_DIR)/proc $(ROOT_DIR)/sys $(ROOT_DIR)/dev $(ROOT_DIR)/mnt 
-	mkdir -p $(ROOT_DIR)/lib64 $(ROOT_DIR)/modules $(ROOT_DIR)/var
+	mkdir -p $(ROOT_DIR)/lib64 $(ROOT_DIR)/lib $(ROOT_DIR)/modules $(ROOT_DIR)/var
 	cp $(CODE_DIR)/pzx_board/baserootfs/* $(ROOT_DIR)/ -rf
 
 uboot:
@@ -65,19 +66,40 @@ busybox:
 busybox_clean:
 	make -C $(BUSYBOX_DIR) ARCH=arm64 CROSS_COMPILE=$(CROSS_COMPILER_PREFIX) distclean
 
+user:
+	make -C $(CODE_DIR)/user/lib
+	make -C $(CODE_DIR)/user/lib install
+	make -C $(CODE_DIR)/user/applications
+	make -C $(CODE_DIR)/user/applications install
+	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 $(ROOT_DIR)/lib/ -f
+	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib64/libc.so.6 $(ROOT_DIR)/lib64/ -f
+
+user_clean:
+	make -C $(CODE_DIR)/user/lib clean
+	make -C $(CODE_DIR)/user/applications clean
+
 image:
 	$(UBOOT_DIR)/tools/mkimage -f $(CODE_DIR)/pzx_board/linux/pzx.its $(TOP_DIR)/pzx.itb
 
 boot:
-	$(QEMU_DIR)/build/qemu-system-aarch64 -M pzx \
+	$(QEMU_DIR)/build/qemu-system-aarch64 -M pzx -smp 1 \
 		-monitor telnet:127.0.0.1:9999,server,nowait \
     	-drive file=$(TOP_DIR)/boot.bin,if=sd,format=raw \
 		-netdev user,id=net0,tftp=$(TOP_DIR) \
 		-device virtio-net-device,netdev=net0 \
 		-nographic -no-reboot
 
+boot_debug:
+	$(QEMU_DIR)/build/qemu-system-aarch64 -M pzx -smp 1 \
+		-monitor telnet:127.0.0.1:9999,server,nowait \
+    	-drive file=$(TOP_DIR)/boot.bin,if=sd,format=raw \
+		-netdev user,id=net0,tftp=$(TOP_DIR) \
+		-device virtio-net-device,netdev=net0 \
+		-nographic -no-reboot -S -s
+
 clean:
 	make uboot_clean
 	make kernel_clean
 	make busybox_clean
+	make user_clean
 	rm -rf $(ROOT_DIR)/*

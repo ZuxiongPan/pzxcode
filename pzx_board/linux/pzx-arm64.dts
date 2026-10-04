@@ -9,11 +9,10 @@
 	compatible = "pzx,arm64-machine";
 	#address-cells = <2>;
 	#size-cells = <2>;
-	interrupt-parent = <&gic>;
 
 	chosen {
 		stdout-path = &serial0;
-		bootargs = "console=ttyAMA0,115200 earlycon=pl011,0x400000 rdinit=/linuxrc";
+		bootargs = "console=ttyAMA0,115200 earlycon=pl011,0x400000 rdinit=/linuxrc loglevel=8";
 	};
 
 	cpus {
@@ -38,33 +37,12 @@
 		reg = <0x0 0x80000000 0x0 0x08000000>; /* 128MB DRAM */
 	};
 
-	reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-
-		mblkrsv: memblkrsv@86800000 {
-			reg = <0x0 0x86800000 0x0 0x400000>;
-			no-map;
-		};
-
-		mblkencrsv: memblk_encrsv@86c00000 {
-			reg = <0x0 0x86c00000 0x0 0x400000>;
-			no-map;
-		};
-	};
-	
-	timer {
-		compatible = "arm,armv8-timer";
-		interrupts = <GIC_PPI 13 IRQ_TYPE_LEVEL_LOW>, <GIC_PPI 14 IRQ_TYPE_LEVEL_LOW>,
-					<GIC_PPI 11 IRQ_TYPE_LEVEL_LOW>, <GIC_PPI 10 IRQ_TYPE_LEVEL_LOW>;
-	};
-
 	soc {
 		compatible = "simple-bus";
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
+		interrupt-parent = <&gic>;
 
 		gic: interrupt-controller@1000000 {
 			compatible = "arm,gic-v3";
@@ -72,6 +50,29 @@
 			interrupt-controller;
 			reg = <0x0 0x01000000 0x0 0x00010000>, /* GICD */
 			      <0x0 0x01040000 0x0 0x00080000>; /* GICR */
+		};
+
+		timer {
+			compatible = "arm,armv8-timer";
+			interrupts = <GIC_PPI 13 IRQ_TYPE_LEVEL_LOW>, <GIC_PPI 14 IRQ_TYPE_LEVEL_LOW>,
+					<GIC_PPI 11 IRQ_TYPE_LEVEL_LOW>, <GIC_PPI 10 IRQ_TYPE_LEVEL_LOW>;
+		};
+
+/*
+		reserved-memory {
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges;
+
+			mblkrsv: memblkrsv@45000000 {
+				reg = <0x0 0x84000000 0x0 0x100000>;
+				no-map;
+			};
+
+			mblkencrsv: memblk_encrsv@45800000 {
+				reg = <0x0 0x84100000 0x0 0x100000>;
+				no-map;
+			};
 		};
 
 		memblk {
@@ -83,6 +84,7 @@
 			compatible = "pzx,memblkenc";
 			memory-region = <&mblkencrsv>;
 		};
+*/
 
 		serial0: serial@400000 {
 			compatible = "arm,pl011", "arm,primecell";
@@ -90,6 +92,20 @@
 			interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&refclk>, <&refclk>;
 			clock-names = "uart-clock", "apb_pclk";
+		};
+
+		sysctl: pzxsysctl@600000 {
+			compatible = "syscon", "simple-mfd";
+			reg = <0x0 0x00600000 0x0 0x00001000>;
+		};
+
+		poweroff {
+			compatible = "syscon-poweroff";
+			regmap = <&sysctl>;
+			offset = <0x0>;
+			value = <0x1>;
+			mask = <0xffffffff>;
+			priority = <192>;
 		};
 
 		virtio_net: virtio@700000 {

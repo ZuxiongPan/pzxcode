@@ -1,4 +1,7 @@
 #include <string.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <linux/reboot.h>
 
 #include "dlog.h"
 #include "dconf.h"

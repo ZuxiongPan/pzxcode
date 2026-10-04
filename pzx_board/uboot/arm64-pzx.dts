@@ -66,18 +66,6 @@
 			max-frequency = <12000000>;
 		};
 
-		sysctl: pzxsysctl@600000 {
-			compatible = "syscon", "simple-mfd";
-			reg = <0x0 0x00600000 0x0 0x00001000>;
-		};
-
-		reboot {
-			compatible = "syscon-reboot";
-			regmap = <&sysctl>;
-			offset = <0x0>;
-			value = <0x1>;
-		};
-
 		virtio_net: virtio@700000 {
 			compatible = "virtio,mmio";
 			reg = <0x0 0x00700000 0x0 0x00000200>;

@@ -12,6 +12,7 @@
 #include "hw/sysbus.h"
 #include "hw/qdev-properties.h"
 #include "target/arm/cpu.h"
+#include "hw/arm/bsa.h"
 #include "system/runstate.h"
 #include "system/system.h"
 #include "system/blockdev.h"
@@ -150,6 +151,20 @@ static void pzx_machine_init(MachineState *machine)
 
     // connect cpu to gic
     DeviceState *cpudev = DEVICE(state->cpu);
+    const int timer_irq[] = {
+        [GTIMER_PHYS] = ARCH_TIMER_NS_EL1_IRQ,
+        [GTIMER_VIRT] = ARCH_TIMER_VIRT_IRQ,
+        [GTIMER_HYP]  = ARCH_TIMER_NS_EL2_IRQ,
+        [GTIMER_SEC]  = ARCH_TIMER_S_EL1_IRQ,
+        [GTIMER_HYPVIRT] = ARCH_TIMER_NS_EL2_VIRT_IRQ,
+        [GTIMER_S_EL2_PHYS] = ARCH_TIMER_S_EL2_IRQ,
+        [GTIMER_S_EL2_VIRT] = ARCH_TIMER_S_EL2_VIRT_IRQ,
+    };
+
+    for (unsigned irq = 0; irq < ARRAY_SIZE(timer_irq); irq++)
+    {
+        qdev_connect_gpio_out(cpudev, irq, qdev_get_gpio_in(state->gic, 64 + timer_irq[irq]));
+    }
     sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), 0, qdev_get_gpio_in(cpudev, ARM_CPU_IRQ));
     sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), 1, qdev_get_gpio_in(cpudev, ARM_CPU_FIQ));
     sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), 2, qdev_get_gpio_in(cpudev, ARM_CPU_VIRQ));

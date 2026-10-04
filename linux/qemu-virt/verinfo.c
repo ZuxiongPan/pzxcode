@@ -52,6 +52,27 @@ static const struct proc_ops verinfo_fops = {
 static int __init verinfo_init(void)
 {
     int ret = 0;
+
+    struct device_node *root = of_find_node_by_path("/");
+    if (NULL == root)
+    {
+        pr_err("no root node found in dtb\n");
+        return -ENXIO;
+    }
+    
+    const char *model = of_get_property(root, "model", NULL);
+    if (NULL == model)
+    {
+        pr_err("no model property found in dtb\n");
+        return -ENXIO;
+    }
+
+    if (strstr(model, "PZX") != NULL)
+    {
+        pr_info("model %s do not create verinfo proc\n", model);
+        return 0;
+    }
+
     struct device_node *verinfo_np = of_find_node_by_path("/chosen");
     if(NULL == verinfo_np)
     {
