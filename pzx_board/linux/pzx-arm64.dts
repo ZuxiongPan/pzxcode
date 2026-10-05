@@ -89,7 +89,7 @@
 		serial0: serial@400000 {
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0x00400000 0x0 0x00001000>;
-			interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&refclk>, <&refclk>;
 			clock-names = "uart-clock", "apb_pclk";
 		};
@@ -111,7 +111,7 @@
 		virtio_net: virtio@700000 {
 			compatible = "virtio,mmio";
 			reg = <0x0 0x00700000 0x0 0x00000200>;
-			interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>;
 		};
 	};
 };

@@ -57,7 +57,7 @@ enum {
 };
 
 enum {
-    IRQ_UART = 32,
+    IRQ_UART = 0,
     IRQ_SD,
     IRQ_VIRTIO_NET,
 };

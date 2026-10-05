@@ -202,3 +202,10 @@ aarch64-none-linux-gnu-gdb vmlinux
 (gdb) b do_kernel_restart
 (gdb)  b syscon_restart_handle
 (gdb) c
+
+# use tap device create net link
+sudo ip tuntap add dev tap0 mode tap
+sudo ip link set tap0 up
+sudo ip addr add 10.0.2.2/24 dev tap0
+sudo apt install tftpd-hpa  # using this instead qemu inner tftp server, modify [/etc/default/tftpd-hpa] 'TFTP_DIRECTORY' for target directory
+qemu bootcmd using '-netdev tap,id=net0,ifname=tap0,script=no,downscript=no,vhost=on'

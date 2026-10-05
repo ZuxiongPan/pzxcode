@@ -90,6 +90,8 @@ CONFIG_MODULE_UNLOAD=y
 # Scheduler, power, timers, but no ACPI/DT specific power management
 CONFIG_HIGH_RES_TIMERS=y
 CONFIG_ARM_GIC_V3=y
+CONFIG_NO_HZ=y
+CONFIG_NO_HZ_IDLE=y
 
 # syscon
 CONFIG_MFD_SYSCON=y

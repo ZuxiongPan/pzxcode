@@ -1,8 +1,0 @@
-# /etc/profile: system-wide .profile file for the Bourne shells
-
-hostname pzx
-
-PATH=/bin:/sbin:/usr/bin:/usr/sbin
-LD_LIBRARY_PATH=/lib:/lib64:/usr/lib
-
-export PATH LD_LIBRARY_PATH

@@ -1,5 +1,10 @@
 #! /bin/sh
 
+PATH=/bin:/sbin:/usr/bin:/usr/sbin
+LD_LIBRARY_PATH=/lib:/lib64:/usr/lib
+
+export PATH LD_LIBRARY_PATH
+
 /bin/mount -a
 
 mount -t debugfs none /sys/kernel/debug
@@ -11,10 +16,11 @@ mount -t devpts devpts /dev/pts
 
 # user mode networking, qemu allocate private subnet to guest
 # qemu inner virtual gateway IP is 10.0.2.2
-#ifconfig eth0 10.0.2.15 netmask 255.255.255.0 up
+ifconfig eth0 10.0.2.15 netmask 255.255.255.0 up
 
-# hostname pzx
+hostname pzx
 
 armd &
 # direct connect
 # telnetd &
+echo "Hello Linux Qemu PZX"

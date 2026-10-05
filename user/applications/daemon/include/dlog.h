@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-#if 0
+#if 1
 #define ddebug(fmt, ...) printf("[%s@%d]-debug# " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
 #define dprint(fmt, ...) printf("[%s@%d]-log# " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
 #define derror(fmt, ...) printf("[%s@%d]-error# " fmt, __FILE__, __LINE__, ##__VA_ARGS__)

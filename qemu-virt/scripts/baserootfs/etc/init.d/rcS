@@ -1,5 +1,10 @@
 #! /bin/sh
 
+PATH=/bin:/sbin:/usr/bin:/usr/sbin
+LD_LIBRARY_PATH=/lib:/lib64:/usr/lib
+
+export PATH LD_LIBRARY_PATH
+
 /bin/mount -a
 
 mount -t debugfs none /sys/kernel/debug
@@ -18,3 +23,4 @@ hostname qemu-virt
 armd &
 # direct connect
 # telnetd &
+echo -n "Hello Linux Qemu Virt"
