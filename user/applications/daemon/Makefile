@@ -3,10 +3,7 @@ include config.mk
 TARGET := armd
 
 define add_dir_objs
-	SRCS := $(wildcard $(1)/*.c)
-	ifneq ($(SRCS),)
-		OBJS-y += $(SRCS:.c=.o)
-	endif
+	OBJS-y += $(patsubst %.c,%.o,$(wildcard $(1)/*.c))
 endef
 
 $(foreach dir, $(DIRS-y), $(eval $(call add_dir_objs,$(dir))))
