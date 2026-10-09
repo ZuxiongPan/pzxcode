@@ -49,7 +49,8 @@ int dmodule_handle(void *arg)
         if (NULL != mod->ops->ontask)
         {
             ret = mod->ops->ontask(mod, task);
-            dprint("dmodule_handle ret %d\n", ret);
+            (void)ret;
+            // dprint("dmodule_handle ret %d\n", ret);
         }
     }
 

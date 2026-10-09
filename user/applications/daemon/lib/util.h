@@ -3,6 +3,6 @@
 
 #include <sys/types.h>
 
-pid_t run_new_program(const char *program, char *args[]);
+pid_t run_new_program(const char *program, char *const args[]);
 
 #endif

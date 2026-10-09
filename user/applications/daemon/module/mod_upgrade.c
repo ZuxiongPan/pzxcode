@@ -19,10 +19,10 @@ static void upgrade_handle_simple_str(dtask_t *task)
 
     if (strstr(str, "update"))
     {
-        char *downargs[] = {
+        char *const updateargs[] = {
             "verctrl", "--upgrade", NULL
         };
-        pid_t upgrade = run_new_program("verctrl", downargs);
+        pid_t upgrade = run_new_program("verctrl", updateargs);
         if (upgrade < 0)
         {
             derror("download upgrade file failed\n");

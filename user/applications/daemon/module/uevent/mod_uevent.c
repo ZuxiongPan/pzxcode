@@ -6,6 +6,9 @@
 #include "core/dworker.h"
 #include "core/dfuncalls.h"
 #include "uevent_translator.h"
+#include "lib/util.h"
+
+#define DEVICE_PATH_MAX_LEN 128
 
 static dmod_t ueventmod;
 
@@ -72,14 +75,17 @@ DCOMP_EXIT_NORMPRIO(ueventmod_exit);
 
 static int handle_uevent(const uevent_strs_t *info)
 {
-    if (NULL != info->devtype && !strcmp(info->devtype, "disk"))
+    if (NULL != info->devname && NULL != info->expanded)
     {
-        dprint("disk uevent\n");
-        rawlog("\taction = %s\n", info->action ? info->action : "null");
-        rawlog("\tdevpath = %s\n", info->devpath ? info->devpath : "null");
-        rawlog("\tsubsystem = %s\n", info->subsystem ? info->subsystem : "null");
-        rawlog("\tdevname = %s\n", info->devname ? info->devname : "null");
-        rawlog("\tdevtype = %s\n", info->devtype ? info->devtype : "null");
+        char path[DEVICE_PATH_MAX_LEN] = {0};
+        if (!strcmp(info->expanded, "formatted"))
+        {
+            snprintf(path, DEVICE_PATH_MAX_LEN, "/dev/%s", info->devname);
+            char *const fmtargs[] = {
+                "mkfs.minix", path, NULL
+            };
+            run_new_program("mkfs.minix", fmtargs);
+        }
     }
 
     return Success;

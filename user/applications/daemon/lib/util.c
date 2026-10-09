@@ -4,7 +4,7 @@
 
 extern char *environ[];
 
-pid_t run_new_program(const char *program, char *args[])
+pid_t run_new_program(const char *program, char *const args[])
 {
     pid_t pid = 0;
     int ret = posix_spawnp(&pid, program, NULL, NULL, args, environ);

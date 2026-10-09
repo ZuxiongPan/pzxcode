@@ -17,6 +17,7 @@ static const keyinfo_t uevent_keys[] = {
     [KeyDevname] = { .key = "DEVNAME=", .len = 8 },
     [KeyDevtype] = { .key = "DEVTYPE=", .len = 8 },
     [KeySeqNum] = { .key = "SEQNUM=", .len = 7 },
+    [KeyExpanded] = { .key = "EXPANDED=", .len = 9 },
 };
 
 static int seqnum;
@@ -61,7 +62,10 @@ void uevent_translate(const char *data, unsigned int size, uevent_strs_t *info)
         {
             info->seqnum = ptr + uevent_keys[KeySeqNum].len;
         }
-
+        else if (strncmp(ptr, uevent_keys[KeyExpanded].key, uevent_keys[KeyExpanded].len) == 0)
+        {
+            info->expanded = ptr + uevent_keys[KeyExpanded].len;
+        }
         ptr += strlen(ptr) + 1;
     }
 

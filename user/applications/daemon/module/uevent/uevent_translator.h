@@ -8,6 +8,7 @@ enum uevent_keys_id {
     KeyDevname,
     KeyDevtype,
     KeySeqNum,
+    KeyExpanded,
 };
 
 typedef struct uevent_strs {
@@ -17,6 +18,7 @@ typedef struct uevent_strs {
     const char *devname;
     const char *devtype;
     const char *seqnum;
+    const char *expanded;
 } uevent_strs_t;
 
 void uevent_translate(const char *data, unsigned int size, uevent_strs_t *info);

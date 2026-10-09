@@ -73,6 +73,7 @@ user:
 	make -C $(CODE_DIR)/user/applications install
 	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib/ld-linux-aarch64.so.1 $(ROOT_DIR)/lib/ -f
 	cp $(CROSS_COMPILER_DIR)/aarch64-none-linux-gnu/libc/lib64/libc.so.6 $(ROOT_DIR)/lib64/ -f
+	find $(CODE_DIR)/linux/ -name *.ko -exec cp -f {} $(ROOT_DIR)/modules/ \;
 
 user_clean:
 	make -C $(CODE_DIR)/user/lib clean

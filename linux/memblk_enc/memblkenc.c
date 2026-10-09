@@ -7,6 +7,7 @@
 #include <crypto/skcipher.h>
 #include <linux/scatterlist.h>
 #include <linux/crypto.h>
+#include "kernel/pzxktools.h"
 
 #define MEMBLKENC_DEVICE_NAME "memblkenc"
 
@@ -59,7 +60,7 @@ static void memblkenc_submit_bio(struct bio *bio)
 
     bio_for_each_segment(bvec, bio, biter)
     {
-        void *addr = kmap_atomic(bvec.bv_page) + bvec.bv_offset;
+        void *addr = bvec_kmap_local(&bvec);
         size_t bvec_len = bvec.bv_len;
         void *curr_addr = addr;
 
@@ -85,7 +86,7 @@ static void memblkenc_submit_bio(struct bio *bio)
             iter_sector += (chunk_len >> SECTOR_SHIFT);
         }
 
-        kunmap_atomic(addr);
+        kunmap_local(addr);
     }
 
     bio_endio(bio);
@@ -191,8 +192,12 @@ static int memblkenc_probe(struct platform_device *pdev)
         crypto_free_skcipher(memblkenc->tfm);
         return ret;
     }
+    
+    ret = uevent_expanded_info(&disk_to_dev(memblkenc->disk)->kobj, "formatted");
+    if (ret)
+        pr_warn("failed to send format uevent: %d\n", ret);
 
-    pr_info("memblk init success, block device start address %llx\n", (unsigned long long)memblkenc->vaddr);
+    pr_info("memblkenc init success, block device start address 0x%llx\n", (unsigned long long)memblkenc->vaddr);
 
     return 0;
 }

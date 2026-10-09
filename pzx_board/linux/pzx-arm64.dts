@@ -37,6 +37,22 @@
 		reg = <0x0 0x80000000 0x0 0x08000000>; /* 128MB DRAM */
 	};
 
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		mblkrsv: memblkrsv@86000000 {
+			reg = <0x0 0x86000000 0x0 0x800000>;
+			no-map;
+		};
+
+		mblkencrsv: memblk_encrsv@86800000 {
+			reg = <0x0 0x86800000 0x0 0x800000>;
+			no-map;
+		};
+	};
+
 	soc {
 		compatible = "simple-bus";
 		#address-cells = <2>;
@@ -58,23 +74,6 @@
 					<GIC_PPI 11 IRQ_TYPE_LEVEL_LOW>, <GIC_PPI 10 IRQ_TYPE_LEVEL_LOW>;
 		};
 
-/*
-		reserved-memory {
-			#address-cells = <2>;
-			#size-cells = <2>;
-			ranges;
-
-			mblkrsv: memblkrsv@45000000 {
-				reg = <0x0 0x84000000 0x0 0x100000>;
-				no-map;
-			};
-
-			mblkencrsv: memblk_encrsv@45800000 {
-				reg = <0x0 0x84100000 0x0 0x100000>;
-				no-map;
-			};
-		};
-
 		memblk {
 			compatible = "pzx,memblk";
 			memory-region = <&mblkrsv>;
@@ -84,7 +83,6 @@
 			compatible = "pzx,memblkenc";
 			memory-region = <&mblkencrsv>;
 		};
-*/
 
 		serial0: serial@400000 {
 			compatible = "arm,pl011", "arm,primecell";

@@ -4,6 +4,7 @@
 #include <linux/platform_device.h>
 #include <linux/of_address.h>
 #include <linux/of_reserved_mem.h>
+#include "kernel/pzxktools.h"
 
 #define MEMBLK_DEVICE_NAME "memblk"
 
@@ -27,26 +28,25 @@ static void memblk_submit_bio(struct bio *bio)
 
     bio_for_each_segment(bvec, bio, biter)
     {
-        void *addr = kmap_atomic(bvec.bv_page) + bvec.bv_offset;
-
         if(unlikely(offset + bvec.bv_len > mbd->memsize))
         {
-            kunmap_atomic(addr);
             bio_io_error(bio);
             return ;
         }
 
+        void *addr = bvec_kmap_local(&bvec);
+
         if(WRITE == bio_data_dir(bio))
         {
-            memcpy(mbd->vaddr + offset, addr, bvec.bv_len);
+            memcpy_toio(mbd->vaddr + offset, addr, bvec.bv_len);
         }
         else
         {
-            memcpy(addr, mbd->vaddr + offset, bvec.bv_len);
+            memcpy_fromio(addr, mbd->vaddr + offset, bvec.bv_len);
         }
 
         offset += bvec.bv_len;
-        kunmap_atomic(addr);
+        kunmap_local(addr);
     }
 
     bio_endio(bio);
@@ -135,7 +135,11 @@ static int memblk_probe(struct platform_device *pdev)
         return ret;
     }
 
-    pr_info("memblk init success, block device start address %llx\n", (unsigned long long)memblk->vaddr);
+    ret = uevent_expanded_info(&disk_to_dev(memblk->disk)->kobj, "formatted");
+    if (ret)
+        pr_warn("failed to send format uevent: %d\n", ret);
+
+    pr_info("memblk init success, block device start address 0x%llx\n", (unsigned long long)memblk->vaddr);
 
     return 0;
 }
