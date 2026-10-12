@@ -89,7 +89,7 @@
 			reg = <0x0 0x00400000 0x0 0x00001000>;
 			interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&refclk>, <&refclk>;
-			clock-names = "uart-clock", "apb_pclk";
+			clock-names = "uartclk", "apb_pclk";
 		};
 
 		sysctl: pzxsysctl@600000 {

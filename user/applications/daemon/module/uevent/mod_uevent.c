@@ -1,4 +1,6 @@
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/mount.h>
 
 #include "dlog.h"
 #include "dconf.h"
@@ -75,18 +77,49 @@ DCOMP_EXIT_NORMPRIO(ueventmod_exit);
 
 static int handle_uevent(const uevent_strs_t *info)
 {
+    int ret = Success;
+    struct stat st;
+    memset(&st, 0, sizeof(struct stat));
     if (NULL != info->devname && NULL != info->expanded)
     {
-        char path[DEVICE_PATH_MAX_LEN] = {0};
+        char devpath[DEVICE_PATH_MAX_LEN] = {0};
+        char mntpath[DEVICE_PATH_MAX_LEN] = {0};
         if (!strcmp(info->expanded, "formatted"))
         {
-            snprintf(path, DEVICE_PATH_MAX_LEN, "/dev/%s", info->devname);
+            snprintf(devpath, DEVICE_PATH_MAX_LEN, "/dev/%s", info->devname);
             char *const fmtargs[] = {
-                "mkfs.minix", path, NULL
+                "mkfs.minix", devpath, NULL
             };
-            run_new_program("mkfs.minix", fmtargs);
+            ret = run_new_program_sync("mkfs.minix", fmtargs);
+        }
+
+        if (ret == Success)
+        {
+            snprintf(mntpath, DEVICE_PATH_MAX_LEN, "/mnt/%s", info->devname);
+            ret = stat(mntpath, &st);
+            if (ret < 0)
+            {
+                if (mkdir(mntpath, 0755) < 0)
+                {
+                    derror("mkdir %s failed\n", mntpath);
+                    ret = Fail;
+                }
+                else
+                {
+                    ret = mount(devpath, mntpath, "minix", 0, NULL);
+                }
+            }
+            else if (S_ISDIR(st.st_mode))
+            {
+                ret = mount(devpath, mntpath, "minix", 0, NULL);
+            }
+            else
+            {
+                derror("mount %s to %s failed\n", devpath, mntpath);
+                ret = Fail;
+            }
         }
     }
 
-    return Success;
+    return ret;
 }

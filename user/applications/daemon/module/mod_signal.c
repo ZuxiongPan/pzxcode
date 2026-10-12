@@ -11,6 +11,7 @@
 #include "core/dfuncalls.h"
 #include "channel/chnl_api.h"
 #include "module/dmsgid.h"
+#include "lib/util.h"
 
 static dmod_t signalmod;
 
@@ -33,7 +34,8 @@ static int handle_signal(uint32_t signo)
                 child = waitpid(-1, &status, WNOHANG);
                 if(child > 0)
                 {
-                    dprint("child process %d exited with status 0x%x\n", child, status);
+                    int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : Fail;
+                    set_child_finished(child, exit_code);
                 }
                 else if (child == 0)
                 {
