@@ -190,16 +190,11 @@ static int memblkenc_probe(struct platform_device *pdev)
         put_disk(memblkenc->disk);
         unregister_blkdev(memblkenc->major, MEMBLKENC_DEVICE_NAME);
         crypto_free_skcipher(memblkenc->tfm);
-        return ret;
     }
-    
-    ret = uevent_expanded_info(&disk_to_dev(memblkenc->disk)->kobj, "formatted");
-    if (ret)
-        pr_warn("failed to send format uevent: %d\n", ret);
 
     pr_info("memblkenc init success, block device start address 0x%llx\n", (unsigned long long)memblkenc->vaddr);
 
-    return 0;
+    return ret;
 }
 
 static void memblkenc_remove(struct platform_device *pdev)

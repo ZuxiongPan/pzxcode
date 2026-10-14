@@ -132,16 +132,11 @@ static int memblk_probe(struct platform_device *pdev)
         pr_err("add %s disk failed\n", MEMBLK_DEVICE_NAME);
         put_disk(memblk->disk);
         unregister_blkdev(memblk->major, MEMBLK_DEVICE_NAME);
-        return ret;
     }
-
-    ret = uevent_expanded_info(&disk_to_dev(memblk->disk)->kobj, "formatted");
-    if (ret)
-        pr_warn("failed to send format uevent: %d\n", ret);
 
     pr_info("memblk init success, block device start address 0x%llx\n", (unsigned long long)memblk->vaddr);
 
-    return 0;
+    return ret;
 }
 
 static void memblk_remove(struct platform_device *pdev)

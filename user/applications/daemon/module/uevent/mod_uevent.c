@@ -7,14 +7,11 @@
 #include "core/dmodule.h"
 #include "core/dworker.h"
 #include "core/dfuncalls.h"
-#include "uevent_translator.h"
 #include "lib/util.h"
 
 #define DEVICE_PATH_MAX_LEN 128
 
 static dmod_t ueventmod;
-
-static int handle_uevent(const uevent_strs_t *info);
 
 static int ueventmod_ontask(dmod_t *m, void *arg)
 {
@@ -25,23 +22,28 @@ static int ueventmod_ontask(dmod_t *m, void *arg)
         return Fail;
     }
 
-    int ret = Fail;
     dtask_t *task = (dtask_t *)arg;
-    uevent_strs_t info;
-    memset(&info, 0, sizeof(uevent_strs_t));
 
     switch (task->datatype)
     {
         case DataBinaryToModule:
-            uevent_translate(task->data, task->data_size, &info);
-            ret = handle_uevent(&info);
+            char *str = (char *)task->data;
+            for (unsigned int i = 0; i < task->data_size; i++)
+            {
+                if (str[i] == '\0')
+                {
+                    str[i] = ',';
+                }
+            }
+            str[task->data_size - 1] = '\0';
+            dprint("uevent string {%s}\n", str);
             break;
         default:
             derror("unknown task datatype %d\n", task->datatype);
             break;
     }
 
-    return ret;
+    return Success;
 }
 
 static const mod_ops_t ueventmod_ops = {
@@ -52,7 +54,7 @@ int ueventmod_init(void)
 {
     int ret = Success;
     memset(&ueventmod, 0, sizeof(dmod_t));
-    dcomponent_init(&ueventmod.dcomp, ModuleIDUevent, "netlink");
+    dcomponent_init(&ueventmod.dcomp, ModuleIDUevent, "uevent");
     ueventmod.ops = &ueventmod_ops;
 
     ret = dmodule_register(&ueventmod);
@@ -75,6 +77,7 @@ void ueventmod_exit(void)
 DCOMP_INIT_NORMPRIO(ueventmod_init);
 DCOMP_EXIT_NORMPRIO(ueventmod_exit);
 
+/*
 static int handle_uevent(const uevent_strs_t *info)
 {
     int ret = Success;
@@ -106,12 +109,12 @@ static int handle_uevent(const uevent_strs_t *info)
                 }
                 else
                 {
-                    ret = mount(devpath, mntpath, "minix", 0, NULL);
+                    ret = mount(devpath, mntpath, NULL, 0, NULL);
                 }
             }
             else if (S_ISDIR(st.st_mode))
             {
-                ret = mount(devpath, mntpath, "minix", 0, NULL);
+                ret = mount(devpath, mntpath, NULL, 0, NULL);
             }
             else
             {
@@ -123,3 +126,4 @@ static int handle_uevent(const uevent_strs_t *info)
 
     return ret;
 }
+*/
