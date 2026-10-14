@@ -192,7 +192,7 @@ static int memblkenc_probe(struct platform_device *pdev)
         crypto_free_skcipher(memblkenc->tfm);
     }
 
-    pr_info("memblkenc init success, block device start address 0x%llx\n", (unsigned long long)memblkenc->vaddr);
+    pr_info("memblkenc init ret = %d, block device start address 0x%llx\n", ret, (unsigned long long)memblkenc->vaddr);
 
     return ret;
 }

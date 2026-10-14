@@ -134,7 +134,7 @@ static int memblk_probe(struct platform_device *pdev)
         unregister_blkdev(memblk->major, MEMBLK_DEVICE_NAME);
     }
 
-    pr_info("memblk init success, block device start address 0x%llx\n", (unsigned long long)memblk->vaddr);
+    pr_info("memblk init ret = %d, block device start address 0x%llx\n", ret, (unsigned long long)memblk->vaddr);
 
     return ret;
 }
