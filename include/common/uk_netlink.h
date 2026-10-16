@@ -1,6 +1,10 @@
 #ifndef _UK_NETLINK_H_
 #define _UK_NETLINK_H_
 
+#define PZX_KEVENT_GENL_VERSION 1
+#define PZX_KEVENT_GENL_GROUP "pzx_kevent"
+#define PZX_KEVENT_GENL_FAMILY "pzx_kfamily"
+
 enum uk_nlcmd {
     NLCMD_UNSPEC,
     NLCMD_DEVADD,

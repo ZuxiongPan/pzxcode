@@ -9,7 +9,7 @@ endef
 $(foreach dir, $(DIRS-y), $(eval $(call add_dir_objs,$(dir))))
 $(foreach dir, $(MOD_SUBDIRS-y), $(eval $(call add_dir_objs,$(dir))))
 
-CFLAGS += -I$(DAEMON_DIR)/include -I$(DAEMON_DIR)
+CFLAGS += -I$(DAEMON_DIR)/include -I$(DAEMON_DIR) -I$(CODE_DIR)/include
 LDFLAGS += -lpthread
 
 all: $(TARGET) sendcmd
