@@ -7,7 +7,9 @@
 #include "core/dmodule.h"
 #include "core/dworker.h"
 #include "core/dfuncalls.h"
+#include "channel/chnl_api.h"
 #include "lib/util.h"
+#include "common/uk_netlink.h"
 
 #define DEVICE_PATH_MAX_LEN 128
 
@@ -23,11 +25,12 @@ static int ueventmod_ontask(dmod_t *m, void *arg)
     }
 
     dtask_t *task = (dtask_t *)arg;
+    char *str = (char *)task->data;
+    int ret = Success;
 
     switch (task->datatype)
     {
         case DataBinaryToModule:
-            char *str = (char *)task->data;
             for (unsigned int i = 0; i < task->data_size; i++)
             {
                 if (str[i] == '\0')
@@ -37,6 +40,16 @@ static int ueventmod_ontask(dmod_t *m, void *arg)
             }
             str[task->data_size - 1] = '\0';
             dprint("uevent string {%s}\n", str);
+            break;
+        case DataGenlAttrs:
+            struct nlattr *tb[NLATTR_MAX + 1] = {0};
+            ret = genl_parse_attrs_armd(task->data, task->data_size, tb);
+            if (ret == Success)
+            {
+                dprint("genl_parse_attrs_armd success [%s] [%s]\n",
+                    (char *)(tb[NLATTR_TARGET] + NLA_HDRLEN),
+                    (char *)(tb[NLATTR_DATA] + NLA_HDRLEN));
+            }
             break;
         default:
             derror("unknown task datatype %d\n", task->datatype);

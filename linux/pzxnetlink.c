@@ -9,7 +9,7 @@
 #include "common/uk_netlink.h"
 #include "kernel/pzxktools.h"
 
-#define NETLINK_TIMER_TEST 0
+#define NETLINK_TIMER_TEST 1
 
 #if NETLINK_TIMER_TEST
 #include <linux/workqueue.h>
@@ -31,7 +31,7 @@ static struct genl_family pzx_genl_family __ro_after_init = {
     .module = THIS_MODULE,
 };
 
-int pzx_netlink_async_send(u32 cmd, const char *target, const void *data, size_t data_len)
+int pzx_netlink_async_send(const char *target, const void *data, size_t data_len)
 {
     if (NULL == target)
     {
@@ -50,7 +50,7 @@ int pzx_netlink_async_send(u32 cmd, const char *target, const void *data, size_t
         return -ENOMEM;
     }
 
-    hdr = genlmsg_put(skb, 0, 0, &pzx_genl_family, 0, cmd);
+    hdr = genlmsg_put(skb, 0, 0, &pzx_genl_family, 0, NLCMD_INFORM);
     if (NULL == hdr)
     {
         pr_err("genlmsg_put failed\n");
@@ -100,7 +100,7 @@ static void timer_work_func(struct work_struct *work)
 
     ticks++;
     len = snprintf(payload, sizeof(payload), "ABCD ticks = %d wxyz", ticks);
-    ret = pzx_netlink_async_send(10, "timer_test", payload, len + 1);
+    ret = pzx_netlink_async_send("timer_test", payload, len + 1);
     if (ret && ret != -ESRCH)
         pr_err("pzx_netlink_async_send failed: ret = %d\n", ret);
 
@@ -169,6 +169,11 @@ static const struct proc_ops pzxnetlink_proc_ops = {
 static int __init pzx_netlink_init(void)
 {
     int ret = genl_register_family(&pzx_genl_family);
+    if (ret)
+    {
+        pr_err("genl_register_family failed: ret = %d\n", ret);
+        return ret;
+    }
 
 #if NETLINK_TIMER_TEST
     INIT_DELAYED_WORK(&timer_work, timer_work_func);
@@ -181,8 +186,7 @@ static int __init pzx_netlink_init(void)
     }
 #endif
 
-    pr_info("pzx_netlink_init: ret = %d\n", ret);
-    return ret;
+    return 0;
 }
 
 subsys_initcall(pzx_netlink_init);

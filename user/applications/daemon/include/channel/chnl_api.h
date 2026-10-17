@@ -3,6 +3,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <linux/netlink.h>
+
+int genl_parse_attrs_armd(const void *attrs, int len, struct nlattr **tb);
 
 int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat,
             int modid, unsigned int msgid);

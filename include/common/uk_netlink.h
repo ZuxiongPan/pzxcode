@@ -5,13 +5,7 @@
 #define PZX_KEVENT_GENL_GROUP "pzx_kevent"
 #define PZX_KEVENT_GENL_FAMILY "pzx_kfamily"
 
-enum uk_nlcmd {
-    NLCMD_UNSPEC,
-    NLCMD_DEVADD,
-    NLCMD_DEVDEL,
-    __NLCMD_MAX,
-};
-#define NLCMD_MAX (__NLCMD_MAX - 1)
+#define NLCMD_INFORM 0x55
 
 enum uk_nlattr {
     NLATTR_UNSPEC,

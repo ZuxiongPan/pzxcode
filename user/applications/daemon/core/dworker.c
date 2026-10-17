@@ -224,6 +224,7 @@ static int process_task(char *buffer)
     {
         case DataModuleMsg:
         case DataBinaryToModule:
+        case DataGenlAttrs:
             ret = dmodule_handle(buffer);
             break;
         case DataRawBinary:
