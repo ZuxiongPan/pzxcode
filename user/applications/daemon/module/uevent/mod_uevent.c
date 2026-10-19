@@ -47,8 +47,8 @@ static int ueventmod_ontask(dmod_t *m, void *arg)
             if (ret == Success)
             {
                 dprint("genl_parse_attrs_armd success [%s] [%s]\n",
-                    (char *)(tb[NLATTR_TARGET] + NLA_HDRLEN),
-                    (char *)(tb[NLATTR_DATA] + NLA_HDRLEN));
+                    (char *)tb[NLATTR_TARGET] + NLA_HDRLEN,
+                    (char *)tb[NLATTR_DATA] + NLA_HDRLEN);
             }
             break;
         default:

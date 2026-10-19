@@ -177,7 +177,7 @@ static int __init pzx_netlink_init(void)
 
 #if NETLINK_TIMER_TEST
     INIT_DELAYED_WORK(&timer_work, timer_work_func);
-    pzxnetlink = proc_create("pzx_netlink", 0222, NULL, &pzxnetlink_proc_ops);
+    pzxnetlink = proc_create("genl_test", 0222, NULL, &pzxnetlink_proc_ops);
     if (NULL == pzxnetlink)
     {
         genl_unregister_family(&pzx_genl_family);

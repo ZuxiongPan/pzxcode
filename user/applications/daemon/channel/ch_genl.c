@@ -264,7 +264,6 @@ static int genl_parse_kmsg(const void *buf, ssize_t len,
                 }
                 break;
             default:
-                ddebug("unknown generic netlink message type: %u\n", nlh->nlmsg_type);
                 if (info->status == GenlStatusRegister &&
                     nlh->nlmsg_type == info->family_id)
                 {
@@ -273,12 +272,19 @@ static int genl_parse_kmsg(const void *buf, ssize_t len,
                     ret = task_enqueue(DataGenlAttrs, genl_chnl.dcomp.dcompid,
                         ModuleIDUevent, 0, attr_len, (void *)(attrs));
                 }
+                else
+                {
+                    ddebug("unknown generic netlink message type: %u\n", nlh->nlmsg_type);
+                }
                 break;
         }
         nlh = NLMSG_NEXT(nlh, rem);
     }
 
-    ddebug("malformed generic netlink datagram: remaining=%d\n", rem);
+    if (rem != 0)
+    {
+        ddebug("malformed generic netlink datagram: remaining=%d\n", rem);
+    }
     return ret;
 }
 
