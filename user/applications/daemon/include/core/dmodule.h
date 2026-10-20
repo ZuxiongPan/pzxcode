@@ -12,7 +12,7 @@ struct daemon_module;
 
 struct mod_ops {
     // arg here is the task pointer
-    int (*ontask)(struct daemon_module *m, void *arg);
+    int (*ontask)(struct daemon_module *m, int src_compid, unsigned int msgid, void *data);
 };
 typedef struct mod_ops mod_ops_t;
 
@@ -25,6 +25,6 @@ typedef struct daemon_module dmod_t;
 
 int dmodule_register(dmod_t *mod);
 void dmodule_unregister(dmod_t *mod);
-int dmodule_handle(void *arg);
+int dmodule_handle(int src_compid, int dst_compid, unsigned int msgid, void *data);
 
 #endif

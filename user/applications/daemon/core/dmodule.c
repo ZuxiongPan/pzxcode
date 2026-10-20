@@ -38,17 +38,16 @@ void dmodule_unregister(dmod_t *mod)
     dcomponent_record_del(&mod->dcomp);
 }
 
-int dmodule_handle(void *arg)
+int dmodule_handle(int src_compid, int dst_compid, unsigned int msgid, void *data)
 {
     int ret = Success;
-    dtask_t *task = (dtask_t *)arg;
-    dcomp_t *dst = find_dcomponent_by_id(task->dst_compid);
+    dcomp_t *dst = find_dcomponent_by_id(dst_compid);
     if (NULL != dst)
     {
         dmod_t *mod = (dmod_t *)dst;
         if (NULL != mod->ops->ontask)
         {
-            ret = mod->ops->ontask(mod, task);
+            ret = mod->ops->ontask(mod, src_compid, msgid, data);
             (void)ret;
             // dprint("dmodule_handle ret %d\n", ret);
         }

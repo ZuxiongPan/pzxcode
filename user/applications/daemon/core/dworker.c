@@ -14,7 +14,8 @@
 
 static const int task_max_needed = TASK_DATA_MAXSIZE + sizeof(dtask_t);
 static int process_task(char *buffer);
-static void rawstr_parse(const char *rawstr, int *real_dst, unsigned int *msgid);
+static void rawbinary_parse(char *binary, int *real_dst,
+    unsigned int *msgid, unsigned int data_size);
 
 static inline dtask_t* get_task_addr(task_queue_t *queue, unsigned int offset)
 {
@@ -216,22 +217,23 @@ void worker_manager_destroy(dworker_mgr_t* mgr)
 static int process_task(char *buffer)
 {
     dtask_t *task = (dtask_t *)buffer;
-    int real_dst = DCOMPID_NONE;
-    unsigned int msgid = 0;
+    int real_dst = task->dst_compid;
+    unsigned int msgid = task->msgid;
     int ret = Success;
 
     switch (task->datatype)
     {
-        case DataModuleMsg:
-        case DataBinaryToModule:
-        case DataGenlAttrs:
-            ret = dmodule_handle(buffer);
-            break;
+        // case DataModuleMsg:
+        // case DataBinaryToModule:
+        // case DataGenlAttrs:
+        //     ret = dmodule_handle(buffer);
+        //     break;
         case DataRawBinary:
-            rawstr_parse(task->data, &real_dst, &msgid);
-            task->dst_compid = real_dst;
-            task->msgid = msgid;
-            ret = dmodule_handle(buffer);
+            if (real_dst == DCOMPID_NONE && msgid == 0)
+            {
+                rawbinary_parse(task->data, &real_dst, &msgid, task->data_size);
+            }
+            ret = dmodule_handle(task->src_compid, real_dst, msgid, task->data);
             break;
         case DataToOuter:   
             ret = dchannel_write_to_outer(buffer);
@@ -244,14 +246,15 @@ static int process_task(char *buffer)
     return ret;
 }
 
-static void rawstr_parse(const char *rawstr, int *real_dst, unsigned int *msgid)
+static void rawbinary_parse(char *binary, int *real_dst,
+    unsigned int *msgid, unsigned int data_size)
 {
     *real_dst = DCOMPID_NONE;
     *msgid = 0;
 
-    if (*rawstr == '/')
+    if (*binary == '/')
     {
-        const char *target = rawstr + 1;
+        const char *target = binary + 1;
         const char *type = strchr(target, '/');
         char module[MODULE_TMPNAME_MAXSIZE] = { 0 };
         unsigned long len = (type - target);
@@ -269,13 +272,15 @@ static void rawstr_parse(const char *rawstr, int *real_dst, unsigned int *msgid)
         }
         *real_dst = comp->dcompid;
         *msgid = MSGID_SIMPLE_STR;
+        memmove(binary, type + 1, data_size - (type - binary) - 1);
     }
-    else if (*rawstr == '{')
+/*
+    else if (*binary == '{')
     {
-        cJSON *root = cJSON_Parse(rawstr);
+        cJSON *root = cJSON_Parse(binary);
         if (root == NULL)
         {
-            derror("failed to parse rawstr %s\n", rawstr);
+            derror("failed to parse binary %s\n", binary);
             return ;
         }
 
@@ -300,9 +305,15 @@ static void rawstr_parse(const char *rawstr, int *real_dst, unsigned int *msgid)
 
         cJSON_Delete(root);
     }
+*/
     else
     {
-        derror("invalid rawstr %s\n", rawstr);
+        derror("invalid binary: ");
+        for (int i = 0; i < data_size; i++)
+        {
+            rawlog("0x%02x ", binary[i]);
+        }
+        derror("\n");
     }
 
     return ;

@@ -9,7 +9,7 @@
 #include "common/uk_netlink.h"
 #include "kernel/pzxktools.h"
 
-#define NETLINK_TIMER_TEST 1
+#define NETLINK_TIMER_TEST 0
 
 #if NETLINK_TIMER_TEST
 #include <linux/workqueue.h>
@@ -31,7 +31,7 @@ static struct genl_family pzx_genl_family __ro_after_init = {
     .module = THIS_MODULE,
 };
 
-int pzx_netlink_async_send(const char *target, const void *data, size_t data_len)
+int genl_async_send(const char *target, const void *data, size_t data_len)
 {
     if (NULL == target)
     {
@@ -84,14 +84,14 @@ int pzx_netlink_async_send(const char *target, const void *data, size_t data_len
 
     return ret;
 }
-EXPORT_SYMBOL(pzx_netlink_async_send);
+EXPORT_SYMBOL(genl_async_send);
 
 #if NETLINK_TIMER_TEST
 static struct delayed_work timer_work;
 static int ticks = 0;
 static const int timeout = 3000;
 static bool running = false;
-static struct proc_dir_entry *pzxnetlink = NULL;
+static struct proc_dir_entry *genl_proc = NULL;
 
 static void timer_work_func(struct work_struct *work)
 {
@@ -100,9 +100,9 @@ static void timer_work_func(struct work_struct *work)
 
     ticks++;
     len = snprintf(payload, sizeof(payload), "ABCD ticks = %d wxyz", ticks);
-    ret = pzx_netlink_async_send("timer_test", payload, len + 1);
+    ret = genl_async_send("timer_test", payload, len + 1);
     if (ret && ret != -ESRCH)
-        pr_err("pzx_netlink_async_send failed: ret = %d\n", ret);
+        pr_err("genl_async_send failed: ret = %d\n", ret);
 
     if (READ_ONCE(running))
         schedule_delayed_work(&timer_work, msecs_to_jiffies(timeout));
@@ -128,7 +128,7 @@ static void timer_stop(void)
     pr_info("timer_stop: ticks = %d\n", ticks);
 }
 
-static ssize_t pzxnetlink_proc_write(struct file *file, const char __user *buf,
+static ssize_t genl_proc_write(struct file *file, const char __user *buf,
     size_t count, loff_t *ppos)
 {
     char kbuf[16] = {0};
@@ -161,8 +161,8 @@ static ssize_t pzxnetlink_proc_write(struct file *file, const char __user *buf,
     return count;
 }
 
-static const struct proc_ops pzxnetlink_proc_ops = {
-    .proc_write = pzxnetlink_proc_write,
+static const struct proc_ops genl_proc_ops = {
+    .proc_write = genl_proc_write,
 };
 #endif
 
@@ -177,8 +177,8 @@ static int __init pzx_netlink_init(void)
 
 #if NETLINK_TIMER_TEST
     INIT_DELAYED_WORK(&timer_work, timer_work_func);
-    pzxnetlink = proc_create("genl_test", 0222, NULL, &pzxnetlink_proc_ops);
-    if (NULL == pzxnetlink)
+    genl_proc = proc_create("genl_test", 0222, NULL, &genl_proc_ops);
+    if (NULL == genl_proc)
     {
         genl_unregister_family(&pzx_genl_family);
         pr_err("proc_create failed\n");
