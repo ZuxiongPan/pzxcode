@@ -9,7 +9,7 @@
 #include "common/uk_netlink.h"
 #include "kernel/pzxktools.h"
 
-#define NETLINK_TIMER_TEST 0
+#define NETLINK_TIMER_TEST 1
 
 #if NETLINK_TIMER_TEST
 #include <linux/workqueue.h>

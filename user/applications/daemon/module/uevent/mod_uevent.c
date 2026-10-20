@@ -8,55 +8,43 @@
 #include "core/dworker.h"
 #include "core/dfuncalls.h"
 #include "channel/chnl_api.h"
+#include "module/dmsgid.h"
 #include "lib/util.h"
-#include "common/uk_netlink.h"
 
 #define DEVICE_PATH_MAX_LEN 128
 
 static dmod_t ueventmod;
 
-static int ueventmod_ontask(dmod_t *m, void *arg)
+static int ueventmod_ontask(dmod_t *m, int src_compid, unsigned int msgid,
+    void *data, unsigned int data_size)
 {
     (void)m;
-    if (NULL == arg)
-    {
-        dprint("invalid task\n");
-        return Fail;
-    }
-
-    dtask_t *task = (dtask_t *)arg;
-    char *str = (char *)task->data;
+    (void)src_compid;
     int ret = Success;
+    char *str = data;
 
-    switch (task->datatype)
+    switch (msgid)
     {
-        case DataBinaryToModule:
-            for (unsigned int i = 0; i < task->data_size; i++)
+        case MSGID_UEVENT_BIN:
+            for (unsigned int i = 0; i < data_size; i++)
             {
                 if (str[i] == '\0')
                 {
                     str[i] = ',';
                 }
             }
-            str[task->data_size - 1] = '\0';
+            str[data_size - 1] = '\0';
             dprint("uevent string {%s}\n", str);
             break;
-        case DataGenlAttrs:
-            struct nlattr *tb[NLATTR_MAX + 1] = {0};
-            ret = genl_parse_attrs_armd(task->data, task->data_size, tb);
-            if (ret == Success)
-            {
-                dprint("genl_parse_attrs_armd success [%s] [%s]\n",
-                    (char *)tb[NLATTR_TARGET] + NLA_HDRLEN,
-                    (char *)tb[NLATTR_DATA] + NLA_HDRLEN);
-            }
+        case MSGID_GENL_BIN:
+            dprint("genl string {%s}\n", (char *)data);
             break;
         default:
-            derror("unknown task datatype %d\n", task->datatype);
+            derror("invalid msgid 0x%x\n", msgid);
             break;
     }
 
-    return Success;
+    return ret;
 }
 
 static const mod_ops_t ueventmod_ops = {

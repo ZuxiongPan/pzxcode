@@ -29,7 +29,7 @@ static int signal_read_from_outer(dchannel_t *chnl)
     }
     signo = info.ssi_signo;
 
-    return task_enqueue(DataModuleMsg, chnl->dcomp.dcompid, ModuleIDSignal,
+    return task_enqueue(DataRawBinary, chnl->dcomp.dcompid, ModuleIDSignal,
         MSGID_SYS_SIGNAL, sizeof(signo), (const char *)&signo);
 }
 

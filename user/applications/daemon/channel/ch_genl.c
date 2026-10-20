@@ -17,6 +17,7 @@
 #include "core/dmodule.h"
 #include "core/dchannel.h"
 #include "core/dfuncalls.h"
+#include "module/dmsgid.h"
 #include "common/uk_netlink.h"
 
 typedef enum genl_status {
@@ -270,7 +271,7 @@ static int genl_parse_kmsg(const void *buf, ssize_t len,
                     const char *attrs = ((const char *)nlh + NLMSG_HDRLEN + GENL_HDRLEN);
                     unsigned int attr_len = (unsigned int)nlh->nlmsg_len - NLMSG_HDRLEN - GENL_HDRLEN;
                     ret = task_enqueue(DataGenlAttrs, genl_chnl.dcomp.dcompid,
-                        ModuleIDUevent, 0, attr_len, (void *)(attrs));
+                        DCOMPID_NONE, MSGID_GENL_BIN, attr_len, (void *)(attrs));
                 }
                 else
                 {

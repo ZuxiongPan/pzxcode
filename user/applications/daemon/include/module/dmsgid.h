@@ -16,10 +16,10 @@
 
 #define MSGID_SELFDEF_START 0x10000000
 
-#define MSGID_STRING_RELATED (MSGID_SELFDEF_START | 0x00010000)
-// this msgid point to simple string data such as "@target@type@data"
-#define MSGID_SIMPLE_STR (MSGID_STRING_RELATED + 1)
-// this msgid point to json raw string data such as "{'target': 'module', 'data': 'hello'}"
-#define MSGID_JSON_RAWSTR (MSGID_STRING_RELATED + 2)
+#define MSGID_BINARY_RELATED (MSGID_SELFDEF_START | 0x00010000)
+#define MSGID_SIMPLE_STR (MSGID_BINARY_RELATED + 1)
+#define MSGID_JSON_STR (MSGID_BINARY_RELATED + 2)
+#define MSGID_GENL_BIN (MSGID_BINARY_RELATED + 3)
+#define MSGID_UEVENT_BIN (MSGID_BINARY_RELATED + 4)
 
 #endif

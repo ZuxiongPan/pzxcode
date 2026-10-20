@@ -13,9 +13,9 @@
 
 static dmod_t upgrademod;
 
-static void upgrade_handle_simple_str(dtask_t *task)
+static void upgrade_handle_simple_str(const void *data)
 {
-    const char *str = task->data;
+    const char *str = data;
 
     if (strstr(str, "update"))
     {
@@ -41,27 +41,21 @@ static void upgrade_handle_simple_str(dtask_t *task)
     return ;
 }
 
-static int upgrademod_ontask(dmod_t *m, void *arg)
+static int upgrademod_ontask(dmod_t *m, int src_compid, unsigned int msgid,
+    void *data, unsigned int data_size)
 {
     (void)m;
-    if (NULL == arg)
-    {
-        dprint("invalid task\n");
-        return Fail;
-    }
-
     int ret = Success;
-    dtask_t *task = (dtask_t *)arg;
 
-    switch (task->msgid)
+    switch (msgid)
     {
         case MSGID_SIMPLE_STR:
-            upgrade_handle_simple_str(task);
+            upgrade_handle_simple_str(data);
             break;
         case MSGID_TEST_TIMER:
             break;
         default:
-            dprint("invalid msgid 0x%x\n", task->msgid);
+            dprint("invalid msgid 0x%x\n", msgid);
             break;
     }
 

@@ -9,13 +9,17 @@
 #include "core/dchannel.h"
 #include "module/dmsgid.h"
 #include "lib/cJSON.h"
+#include "channel/chnl_api.h"
+#include "common/uk_netlink.h"
 
 #define MODULE_TMPNAME_MAXSIZE 32
 
 static const int task_max_needed = TASK_DATA_MAXSIZE + sizeof(dtask_t);
 static int process_task(char *buffer);
-static void rawbinary_parse(char *binary, int *real_dst,
+static void rawbinary_parse(char *binary, int *real_dst, unsigned int *real_size,
     unsigned int *msgid, unsigned int data_size);
+static void genlbin_parse(char *binary, int *real_dst,
+    unsigned int *real_size, unsigned int data_size);
 
 static inline dtask_t* get_task_addr(task_queue_t *queue, unsigned int offset)
 {
@@ -219,6 +223,7 @@ static int process_task(char *buffer)
     dtask_t *task = (dtask_t *)buffer;
     int real_dst = task->dst_compid;
     unsigned int msgid = task->msgid;
+    unsigned int data_realsize = task->data_size;
     int ret = Success;
 
     switch (task->datatype)
@@ -229,11 +234,15 @@ static int process_task(char *buffer)
         //     ret = dmodule_handle(buffer);
         //     break;
         case DataRawBinary:
-            if (real_dst == DCOMPID_NONE && msgid == 0)
+            if ((unsigned int)real_dst == DCOMPID_NONE && msgid == 0)
             {
-                rawbinary_parse(task->data, &real_dst, &msgid, task->data_size);
+                rawbinary_parse(task->data, &real_dst, &msgid, &data_realsize, task->data_size);
             }
-            ret = dmodule_handle(task->src_compid, real_dst, msgid, task->data);
+            ret = dmodule_handle(task->src_compid, real_dst, msgid, task->data, data_realsize);
+            break;
+        case DataGenlAttrs:
+            genlbin_parse(task->data, &real_dst, &data_realsize, task->data_size);
+            ret = dmodule_handle(task->src_compid, real_dst, msgid, task->data, data_realsize);
             break;
         case DataToOuter:   
             ret = dchannel_write_to_outer(buffer);
@@ -246,12 +255,9 @@ static int process_task(char *buffer)
     return ret;
 }
 
-static void rawbinary_parse(char *binary, int *real_dst,
-    unsigned int *msgid, unsigned int data_size)
+static void rawbinary_parse(char *binary, int *real_dst, unsigned int *msgid,
+    unsigned int *real_size, unsigned int data_size)
 {
-    *real_dst = DCOMPID_NONE;
-    *msgid = 0;
-
     if (*binary == '/')
     {
         const char *target = binary + 1;
@@ -272,7 +278,8 @@ static void rawbinary_parse(char *binary, int *real_dst,
         }
         *real_dst = comp->dcompid;
         *msgid = MSGID_SIMPLE_STR;
-        memmove(binary, type + 1, data_size - (type - binary) - 1);
+        *real_size = data_size - (type - binary) - 1;
+        memmove(binary, type + 1, *real_size);
     }
 /*
     else if (*binary == '{')
@@ -309,12 +316,38 @@ static void rawbinary_parse(char *binary, int *real_dst,
     else
     {
         derror("invalid binary: ");
-        for (int i = 0; i < data_size; i++)
+        for (unsigned int i = 0; i < data_size; i++)
         {
             rawlog("0x%02x ", binary[i]);
         }
         derror("\n");
     }
+
+    return ;
+}
+
+static void genlbin_parse(char *binary, int *real_dst,
+    unsigned int *real_size, unsigned int data_size)
+{
+    struct nlattr *tb[NLATTR_MAX + 1] = {0};
+    int ret = genl_parse_attrs_armd(binary, data_size, tb);
+
+    if (ret != Success)
+    {
+        derror("invalid generic netlink data\n");
+        return ;
+    }
+
+    const dcomp_t *target = find_dcomponent_by_name((char *)tb[NLATTR_TARGET] + NLA_HDRLEN);
+    if (target == NULL)
+    {
+        derror("target not found\n");
+        return ;
+    }
+
+    *real_dst = target->dcompid;
+    *real_size = tb[NLATTR_DATA]->nla_len - NLA_HDRLEN;
+    memmove(binary, (char *)tb[NLATTR_DATA] + NLA_HDRLEN, *real_size);
 
     return ;
 }

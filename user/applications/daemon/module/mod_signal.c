@@ -67,26 +67,21 @@ static int handle_signal(uint32_t signo)
     return Success;
 }
 
-static int signalmod_ontask(dmod_t *m, void *arg)
+static int signalmod_ontask(dmod_t *m, int src_compid, unsigned int msgid,
+    void *data, unsigned int data_size)
 {
     (void)m;
-    if (NULL == arg)
-    {
-        dprint("invalid task\n");
-        return Fail;
-    }
-
+    (void)data_size;
     int ret = Success;
-    dtask_t *task = (dtask_t *)arg;
-    uint32_t signo = *((uint32_t *)task->data);
+    uint32_t signo = *((uint32_t *)data);
 
-    switch (task->msgid)
+    switch (msgid)
     {
         case MSGID_SYS_SIGNAL:
             handle_signal(signo);
             break;
         default:
-            dprint("invalid msgid 0x%x\n", task->msgid);
+            dprint("invalid msgid 0x%x\n", msgid);
             break;
     }
 

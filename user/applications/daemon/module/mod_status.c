@@ -15,9 +15,9 @@
 
 static dmod_t statmod;
 
-static void stat_handle_simple_str(dtask_t *task)
+static void stat_handle_simple_str(int src, const void *data)
 {
-    const char *str = task->data;
+    const char *str = data;
     int bytes = 0;
     char buf[TASK_DATA_MAXSIZE] = { 0 };
 
@@ -34,30 +34,24 @@ static void stat_handle_simple_str(dtask_t *task)
         bytes = snprintf(buf, sizeof(buf), "invalid request [%s] for status module\n", str);
     }
 
-    task_enqueue(DataToOuter, statmod.dcomp.dcompid, task->src_compid, 0, bytes, buf);
+    task_enqueue(DataToOuter, statmod.dcomp.dcompid, src, 0, bytes, buf);
 
     return ;
 }
 
-static int statmod_ontask(dmod_t *m, void *arg)
+static int statmod_ontask(dmod_t *m, int src_compid, unsigned int msgid,
+    void *data, unsigned int data_size)
 {
     (void)m;
-    if (NULL == arg)
-    {
-        dprint("invalid task\n");
-        return Fail;
-    }
-
     int ret = Success;
-    dtask_t *task = (dtask_t *)arg;
 
-    switch (task->msgid)
+    switch (msgid)
     {
         case MSGID_SIMPLE_STR:
-            stat_handle_simple_str(task);
+            stat_handle_simple_str(src_compid, data);
             break;
         default:
-            dprint("invalid msgid 0x%x\n", task->msgid);
+            dprint("invalid msgid 0x%x\n", msgid);
             break;
     }
 

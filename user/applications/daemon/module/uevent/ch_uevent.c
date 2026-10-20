@@ -12,6 +12,7 @@
 #include "core/dmodule.h"
 #include "core/dchannel.h"
 #include "core/dfuncalls.h"
+#include "module/dmsgid.h"
 
 static dchannel_t uevent_chnl;
 
@@ -36,8 +37,8 @@ static int uevent_chnl_callback(dchannel_t *chnl)
         return Fail;
     }
 
-    return task_enqueue(DataBinaryToModule, chnl->dcomp.dcompid,
-        ModuleIDUevent, 0, len, buf);
+    return task_enqueue(DataRawBinary, chnl->dcomp.dcompid,
+        ModuleIDUevent, MSGID_UEVENT_BIN, len, buf);
 }
 
 const channel_ops_t uevent_chnl_ops = {

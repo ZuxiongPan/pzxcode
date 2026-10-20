@@ -67,7 +67,7 @@ int inform_to_armd(enum upgrade_stage stage)
 
     ssize_t len = -1;
     char buf[UPG_MSG_MAXLEN];
-    snprintf(buf, sizeof(buf), "/upgrade/result/%s", get_upgrade_stage_str(stage));
+    snprintf(buf, sizeof(buf), "/upgrade/result:%s", get_upgrade_stage_str(stage));
 
     len = send(sockfd, buf, strlen(buf), 0);
 
