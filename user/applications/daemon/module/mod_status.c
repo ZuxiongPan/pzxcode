@@ -11,7 +11,6 @@
 #include "core/dfuncalls.h"
 #include "channel/chnl_api.h"
 #include "module/dmsgid.h"
-#include "lib/cJSON.h"
 
 static dmod_t statmod;
 
@@ -42,7 +41,9 @@ static void stat_handle_simple_str(int src, const void *data)
 static int statmod_ontask(dmod_t *m, int src_compid, unsigned int msgid,
     void *data, unsigned int data_size)
 {
-    (void)m;
+    UNUSED(m);
+    UNUSED(src_compid);
+    UNUSED(data_size);
     int ret = Success;
 
     switch (msgid)

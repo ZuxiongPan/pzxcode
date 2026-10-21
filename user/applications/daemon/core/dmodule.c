@@ -49,7 +49,7 @@ int dmodule_handle(int src_compid, int dst_compid, unsigned int msgid,
         if (NULL != mod->ops->ontask)
         {
             ret = mod->ops->ontask(mod, src_compid, msgid, data, data_size);
-            (void)ret;
+            UNUSED(ret);
             // dprint("dmodule_handle ret %d\n", ret);
         }
     }

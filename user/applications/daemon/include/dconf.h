@@ -20,4 +20,6 @@
 #define CLIENT_MAXNUM 5
 #define TCP_PORT 8888
 
+#define UNUSED(x) (void)x
+
 #endif

@@ -100,7 +100,7 @@ static void timer_work_func(struct work_struct *work)
 
     ticks++;
     len = snprintf(payload, sizeof(payload), "ABCD ticks = %d wxyz", ticks);
-    ret = genl_async_send("timer_test", payload, len + 1);
+    ret = genl_async_send("uevent", payload, len + 1);
     if (ret && ret != -ESRCH)
         pr_err("genl_async_send failed: ret = %d\n", ret);
 

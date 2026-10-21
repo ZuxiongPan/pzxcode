@@ -8,13 +8,8 @@
 
 enum dtask_datatype {
     DataInvalid = 0,
-    // data is inner module message, this type must have dst_compid
-    DataModuleMsg,
-    // data is raw binary/string data from channel, this type must have dst_compid
-    DataBinaryToModule,
     // data is raw binary/string data from channel, this type dst_compid is optional
     // if there is no dst_compid, then the string must be translated
-    // which format is [/dest_name/data] or a jSON string
     DataRawBinary,
     // data is generic netlink attributes, this data is raw from kernel
     // which format is same as generic netlink attributes

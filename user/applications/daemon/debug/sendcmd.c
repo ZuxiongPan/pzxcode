@@ -9,7 +9,6 @@
 #include <sys/select.h>
 
 #include "dconf.h"
-#include "lib/cJSON.h"
 
 static int wait_for_response(int fd, int timeout_sec)
 {
@@ -44,7 +43,7 @@ int main(int argc, const char *argv[])
 
     if (type != 1 && type != 2)
     {
-        printf("type: 1-simple string, 2-json string\n");
+        printf("type: 1-no response, 2-response\n");
         return -1;
     }
 
@@ -69,31 +68,14 @@ int main(int argc, const char *argv[])
         }
     }
 
-    if (type == 1)
+    tmp = snprintf(buf, sizeof(buf), "/%s/", argv[2]);
+    for (int i = 3; i < argc; i++)
     {
-        tmp = snprintf(buf, sizeof(buf), "/%s", argv[2]);
-        for (int i = 3; i < argc; i++)
-        {
-            tmp += snprintf(buf + tmp, sizeof(buf), "/%s", argv[i]);
-        }
-        len = send(sockfd, buf, tmp, 0);
+        tmp += snprintf(buf + tmp, sizeof(buf), "%s ", argv[i]);
     }
-    else if (type == 2)
-    {
-        cJSON *json = cJSON_CreateObject();
-        cJSON_AddStringToObject(json, "target", argv[2]);
-        for (int i = 3; i < argc; i++)
-        {
-            memset(buf, 0, sizeof(buf));
-            snprintf(buf, sizeof(buf), "arg%d", i - 3);
-            cJSON_AddStringToObject(json, buf, argv[i]);
-        }
-        char *sendstr = cJSON_Print(json);
-        len = send(sockfd, sendstr, strlen(sendstr), 0);
-        cJSON_Delete(json);
-        cJSON_free(sendstr);
-    }
+    buf[tmp - 1] = '\0';
 
+    len = send(sockfd, buf, tmp, 0);
     if (len < 0)
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
@@ -109,20 +91,23 @@ int main(int argc, const char *argv[])
         printf("send uds message success, len: %ld\n", len);
     }
 
-    ret = wait_for_response(sockfd, 5);
-    if (ret > 0)
+    if (type == 2)
     {
-        memset(buf, 0, sizeof(buf));
-        len = recv(sockfd, buf, sizeof(buf), 0);
-        if (len > 0)
+        ret = wait_for_response(sockfd, 5);
+        if (ret > 0)
         {
-            buf[len] = '\0';
-            printf("receive uds message success, len: %ld, data:\n%s\n", len, buf);
+            memset(buf, 0, sizeof(buf));
+            len = recv(sockfd, buf, sizeof(buf), 0);
+            if (len > 0)
+            {
+                buf[len] = '\0';
+                printf("receive uds message success, len: %ld, data:\n%s\n", len, buf);
+            }
         }
-    }
-    else
-    {
-        printf("no response from uds server\n");
+        else
+        {
+            printf("no response from uds server\n");
+        }
     }
 
     close(sockfd);

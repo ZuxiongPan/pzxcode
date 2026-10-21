@@ -8,7 +8,6 @@
 #include "core/dfuncalls.h"
 #include "module/dmsgid.h"
 #include "channel/chnl_api.h"
-#include "lib/cJSON.h"
 #include "lib/util.h"
 
 static dmod_t upgrademod;
@@ -44,7 +43,9 @@ static void upgrade_handle_simple_str(const void *data)
 static int upgrademod_ontask(dmod_t *m, int src_compid, unsigned int msgid,
     void *data, unsigned int data_size)
 {
-    (void)m;
+    UNUSED(m);
+    UNUSED(src_compid);
+    UNUSED(data_size);
     int ret = Success;
 
     switch (msgid)

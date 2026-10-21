@@ -16,9 +16,9 @@
 
 static const int task_max_needed = TASK_DATA_MAXSIZE + sizeof(dtask_t);
 static int process_task(char *buffer);
-static void rawbinary_parse(char *binary, int *real_dst, unsigned int *real_size,
-    unsigned int *msgid, unsigned int data_size);
-static void genlbin_parse(char *binary, int *real_dst,
+static void rawbinary_parse(char *binary, int *real_dst, void **payload,
+    unsigned int *real_size, unsigned int *msgid, unsigned int data_size);
+static void genlbin_parse(char *binary, int *real_dst, void **payload,
     unsigned int *real_size, unsigned int data_size);
 
 static inline dtask_t* get_task_addr(task_queue_t *queue, unsigned int offset)
@@ -28,7 +28,7 @@ static inline dtask_t* get_task_addr(task_queue_t *queue, unsigned int offset)
 
 static void* worker_thread(void* arg)
 {
-    (void)arg;
+    UNUSED(arg);
     char buffer[task_max_needed];
     dctx_t *ctx = dctx_instance();
     dtask_t *task = NULL;
@@ -224,25 +224,21 @@ static int process_task(char *buffer)
     int real_dst = task->dst_compid;
     unsigned int msgid = task->msgid;
     unsigned int data_realsize = task->data_size;
+    void *payload = task->data;
     int ret = Success;
 
     switch (task->datatype)
     {
-        // case DataModuleMsg:
-        // case DataBinaryToModule:
-        // case DataGenlAttrs:
-        //     ret = dmodule_handle(buffer);
-        //     break;
         case DataRawBinary:
             if ((unsigned int)real_dst == DCOMPID_NONE && msgid == 0)
             {
-                rawbinary_parse(task->data, &real_dst, &msgid, &data_realsize, task->data_size);
+                rawbinary_parse(task->data, &real_dst, &payload, &msgid, &data_realsize, task->data_size);
             }
-            ret = dmodule_handle(task->src_compid, real_dst, msgid, task->data, data_realsize);
+            ret = dmodule_handle(task->src_compid, real_dst, msgid, payload, data_realsize);
             break;
         case DataGenlAttrs:
-            genlbin_parse(task->data, &real_dst, &data_realsize, task->data_size);
-            ret = dmodule_handle(task->src_compid, real_dst, msgid, task->data, data_realsize);
+            genlbin_parse(task->data, &real_dst, &payload, &data_realsize, task->data_size);
+            ret = dmodule_handle(task->src_compid, real_dst, msgid, payload, data_realsize);
             break;
         case DataToOuter:   
             ret = dchannel_write_to_outer(buffer);
@@ -255,15 +251,15 @@ static int process_task(char *buffer)
     return ret;
 }
 
-static void rawbinary_parse(char *binary, int *real_dst, unsigned int *msgid,
-    unsigned int *real_size, unsigned int data_size)
+static void rawbinary_parse(char *binary, int *real_dst, void **payload,
+    unsigned int *msgid, unsigned int *real_size, unsigned int data_size)
 {
     if (*binary == '/')
     {
         const char *target = binary + 1;
-        const char *type = strchr(target, '/');
+        char *data = strchr(target, '/');
         char module[MODULE_TMPNAME_MAXSIZE] = { 0 };
-        unsigned long len = (type - target);
+        unsigned long len = (data - target);
         if (len > sizeof(module))
         {
             len = sizeof(module) - 1;
@@ -278,8 +274,8 @@ static void rawbinary_parse(char *binary, int *real_dst, unsigned int *msgid,
         }
         *real_dst = comp->dcompid;
         *msgid = MSGID_SIMPLE_STR;
-        *real_size = data_size - (type - binary) - 1;
-        memmove(binary, type + 1, *real_size);
+        *real_size = data_size - (data - binary);
+        *payload = data + 1;
     }
 /*
     else if (*binary == '{')
@@ -326,7 +322,7 @@ static void rawbinary_parse(char *binary, int *real_dst, unsigned int *msgid,
     return ;
 }
 
-static void genlbin_parse(char *binary, int *real_dst,
+static void genlbin_parse(char *binary, int *real_dst, void **payload,
     unsigned int *real_size, unsigned int data_size)
 {
     struct nlattr *tb[NLATTR_MAX + 1] = {0};
@@ -347,7 +343,7 @@ static void genlbin_parse(char *binary, int *real_dst,
 
     *real_dst = target->dcompid;
     *real_size = tb[NLATTR_DATA]->nla_len - NLA_HDRLEN;
-    memmove(binary, (char *)tb[NLATTR_DATA] + NLA_HDRLEN, *real_size);
+    *payload = (char *)tb[NLATTR_DATA] + NLA_HDRLEN;
 
     return ;
 }

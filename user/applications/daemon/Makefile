@@ -21,7 +21,7 @@ $(TARGET): $(OBJS-y)
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-sendcmd: debug/sendcmd.o lib/cJSON.o
+sendcmd: debug/sendcmd.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 install:

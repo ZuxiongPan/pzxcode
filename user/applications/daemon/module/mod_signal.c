@@ -70,8 +70,9 @@ static int handle_signal(uint32_t signo)
 static int signalmod_ontask(dmod_t *m, int src_compid, unsigned int msgid,
     void *data, unsigned int data_size)
 {
-    (void)m;
-    (void)data_size;
+    UNUSED(m);
+    UNUSED(src_compid);
+    UNUSED(data_size);
     int ret = Success;
     uint32_t signo = *((uint32_t *)data);
 

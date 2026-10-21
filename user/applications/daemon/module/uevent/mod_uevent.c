@@ -18,8 +18,8 @@ static dmod_t ueventmod;
 static int ueventmod_ontask(dmod_t *m, int src_compid, unsigned int msgid,
     void *data, unsigned int data_size)
 {
-    (void)m;
-    (void)src_compid;
+    UNUSED(m);
+    UNUSED(src_compid);
     int ret = Success;
     char *str = data;
 
