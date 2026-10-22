@@ -1,6 +1,8 @@
 /* this code is based on qemu-10.2.4 */
 #include "qemu/osdep.h"
 #include "qemu/units.h"
+#include "qemu/timer.h"
+#include "qemu/log.h"
 #include "qemu/error-report.h"
 #include "qapi/error.h"
 #include "qobject/qlist.h"
@@ -10,6 +12,7 @@
 #include "hw/char/pl011.h"
 #include "hw/loader.h"
 #include "hw/sysbus.h"
+#include "hw/irq.h"
 #include "hw/qdev-properties.h"
 #include "target/arm/cpu.h"
 #include "hw/arm/bsa.h"
@@ -22,6 +25,9 @@
 #include "hw/intc/arm_gicv3_common.h"
 #include "net/net.h"
 
+#include <errno.h>
+#include <inttypes.h>
+
 #define TYPE_PZX_MACHINE MACHINE_TYPE_NAME("pzx")
 OBJECT_DECLARE_SIMPLE_TYPE(PzxMachineState, PZX_MACHINE)
 
@@ -33,6 +39,11 @@ struct PzxMachineState {
     MemoryRegion mrom;  // store bootcode
     MemoryRegion sram;
     MemoryRegion dram;
+
+    // gpio button
+    qemu_irq btn_gpio0;
+    QEMUTimer *btn_timer;
+    bool btn_pressed;
 };
 
 // self-defined device state
@@ -53,6 +64,7 @@ enum {
     ID_SD,
     ID_SYSCTL,
     ID_VIRTIO_NET,
+    ID_GPIO,
     ID_DRAM,
 };
 
@@ -60,6 +72,7 @@ enum {
     IRQ_UART = 0,
     IRQ_SD,
     IRQ_VIRTIO_NET,
+    IRQ_GPIO,
 };
 
 static const MemMapEntry pzx_memmap[] = {
@@ -69,6 +82,7 @@ static const MemMapEntry pzx_memmap[] = {
     [ID_SD] = { 0x00500000, 0x0001000 },
     [ID_SYSCTL] = { 0x00600000, 0x00001000 },
     [ID_VIRTIO_NET] = { 0x00700000, 0x00000200 },
+    [ID_GPIO] = { 0x00800000, 0x00001000 },
     [ID_GIC_DIST] = { 0x01000000, 0x00010000 },
     [ID_GIC_REDIST] = { 0x01040000, 0x00080000 },
     [ID_DRAM] = { 0x80000000, 0x08000000 },
@@ -116,6 +130,55 @@ static void pzx_sysctl_init(Object *obj)
     sysbus_init_mmio(dev, &state->iomem);
 }
 
+// qemu gpio button code
+static void pzx_btn_release_cb(void *opaque)
+{
+    PzxMachineState *state = opaque;
+
+    //qemu_log("[time out: pressed=%d]\n", state->btn_pressed);
+    if (!state->btn_pressed)
+    {
+        return ;
+    }
+
+    state->btn_pressed = false;
+    qemu_set_irq(state->btn_gpio0, 1);
+    //qemu_log("[btn release: pressed=%d]\n", state->btn_pressed);
+}
+
+static void pzx_set_btn_press_ms(Object *obj, const char *val, Error **errp)
+{
+    PzxMachineState *state = PZX_MACHINE(obj);
+    char *end = NULL;
+    guint64 duration;
+
+    if (!state->btn_gpio0 || !state->btn_timer)
+    {
+        error_setg(errp, "pzx: btn_gpio0 or btn_timer is not initialized");
+        return ;
+    }
+
+    if (val == NULL)
+    {
+        error_setg(errp, "pzx: btn_press time is empty");
+        return ;
+    }
+
+    duration = g_ascii_strtoull(val, &end, 10);
+    if (end == val || duration < 10 || duration > 10000)
+    {
+        error_setg(errp, "pzx: btn_press time is not a valid number");
+        return ;
+    }
+
+    //qemu_log("[btn press: duration=%lld]\n", duration);
+    timer_del(state->btn_timer);
+    state->btn_pressed = true;
+    qemu_set_irq(state->btn_gpio0, 0);
+    timer_mod(state->btn_timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + duration);
+}
+
+// board code
 static void pzx_machine_init(MachineState *machine)
 {
     PzxMachineState *state = PZX_MACHINE(machine);
@@ -197,7 +260,31 @@ static void pzx_machine_init(MachineState *machine)
     sysbus_mmio_map(SYS_BUS_DEVICE(net_dev), 0, pzx_memmap[ID_VIRTIO_NET].base);
     sysbus_connect_irq(SYS_BUS_DEVICE(net_dev), 0, qdev_get_gpio_in(state->gic, IRQ_VIRTIO_NET));
 
+    DeviceState *gpio = qdev_new("pl061");
+    qdev_prop_set_uint32(gpio, "pullups", 0x00);
+    qdev_prop_set_uint32(gpio, "pulldowns", 0xff);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(gpio), &error_fatal);
+    sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, pzx_memmap[ID_GPIO].base);
+    sysbus_connect_irq(SYS_BUS_DEVICE(gpio), 0, qdev_get_gpio_in(state->gic, IRQ_GPIO));
+
+    state->btn_gpio0 = qdev_get_gpio_in(gpio, 0);
+    state->btn_pressed = false;
+    state->btn_timer = timer_new_ms(QEMU_CLOCK_REALTIME, pzx_btn_release_cb, state);
+    qemu_set_irq(state->btn_gpio0, 1);
+
     rom_add_blob_fixed("bootcode", bootcode, bootcode_size, pzx_memmap[ID_MROM].base);
+}
+
+static void pzx_machine_finalize(Object *obj)
+{
+    PzxMachineState *state = PZX_MACHINE(obj);
+
+    if (state->btn_timer)
+    {
+        timer_del(state->btn_timer);
+        timer_free(state->btn_timer);
+        state->btn_timer = NULL;
+    }
 }
 
 static void pzx_machine_class_init(ObjectClass *oc, const void *data)
@@ -206,6 +293,9 @@ static void pzx_machine_class_init(ObjectClass *oc, const void *data)
 
     mc->desc = "pzx.arm64.machine";
     mc->init = pzx_machine_init;
+
+// debug code
+    object_class_property_add_str(oc, "btn_press", NULL, pzx_set_btn_press_ms);
 }
 
 static const TypeInfo pzx_sysctl_type_info = {
@@ -219,6 +309,7 @@ static const TypeInfo pzx_machine_type_info = {
     .name = TYPE_PZX_MACHINE,
     .parent = TYPE_MACHINE,
     .instance_size = sizeof(PzxMachineState),
+    .instance_finalize = pzx_machine_finalize,
     .class_init = pzx_machine_class_init,
     .interfaces = arm_aarch64_machine_interfaces,
 };

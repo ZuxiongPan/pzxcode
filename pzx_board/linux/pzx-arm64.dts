@@ -3,6 +3,8 @@
 /dts-v1/;
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
 
 / {
 	model = "PZX Qemu ARM64";
@@ -12,7 +14,7 @@
 
 	chosen {
 		stdout-path = &serial0;
-		bootargs = "console=ttyAMA0,115200 earlycon=pl011,0x400000 rdinit=/linuxrc loglevel=8";
+		bootargs = "console=ttyAMA0,115200 earlycon=pl011,0x400000 rdinit=/linuxrc";
 	};
 
 	cpus {
@@ -110,6 +112,29 @@
 			compatible = "virtio,mmio";
 			reg = <0x0 0x00700000 0x0 0x00000200>;
 			interrupts = <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		gpio0: gpio@800000 {
+			compatible = "arm,pl061", "arm,primecell";
+			reg = <0x0 0x00800000 0x0 0x00001000>;
+			interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&refclk>;
+			clock-names = "apb_pclk";
+			gpio-controller;
+			#gpio-cells= <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		btn_enter {
+			label = "pzx_btn_enter";
+			linux,code = <KEY_ENTER>;
+			gpios = <&gpio0 0 GPIO_ACTIVE_LOW>;
+			debounce-interval = <10>;
 		};
 	};
 };
