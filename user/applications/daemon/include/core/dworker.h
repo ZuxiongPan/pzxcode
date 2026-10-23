@@ -14,6 +14,8 @@ enum dtask_datatype {
     // data is generic netlink attributes, this data is raw from kernel
     // which format is same as generic netlink attributes
     DataGenlAttrs,
+    // data is a key event
+    DataKeyEvent,
     // data is passed to outer process, this type must have dst_compid
     DataToOuter,
 };

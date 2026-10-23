@@ -12,6 +12,8 @@
 #include "channel/chnl_api.h"
 #include "common/uk_netlink.h"
 
+#include <linux/input.h>
+
 #define MODULE_TMPNAME_MAXSIZE 32
 
 static const int task_max_needed = TASK_DATA_MAXSIZE + sizeof(dtask_t);
@@ -239,6 +241,10 @@ static int process_task(char *buffer)
         case DataGenlAttrs:
             genlbin_parse(task->data, &real_dst, &payload, &data_realsize, task->data_size);
             ret = dmodule_handle(task->src_compid, real_dst, msgid, payload, data_realsize);
+            break;
+        case DataKeyEvent:
+            struct input_event *ev = (struct input_event *)payload;
+            dprint("KeyEvent: type[%u] code[%u] value[%d]\n", ev->type, ev->code, ev->value);
             break;
         case DataToOuter:   
             ret = dchannel_write_to_outer(buffer);

@@ -10,6 +10,7 @@
 #define ChannelIDUevent (CHANNELID_START + 3)
 #define ChannelIDUdsServer (CHANNELID_START + 4)
 #define ChannelIDGenNetlink (CHANNELID_START + 5)
+#define ChannelIDInput (CHANNELID_START + 6)
 
 struct daemon_channel;
 

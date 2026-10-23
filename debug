@@ -212,4 +212,4 @@ qemu bootcmd using '-netdev tap,id=net0,ifname=tap0,script=no,downscript=no,vhos
 
 # qemu add self debug
 qom-set /machine btn_press 200
-
+qemu pl061 device reset will clear the status of gpio level, [hw/gpio/pl061.c] comment 's->data = 0;' in function 'pl061_enter_reset'

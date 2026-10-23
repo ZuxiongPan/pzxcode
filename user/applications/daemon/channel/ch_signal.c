@@ -38,7 +38,7 @@ static const channel_ops_t signal_ops = {
     .write_to_outer = NULL,
 };
 
-int ch_signal_init(void)
+static int ch_signal_init(void)
 {
     int ret = Success;
     memset(&signal_chnl, 0, sizeof(dchannel_t));
@@ -64,7 +64,7 @@ int ch_signal_init(void)
     return ret;
 }
 
-void ch_signal_exit(void)
+static void ch_signal_exit(void)
 {
     dchannel_unregister(&signal_chnl);
     if (signal_chnl.fd >= 0)
