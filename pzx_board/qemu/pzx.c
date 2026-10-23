@@ -25,12 +25,26 @@
 #include "hw/intc/arm_gicv3_common.h"
 #include "net/net.h"
 
-#include <errno.h>
-#include <inttypes.h>
+//#define pzxdebug(fmt, ...) qemu_log("[pzx] " fmt, ##__VA_ARGS__)
+#define pzxdebug(fmt, ...)
 
 #define TYPE_PZX_MACHINE MACHINE_TYPE_NAME("pzx")
 OBJECT_DECLARE_SIMPLE_TYPE(PzxMachineState, PZX_MACHINE)
 
+// debug data structure
+enum {
+    BTN_ENTER = 0,
+    BTN_ESCAPE,
+    BTN_MAX,
+};
+
+typedef struct {
+    qemu_irq gpio[BTN_MAX];
+    uint32_t pressed;   // bit mask
+    QEMUTimer *timer;
+} btn_info;
+
+// machine state
 struct PzxMachineState {
     MachineState parent;
 
@@ -41,9 +55,7 @@ struct PzxMachineState {
     MemoryRegion dram;
 
     // gpio button
-    qemu_irq btn_gpio0;
-    QEMUTimer *btn_timer;
-    bool btn_pressed;
+    btn_info btn;
 };
 
 // self-defined device state
@@ -135,47 +147,55 @@ static void pzx_btn_release_cb(void *opaque)
 {
     PzxMachineState *state = opaque;
 
-    //qemu_log("[time out: pressed=%d]\n", state->btn_pressed);
-    if (!state->btn_pressed)
+    pzxdebug("[time out: mask=%u, pressed=%u]\n", state->btn.pressed, state->btn.pressed);
+    if (state->btn.pressed == 0)
     {
         return ;
     }
 
-    state->btn_pressed = false;
-    qemu_set_irq(state->btn_gpio0, 1);
-    //qemu_log("[btn release: pressed=%d]\n", state->btn_pressed);
+    state->btn.pressed = 0;
+    for (int i = 0; i < BTN_MAX; i++)
+    {
+        qemu_set_irq(state->btn.gpio[i], 1);
+    }
 }
 
 static void pzx_set_btn_press_ms(Object *obj, const char *val, Error **errp)
 {
+    //val format: mask@duration
     PzxMachineState *state = PZX_MACHINE(obj);
-    char *end = NULL;
-    guint64 duration;
+    unsigned int mask;
+    unsigned int duration;
 
-    if (!state->btn_gpio0 || !state->btn_timer)
+    if (state->btn.pressed || !state->btn.timer)
     {
-        error_setg(errp, "pzx: btn_gpio0 or btn_timer is not initialized");
+        error_setg(errp, "pzx: is pressing or timer is not initialized");
         return ;
     }
 
     if (val == NULL)
     {
-        error_setg(errp, "pzx: btn_press time is empty");
+        error_setg(errp, "pzx: invalid command");
         return ;
     }
 
-    duration = g_ascii_strtoull(val, &end, 10);
-    if (end == val || duration < 10 || duration > 10000)
+    int ret = sscanf(val, "%u@%u", &mask, &duration);
+    if (ret != 2 || duration < 10 || duration > 10000)
     {
-        error_setg(errp, "pzx: btn_press time is not a valid number");
+        error_setg(errp, "pzx: invalid command");
         return ;
     }
 
-    //qemu_log("[btn press: duration=%lld]\n", duration);
-    timer_del(state->btn_timer);
-    state->btn_pressed = true;
-    qemu_set_irq(state->btn_gpio0, 0);
-    timer_mod(state->btn_timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + duration);
+    pzxdebug("[btn press: mask=%u, duration=%u]\n", mask, duration);
+    timer_del(state->btn.timer);
+    state->btn.pressed = mask;
+    for (int i = 0; i < BTN_MAX; i++)
+    {
+        int level = (mask & (1 << i)) ? 0x0 : 0x1;
+        pzxdebug("[btn press: btn=%d, level=%d]\n", i, level);
+        qemu_set_irq(state->btn.gpio[i], level);
+    }
+    timer_mod(state->btn.timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + duration);
 }
 
 // board code
@@ -261,16 +281,20 @@ static void pzx_machine_init(MachineState *machine)
     sysbus_connect_irq(SYS_BUS_DEVICE(net_dev), 0, qdev_get_gpio_in(state->gic, IRQ_VIRTIO_NET));
 
     DeviceState *gpio = qdev_new("pl061");
-    qdev_prop_set_uint32(gpio, "pullups", 0x00);
-    qdev_prop_set_uint32(gpio, "pulldowns", 0xff);
+    qdev_prop_set_uint32(gpio, "pullups", 0xff);
+    qdev_prop_set_uint32(gpio, "pulldowns", 0x00);
     sysbus_realize_and_unref(SYS_BUS_DEVICE(gpio), &error_fatal);
     sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, pzx_memmap[ID_GPIO].base);
     sysbus_connect_irq(SYS_BUS_DEVICE(gpio), 0, qdev_get_gpio_in(state->gic, IRQ_GPIO));
 
-    state->btn_gpio0 = qdev_get_gpio_in(gpio, 0);
-    state->btn_pressed = false;
-    state->btn_timer = timer_new_ms(QEMU_CLOCK_REALTIME, pzx_btn_release_cb, state);
-    qemu_set_irq(state->btn_gpio0, 1);
+    // set debug code gpio button
+    for (int i = 0; i < BTN_MAX; i++)
+    {
+        state->btn.gpio[i] = qdev_get_gpio_in(gpio, i);
+        qemu_set_irq(state->btn.gpio[i], 1);
+    }
+    state->btn.timer = timer_new_ms(QEMU_CLOCK_REALTIME, pzx_btn_release_cb, state);
+    state->btn.pressed = 0;
 
     rom_add_blob_fixed("bootcode", bootcode, bootcode_size, pzx_memmap[ID_MROM].base);
 }
@@ -279,11 +303,11 @@ static void pzx_machine_finalize(Object *obj)
 {
     PzxMachineState *state = PZX_MACHINE(obj);
 
-    if (state->btn_timer)
+    if (state->btn.timer)
     {
-        timer_del(state->btn_timer);
-        timer_free(state->btn_timer);
-        state->btn_timer = NULL;
+        timer_del(state->btn.timer);
+        timer_free(state->btn.timer);
+        state->btn.timer = NULL;
     }
 }
 
