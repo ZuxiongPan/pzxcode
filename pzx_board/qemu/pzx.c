@@ -30,7 +30,7 @@
 //#define pzxdebug(fmt, ...) qemu_log("[pzx] " fmt, ##__VA_ARGS__)
 #define pzxdebug(fmt, ...)
 
-#define MAX_CPUS 2
+#define MAX_CPUS 4
 
 #define TYPE_PZX_MACHINE MACHINE_TYPE_NAME("pzx")
 OBJECT_DECLARE_SIMPLE_TYPE(PzxMachineState, PZX_MACHINE)
@@ -439,10 +439,12 @@ static void pzx_machine_init(MachineState *machine)
     MemoryRegion *sysmem = get_system_memory();
     int i = 0;
 
-    while (i < MAX_CPUS)
+    while (i < machine->smp.cpus)
     {
         Object *cpuobj = object_new(ARM_CPU_TYPE_NAME("cortex-a53"));
         object_property_set_int(cpuobj, "mp-affinity", i, &error_fatal);
+        object_property_set_bool(cpuobj, "start-powered-off", i != 0, &error_fatal);
+        object_property_set_int(cpuobj, "psci-conduit", QEMU_PSCI_CONDUIT_SMC, &error_fatal);
         CPU(cpuobj)->cpu_index = i;
         state->cpu[i] = ARM_CPU(cpuobj);
         qdev_realize(DEVICE(state->cpu[i]), NULL, &error_fatal);
@@ -485,7 +487,7 @@ static void pzx_machine_init(MachineState *machine)
         [GTIMER_S_EL2_VIRT] = ARCH_TIMER_S_EL2_VIRT_IRQ,
     };
 
-    for (i = 0; i < MAX_CPUS; i++)
+    for (i = 0; i < machine->smp.cpus; i++)
     {
         DeviceState *cpudev = DEVICE(state->cpu[i]);
         int ppi_base = 64 + i * 32;
@@ -493,10 +495,10 @@ static void pzx_machine_init(MachineState *machine)
         {
             qdev_connect_gpio_out(cpudev, irq, qdev_get_gpio_in(state->gic, ppi_base + timer_irq[irq]));
         }
-        sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), i + 0 * MAX_CPUS, qdev_get_gpio_in(cpudev, ARM_CPU_IRQ));
-        sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), i + 1 * MAX_CPUS, qdev_get_gpio_in(cpudev, ARM_CPU_FIQ));
-        sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), i + 2 * MAX_CPUS, qdev_get_gpio_in(cpudev, ARM_CPU_VIRQ));
-        sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), i + 3 * MAX_CPUS, qdev_get_gpio_in(cpudev, ARM_CPU_VFIQ));
+        sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), i + 0 * machine->smp.cpus, qdev_get_gpio_in(cpudev, ARM_CPU_IRQ));
+        sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), i + 1 * machine->smp.cpus, qdev_get_gpio_in(cpudev, ARM_CPU_FIQ));
+        sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), i + 2 * machine->smp.cpus, qdev_get_gpio_in(cpudev, ARM_CPU_VIRQ));
+        sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), i + 3 * machine->smp.cpus, qdev_get_gpio_in(cpudev, ARM_CPU_VFIQ));
     }
 
     DeviceState *pl011 = qdev_new(TYPE_PL011);
@@ -569,6 +571,9 @@ static void pzx_machine_class_init(ObjectClass *oc, const void *data)
 
     mc->desc = "pzx.arm64.machine";
     mc->init = pzx_machine_init;
+    mc->min_cpus = 1;
+    mc->max_cpus = MAX_CPUS;
+    mc->default_cpus = 2;
 
 // debug code
     object_class_property_add_str(oc, "btn_press", NULL, pzx_set_btn_press_ms);

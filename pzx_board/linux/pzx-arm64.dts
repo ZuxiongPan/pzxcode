@@ -25,7 +25,20 @@
 			device_type = "cpu";
 			compatible = "arm,cortex-a53";
 			reg = <0x0 0x0>;
+			enable-method = "psci";
 		};
+
+		cpu1: cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x1>;
+			enable-method = "psci";
+		};
+	};
+
+	psci {
+    	compatible = "arm,psci-0.2";
+    	method = "smc";
 	};
 
 	refclk: refclk24m {
