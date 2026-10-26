@@ -63,7 +63,7 @@ static const mod_ops_t statmod_ops = {
     .ontask = statmod_ontask,
 };
 
-int statmod_init(void)
+static int statmod_init(void)
 {
     int ret = Success;
     memset(&statmod, 0, sizeof(dmod_t));
@@ -81,7 +81,7 @@ int statmod_init(void)
     return ret;
 }
 
-void statmod_exit(void)
+static void statmod_exit(void)
 {
     dmodule_unregister(&statmod);
     dprint("status module unregister done\n");

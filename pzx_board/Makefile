@@ -83,7 +83,7 @@ image:
 	$(UBOOT_DIR)/tools/mkimage -f $(CODE_DIR)/pzx_board/linux/pzx.its $(TOP_DIR)/pzx.itb
 
 boot:
-	$(QEMU_DIR)/build/qemu-system-aarch64 -M pzx -smp 1 \
+	$(QEMU_DIR)/build/qemu-system-aarch64 -M pzx \
 		-monitor telnet:127.0.0.1:9999,server,nowait \
     	-drive file=$(TOP_DIR)/boot.bin,if=sd,format=raw \
 		-netdev user,id=net0,tftp=$(TOP_DIR) \
@@ -91,7 +91,7 @@ boot:
 		-nographic -no-reboot
 
 boot_debug:
-	$(QEMU_DIR)/build/qemu-system-aarch64 -M pzx -smp 1 \
+	$(QEMU_DIR)/build/qemu-system-aarch64 -M pzx \
 		-monitor telnet:127.0.0.1:9999,server,nowait \
     	-drive file=$(TOP_DIR)/boot.bin,if=sd,format=raw \
 		-netdev user,id=net0,tftp=$(TOP_DIR) \

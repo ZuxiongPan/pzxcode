@@ -13,7 +13,9 @@
 #include "hw/loader.h"
 #include "hw/sysbus.h"
 #include "hw/irq.h"
+#include "hw/i2c/i2c.h"
 #include "hw/qdev-properties.h"
+#include "migration/vmstate.h"
 #include "target/arm/cpu.h"
 #include "hw/arm/bsa.h"
 #include "system/runstate.h"
@@ -27,6 +29,8 @@
 
 //#define pzxdebug(fmt, ...) qemu_log("[pzx] " fmt, ##__VA_ARGS__)
 #define pzxdebug(fmt, ...)
+
+#define MAX_CPUS 2
 
 #define TYPE_PZX_MACHINE MACHINE_TYPE_NAME("pzx")
 OBJECT_DECLARE_SIMPLE_TYPE(PzxMachineState, PZX_MACHINE)
@@ -48,7 +52,7 @@ typedef struct {
 struct PzxMachineState {
     MachineState parent;
 
-    ARMCPU *cpu;
+    ARMCPU *cpu[MAX_CPUS];
     DeviceState *gic;
     MemoryRegion mrom;  // store bootcode
     MemoryRegion sram;
@@ -62,21 +66,56 @@ struct PzxMachineState {
 #define TYPE_PZX_SYSCTL "pzx-sysctl"
 OBJECT_DECLARE_SIMPLE_TYPE(PzxSysctlState, PZX_SYSCTL)
 
+#define TYPE_PZX_I2C "pzx-i2c"
+OBJECT_DECLARE_SIMPLE_TYPE(PzxI2CState, PZX_I2C)
+// I2C register
+#define PZX_I2C_CR 0x00
+#define PZX_I2C_SR 0x04
+#define PZX_I2C_ADDR 0x08
+#define PZX_I2C_DR 0x0c
+#define PZX_I2C_CLKDIV 0x10
+#define PZX_I2C_MMIOSIZE 0x100
+
+#define CR_EN (1u << 0)
+#define CR_IEN (1u << 1)
+#define CR_START (1u << 2)
+#define CR_STOP (1u << 3)
+#define CR_DIR (1u << 4) // 0-write 1-read
+#define CR_NACK (1u << 5)
+
+#define SR_BUSY (1u << 0)
+#define SR_RXAK (1u << 1)
+#define SR_IF (1u << 2)
+
 struct PzxSysctlState {
     SysBusDevice parent;
     MemoryRegion iomem;
 };
 
+struct PzxI2CState {
+    SysBusDevice parent;
+    MemoryRegion iomem;
+    qemu_irq irq;
+    I2CBus *bus;
+
+    uint32_t cr;
+    uint32_t sr;
+    uint32_t addr;
+    uint32_t dr;
+    uint32_t clkdiv;
+};
+
 enum {
     ID_MROM = 0,
     ID_SRAM,
-    ID_GIC_DIST,
-    ID_GIC_REDIST,
     ID_UART,
     ID_SD,
     ID_SYSCTL,
     ID_VIRTIO_NET,
     ID_GPIO,
+    ID_GIC_DIST,
+    ID_GIC_REDIST,
+    ID_I2C,
     ID_DRAM,
 };
 
@@ -85,6 +124,7 @@ enum {
     IRQ_SD,
     IRQ_VIRTIO_NET,
     IRQ_GPIO,
+    IRQ_I2C,
 };
 
 static const MemMapEntry pzx_memmap[] = {
@@ -97,6 +137,7 @@ static const MemMapEntry pzx_memmap[] = {
     [ID_GPIO] = { 0x00800000, 0x00001000 },
     [ID_GIC_DIST] = { 0x01000000, 0x00010000 },
     [ID_GIC_REDIST] = { 0x01040000, 0x00080000 },
+    [ID_I2C] = { 0x01100000, 0x00001000 },
     [ID_DRAM] = { 0x80000000, 0x08000000 },
 };
 
@@ -140,6 +181,199 @@ static void pzx_sysctl_init(Object *obj)
     memory_region_init_io(&state->iomem, obj, &pzx_sysctl_ops,
             state, "pzx-sysctl", 0x1000);
     sysbus_init_mmio(dev, &state->iomem);
+}
+
+// I2C Bus
+static void pzx_i2c_update_irq(PzxI2CState *s)
+{
+    qemu_set_irq(s->irq, (s->cr & CR_EN) && (s->cr & CR_IEN) && (s->sr & SR_IF));
+}
+
+static void pzx_i2c_done(PzxI2CState *s)
+{
+    s->sr |= SR_IF;
+    pzx_i2c_update_irq(s);
+}
+
+static void pzx_i2c_do_start(PzxI2CState *s)
+{
+    bool is_recv = s->cr & CR_DIR;
+    int ret = i2c_start_transfer(s->bus, s->addr &0x7f, is_recv);
+
+    if (ret != 0)
+    {
+        s->sr |= SR_RXAK;
+        s->sr &= ~SR_BUSY;
+        i2c_end_transfer(s->bus);
+    }
+    else
+    {
+        s->sr &= ~SR_RXAK;
+        s->sr |= SR_BUSY;
+    }
+    pzx_i2c_done(s);
+}
+
+static void pzx_i2c_do_stop(PzxI2CState *s)
+{
+    if (s->sr & SR_BUSY)
+    {
+        i2c_end_transfer(s->bus);
+        s->sr &= ~SR_BUSY;
+    }
+    pzx_i2c_done(s);
+}
+
+static uint64_t pzx_i2c_read(void *opaque, hwaddr addr, unsigned size)
+{
+    PzxI2CState *s = opaque;
+    uint64_t ret = 0;
+    switch (addr)
+    {
+        case PZX_I2C_CR:
+            ret = s->cr;
+            break;
+        case PZX_I2C_SR:
+            ret = s->sr;
+            break;
+        case PZX_I2C_ADDR:
+            ret = s->addr;
+            break;
+        case PZX_I2C_DR:
+            if ((s->cr & CR_EN) && (s->sr & SR_BUSY) && (s->cr & CR_DIR))
+            {
+                s->dr = i2c_recv(s->bus);
+            }
+            ret = s->dr;
+            break;
+        case PZX_I2C_CLKDIV:
+            ret = s->clkdiv;
+            break;
+        default:
+            break;
+    }
+    return ret;
+}
+
+static void pzx_i2c_write(void *opaque, hwaddr addr, uint64_t value, unsigned size)
+{
+    PzxI2CState *s = opaque;
+    uint32_t val = value;
+    uint32_t old = 0;
+
+    switch (addr)
+    {
+        case PZX_I2C_CR:
+            old = s->cr;
+            s->cr = val;
+            if ((val & CR_EN) && !(old & CR_EN))
+            {
+                s->sr &= ~(SR_BUSY | SR_RXAK);
+            }
+            if (!(val & CR_EN) && (old & CR_EN) && (s->sr & SR_BUSY))
+            {
+                i2c_end_transfer(s->bus);
+                s->sr &= ~SR_BUSY;
+            }
+            if ((val & CR_EN) && (val & CR_START))
+            {
+                pzx_i2c_do_start(s);
+            }
+            if ((val & CR_EN) && (val & CR_STOP))
+            {
+                pzx_i2c_do_stop(s);
+            }
+            if ((val & CR_EN) && (val & CR_NACK) && (s->sr & SR_BUSY))
+            {
+                i2c_nack(s->bus);
+            }
+            s->cr &= ~(CR_START | CR_STOP | CR_NACK);
+            pzx_i2c_update_irq(s);
+            break;
+        case PZX_I2C_SR:
+            if (val & SR_IF)
+            {
+                s->sr &= ~SR_IF;
+            }
+            if (val & SR_RXAK)
+            {
+                s->sr &= ~SR_RXAK;
+            }
+            pzx_i2c_update_irq(s);
+            break;
+        case PZX_I2C_ADDR:
+            s->addr = val & 0x7f;
+            break;
+        case PZX_I2C_DR:
+            if ((s->cr & CR_EN) && (s->sr & SR_BUSY) && !(s->cr & CR_DIR))
+            {
+                s->dr = val & 0xff;
+                if (i2c_send(s->bus, s->dr) != 0)
+                {
+                    s->sr |= SR_RXAK;
+                    i2c_end_transfer(s->bus);
+                    s->sr &= ~SR_BUSY;
+                }
+                else
+                {
+                    s->sr &= ~SR_RXAK;
+                }
+                pzx_i2c_done(s);
+            }
+        default:
+            break;
+    }
+}
+
+static void pzx_i2c_reset(DeviceState *dev)
+{
+    PzxI2CState *s = PZX_I2C(dev);
+    s->cr = 0;
+    s->sr = 0;
+    s->addr = 0;
+    s->dr = 0;
+    s->clkdiv = 0;
+}
+
+static const MemoryRegionOps pzx_i2c_ops = {
+    .read = pzx_i2c_read,
+    .write = pzx_i2c_write,
+    .endianness = DEVICE_LITTLE_ENDIAN,
+    .valid = { .min_access_size = 4, .max_access_size = 4 },
+};
+
+static const VMStateDescription pzx_i2c_vmstate = {
+    .name = TYPE_PZX_I2C,
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .fields = (const VMStateField[]) {
+        VMSTATE_UINT32(cr, PzxI2CState),
+        VMSTATE_UINT32(sr, PzxI2CState),
+        VMSTATE_UINT32(addr, PzxI2CState),
+        VMSTATE_UINT32(dr, PzxI2CState),
+        VMSTATE_UINT32(clkdiv, PzxI2CState),
+        VMSTATE_END_OF_LIST(),
+    },
+};
+
+static void pzx_i2c_realize(DeviceState *dev, Error **errp)
+{
+    PzxI2CState *s = PZX_I2C(dev);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    memory_region_init_io(&s->iomem, OBJECT(s), &pzx_i2c_ops,
+        s, "pzx-i2c", PZX_I2C_MMIOSIZE);
+    sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
+    s->bus = i2c_init_bus(dev, "i2c");
+}
+
+static void pzx_i2c_class_init(ObjectClass *oc, const void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(oc);
+
+    dc->realize = pzx_i2c_realize;
+    dc->vmsd = &pzx_i2c_vmstate;
+    device_class_set_legacy_reset(dc, pzx_i2c_reset);
+    dc->desc = "pzx custom i2c master";
 }
 
 // qemu gpio button code
@@ -203,9 +437,17 @@ static void pzx_machine_init(MachineState *machine)
 {
     PzxMachineState *state = PZX_MACHINE(machine);
     MemoryRegion *sysmem = get_system_memory();
+    int i = 0;
 
-    state->cpu = ARM_CPU(object_new(ARM_CPU_TYPE_NAME("cortex-a53")));
-    qdev_realize(DEVICE(state->cpu), NULL, &error_fatal);
+    while (i < MAX_CPUS)
+    {
+        Object *cpuobj = object_new(ARM_CPU_TYPE_NAME("cortex-a53"));
+        object_property_set_int(cpuobj, "mp-affinity", i, &error_fatal);
+        CPU(cpuobj)->cpu_index = i;
+        state->cpu[i] = ARM_CPU(cpuobj);
+        qdev_realize(DEVICE(state->cpu[i]), NULL, &error_fatal);
+        i++;
+    }
 
     memory_region_init_rom(&state->mrom, NULL, "pzx.mrom",
             pzx_memmap[ID_MROM].size, &error_fatal);
@@ -233,7 +475,6 @@ static void pzx_machine_init(MachineState *machine)
     sysbus_mmio_map(SYS_BUS_DEVICE(state->gic), 1, pzx_memmap[ID_GIC_REDIST].base);
 
     // connect cpu to gic
-    DeviceState *cpudev = DEVICE(state->cpu);
     const int timer_irq[] = {
         [GTIMER_PHYS] = ARCH_TIMER_NS_EL1_IRQ,
         [GTIMER_VIRT] = ARCH_TIMER_VIRT_IRQ,
@@ -244,14 +485,19 @@ static void pzx_machine_init(MachineState *machine)
         [GTIMER_S_EL2_VIRT] = ARCH_TIMER_S_EL2_VIRT_IRQ,
     };
 
-    for (unsigned irq = 0; irq < ARRAY_SIZE(timer_irq); irq++)
+    for (i = 0; i < MAX_CPUS; i++)
     {
-        qdev_connect_gpio_out(cpudev, irq, qdev_get_gpio_in(state->gic, 64 + timer_irq[irq]));
+        DeviceState *cpudev = DEVICE(state->cpu[i]);
+        int ppi_base = 64 + i * 32;
+        for (unsigned irq = 0; irq < ARRAY_SIZE(timer_irq); irq++)
+        {
+            qdev_connect_gpio_out(cpudev, irq, qdev_get_gpio_in(state->gic, ppi_base + timer_irq[irq]));
+        }
+        sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), i + 0 * MAX_CPUS, qdev_get_gpio_in(cpudev, ARM_CPU_IRQ));
+        sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), i + 1 * MAX_CPUS, qdev_get_gpio_in(cpudev, ARM_CPU_FIQ));
+        sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), i + 2 * MAX_CPUS, qdev_get_gpio_in(cpudev, ARM_CPU_VIRQ));
+        sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), i + 3 * MAX_CPUS, qdev_get_gpio_in(cpudev, ARM_CPU_VFIQ));
     }
-    sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), 0, qdev_get_gpio_in(cpudev, ARM_CPU_IRQ));
-    sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), 1, qdev_get_gpio_in(cpudev, ARM_CPU_FIQ));
-    sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), 2, qdev_get_gpio_in(cpudev, ARM_CPU_VIRQ));
-    sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), 3, qdev_get_gpio_in(cpudev, ARM_CPU_VFIQ));
 
     DeviceState *pl011 = qdev_new(TYPE_PL011);
     qdev_prop_set_chr(pl011, "chardev", serial_hd(0));
@@ -287,8 +533,14 @@ static void pzx_machine_init(MachineState *machine)
     sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, pzx_memmap[ID_GPIO].base);
     sysbus_connect_irq(SYS_BUS_DEVICE(gpio), 0, qdev_get_gpio_in(state->gic, IRQ_GPIO));
 
+    DeviceState *i2c = qdev_new(TYPE_PZX_I2C);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(i2c), &error_fatal);
+    sysbus_mmio_map(SYS_BUS_DEVICE(i2c), 0, pzx_memmap[ID_I2C].base);
+    sysbus_connect_irq(SYS_BUS_DEVICE(i2c), 0, qdev_get_gpio_in(state->gic, IRQ_I2C));
+    //I2CBus *bus = I2C_BUS(qdev_get_child_bus(i2c, "i2c"));
+
     // set debug code gpio button
-    for (int i = 0; i < BTN_MAX; i++)
+    for (i = 0; i < BTN_MAX; i++)
     {
         state->btn.gpio[i] = qdev_get_gpio_in(gpio, i);
         qemu_set_irq(state->btn.gpio[i], 1);
@@ -329,6 +581,13 @@ static const TypeInfo pzx_sysctl_type_info = {
     .instance_init = pzx_sysctl_init,
 };
 
+static const TypeInfo pzx_i2c_type_info = {
+    .name = TYPE_PZX_I2C,
+    .parent = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(PzxI2CState),
+    .class_init = pzx_i2c_class_init,
+};
+
 static const TypeInfo pzx_machine_type_info = {
     .name = TYPE_PZX_MACHINE,
     .parent = TYPE_MACHINE,
@@ -341,6 +600,7 @@ static const TypeInfo pzx_machine_type_info = {
 static void pzx_machine_register_type(void)
 {
     type_register_static(&pzx_sysctl_type_info);
+    type_register_static(&pzx_i2c_type_info);
     type_register_static(&pzx_machine_type_info);
 }
 type_init(pzx_machine_register_type)

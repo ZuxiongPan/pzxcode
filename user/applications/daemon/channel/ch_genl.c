@@ -401,7 +401,7 @@ static int genl_send_ctrl_req(int fd)
     return Success;
 }
 
-int ch_genl_init(void)
+static int ch_genl_init(void)
 {
     int ret;
     genl_info_t *info;
@@ -466,7 +466,7 @@ err_free:
     return Fail;
 }
 
-void ch_genl_exit(void)
+static void ch_genl_exit(void)
 {
     dchannel_unregister(&genl_chnl);
 

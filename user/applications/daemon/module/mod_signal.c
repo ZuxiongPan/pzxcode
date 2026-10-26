@@ -93,7 +93,7 @@ static const mod_ops_t signalmod_ops = {
     .ontask = signalmod_ontask,
 };
 
-int signalmod_init(void)
+static int signalmod_init(void)
 {
     int ret = Success;
     memset(&signalmod, 0, sizeof(dmod_t));
@@ -111,7 +111,7 @@ int signalmod_init(void)
     return ret;
 }
 
-void signalmod_exit(void)
+static void signalmod_exit(void)
 {
     dmodule_unregister(&signalmod);
     dprint("signal module unregister done\n");

@@ -204,7 +204,7 @@ const channel_ops_t timer_chnl_ops = {
     .write_to_outer = NULL,
 };
 
-int ch_timer_init(void)
+static int ch_timer_init(void)
 {
     int ret = Success;
 
@@ -236,7 +236,7 @@ int ch_timer_init(void)
     return Success;
 }
 
-void ch_timer_exit(void)
+static void ch_timer_exit(void)
 {
     dchannel_unregister(&timer_chnl);
     if (timer_chnl.fd >= 0)

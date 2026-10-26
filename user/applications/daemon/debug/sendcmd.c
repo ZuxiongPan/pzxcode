@@ -41,9 +41,9 @@ int main(int argc, const char *argv[])
     struct sockaddr_un addr;
     char buf[TASK_DATA_MAXSIZE];
 
-    if (type != 1 && type != 2)
+    if (type < 1 || type > 3)
     {
-        printf("type: 1-no response, 2-response\n");
+        printf("type: 1-no response, 2-response, 3-test\n");
         return -1;
     }
 
@@ -75,7 +75,18 @@ int main(int argc, const char *argv[])
     }
     buf[tmp - 1] = '\0';
 
-    len = send(sockfd, buf, tmp, 0);
+    if (type == 3)
+    {
+        for (int i = 0; i < 100; i++)
+        {
+            len = send(sockfd, buf, tmp, 0);
+            usleep(10000);
+        }
+    }
+    else
+    {
+        len = send(sockfd, buf, tmp, 0);
+    }
     if (len < 0)
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK)

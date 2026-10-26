@@ -155,7 +155,7 @@ const channel_ops_t uds_server_chnl_ops = {
     .write_to_outer = NULL,
 };
 
-int ch_uds_init(void)
+static int ch_uds_init(void)
 {
     int ret = Success;
     struct sockaddr_un addr;
@@ -205,7 +205,7 @@ int ch_uds_init(void)
     return Success;
 }
 
-void ch_uds_exit(void)
+static void ch_uds_exit(void)
 {
     for (int i = 0; i < CLIENT_MAXNUM; i++)
     {

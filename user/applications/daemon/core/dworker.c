@@ -275,7 +275,7 @@ static void rawbinary_parse(char *binary, int *real_dst, void **payload,
         const dcomp_t *comp = find_dcomponent_by_name(module);
         if (comp == NULL)
         {
-            derror("target not found\n");
+            derror("target [%s] not found, data size %d\n", module, data_size);
             return ;
         }
         *real_dst = comp->dcompid;

@@ -46,7 +46,7 @@ const channel_ops_t uevent_chnl_ops = {
     .write_to_outer = NULL,
 };
 
-int ch_uevent_init(void)
+static int ch_uevent_init(void)
 {
     int ret = Success;
     struct sockaddr_nl addr;
@@ -85,7 +85,7 @@ int ch_uevent_init(void)
     return Success;
 }
 
-void ch_uevent_exit(void)
+static void ch_uevent_exit(void)
 {
     dchannel_unregister(&uevent_chnl);
     if (uevent_chnl.fd >= 0)

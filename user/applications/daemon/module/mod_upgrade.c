@@ -67,7 +67,7 @@ static const mod_ops_t upgrademod_ops = {
     .ontask = upgrademod_ontask,
 };
 
-int upgrademod_init(void)
+static int upgrademod_init(void)
 {
     int ret = Success;
     memset(&upgrademod, 0, sizeof(dmod_t));
@@ -85,7 +85,7 @@ int upgrademod_init(void)
     return ret;
 }
 
-void upgrademod_exit(void)
+static void upgrademod_exit(void)
 {
     dmodule_unregister(&upgrademod);
     dprint("upgrade module unregister done\n");

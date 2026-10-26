@@ -89,7 +89,7 @@ EXPORT_SYMBOL(genl_async_send);
 #if NETLINK_TIMER_TEST
 static struct delayed_work timer_work;
 static int ticks = 0;
-static const int timeout = 3000;
+static const int timeout = 10;
 static bool running = false;
 static struct proc_dir_entry *genl_proc = NULL;
 
