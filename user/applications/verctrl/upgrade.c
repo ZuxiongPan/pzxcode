@@ -37,11 +37,13 @@ static int upgrade_fragment(char *upgfile_name)
     if(!ret)
     {
         printf("get %s failed\n", PROC_BACKVEROFF_NAME);
+        inform_to_armd(UPG_CHECK_FAILED);
         return -EINVAL;
     }
     if(sscanf(buf, "0x%x", &offset) != 1)
     {
         printf("invalid version offset %s\n", buf);
+        inform_to_armd(UPG_CHECK_FAILED);
         return -EINVAL;
     }
 
@@ -310,11 +312,13 @@ static int upgrade_normal(char *upgfile_name)
     if(!ret)
     {
         printf("get %s failed\n", PROC_BACKVEROFF_NAME);
+        inform_to_armd(UPG_CHECK_FAILED);
         return -EINVAL;
     }
     if(sscanf(buf, "0x%x", &offset) != 1)
     {
         printf("invalid version offset %s\n", buf);
+        inform_to_armd(UPG_CHECK_FAILED);
         return -EINVAL;
     }
 

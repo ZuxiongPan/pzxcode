@@ -29,11 +29,13 @@ int version_sync(void)
     if(!ret)
     {
         printf("get %s failed\n", PROC_CURVEROFF_NAME);
+        inform_to_armd(UPG_CHECK_FAILED);
         return -EINVAL;
     }
     if(sscanf(buf, "0x%x", &curoff) != 1)
     {
         printf("invalid version offset %s\n", buf);
+        inform_to_armd(UPG_CHECK_FAILED);
         return -EINVAL;
     }
 
@@ -42,11 +44,13 @@ int version_sync(void)
     if(!ret)
     {
         printf("get %s failed\n", PROC_BACKVEROFF_NAME);
+        inform_to_armd(UPG_CHECK_FAILED);
         return -EINVAL;
     }
     if(sscanf(buf, "0x%x", &backoff) != 1)
     {
         printf("invalid version offset %s\n", buf);
+        inform_to_armd(UPG_CHECK_FAILED);
         return -EINVAL;
     }
 

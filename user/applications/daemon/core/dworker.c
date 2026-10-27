@@ -18,7 +18,7 @@
 
 static const int task_max_needed = TASK_DATA_MAXSIZE + sizeof(dtask_t);
 static int process_task(char *buffer);
-static void rawbinary_parse(char *binary, int *real_dst, void **payload,
+static int rawbinary_parse(char *binary, int *real_dst, void **payload,
     unsigned int *real_size, unsigned int *msgid, unsigned int data_size);
 static void genlbin_parse(char *binary, int *real_dst, void **payload,
     unsigned int *real_size, unsigned int data_size);
@@ -234,9 +234,12 @@ static int process_task(char *buffer)
         case DataRawBinary:
             if ((unsigned int)real_dst == DCOMPID_NONE && msgid == 0)
             {
-                rawbinary_parse(task->data, &real_dst, &payload, &msgid, &data_realsize, task->data_size);
+                ret = rawbinary_parse(task->data, &real_dst, &payload, &msgid, &data_realsize, task->data_size);
             }
-            ret = dmodule_handle(task->src_compid, real_dst, msgid, payload, data_realsize);
+            if (ret == Success)
+            {
+                ret = dmodule_handle(task->src_compid, real_dst, msgid, payload, data_realsize);
+            }
             break;
         case DataGenlAttrs:
             genlbin_parse(task->data, &real_dst, &payload, &data_realsize, task->data_size);
@@ -257,9 +260,10 @@ static int process_task(char *buffer)
     return ret;
 }
 
-static void rawbinary_parse(char *binary, int *real_dst, void **payload,
+static int rawbinary_parse(char *binary, int *real_dst, void **payload,
     unsigned int *msgid, unsigned int *real_size, unsigned int data_size)
 {
+    int ret = Success;
     if (*binary == '/')
     {
         const char *target = binary + 1;
@@ -276,12 +280,16 @@ static void rawbinary_parse(char *binary, int *real_dst, void **payload,
         if (comp == NULL)
         {
             derror("target [%s] not found, data size %d\n", module, data_size);
-            return ;
+            ret = Fail;
         }
-        *real_dst = comp->dcompid;
-        *msgid = MSGID_SIMPLE_STR;
-        *real_size = data_size - (data - binary);
-        *payload = data + 1;
+        else
+        {
+            *real_dst = comp->dcompid;
+            *msgid = MSGID_SIMPLE_STR;
+            *real_size = data_size - (data - binary);
+            *payload = data + 1;
+            ret = Success;
+        }
     }
 /*
     else if (*binary == '{')
@@ -317,15 +325,11 @@ static void rawbinary_parse(char *binary, int *real_dst, void **payload,
 */
     else
     {
-        derror("invalid binary: ");
-        for (unsigned int i = 0; i < data_size; i++)
-        {
-            rawlog("0x%02x ", binary[i]);
-        }
-        derror("\n");
+        derror("invalid binary: [%s]\n", binary);
+        ret = Fail;
     }
 
-    return ;
+    return ret;
 }
 
 static void genlbin_parse(char *binary, int *real_dst, void **payload,

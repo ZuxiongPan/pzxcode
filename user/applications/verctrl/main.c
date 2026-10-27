@@ -25,7 +25,6 @@ int main(int argc, char *argv[])
     {
         ret = version_sync();
         printf("synchonize version return %d\n", ret);
-        inform_to_armd(UPG_END);
     }
     else if(!strncmp(argv[1], "--upgrade", sizeof("--upgrade")))
     {
@@ -37,14 +36,17 @@ int main(int argc, char *argv[])
         else
         {
             ret = write_upgrade_file(DOWNLOAD_FILE_PATH);
+            printf("write upgrade file return %d\n", ret);
         }
-        inform_to_armd(UPG_END);
     }
     else
     {
         print_usage();
+        cleanup_uds_socket();
+        return -EINVAL;
     }
 
+    inform_to_armd(UPG_END);
     cleanup_uds_socket();
     return ret;
 }
