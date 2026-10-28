@@ -15,4 +15,6 @@ enum uk_nlattr {
 };
 #define NLATTR_MAX (__NLATTR_MAX - 1)
 
+#define USER_MEMBLK_MODNAME "memblk"
+
 #endif

@@ -7,6 +7,7 @@
 #define ModuleIDStatus (MODULEID_START + 2)
 #define ModuleIDUpgrade (MODULEID_START + 3)
 #define ModuleIDSignal (MODULEID_START + 4)
+#define ModuleIDMemblk (MODULEID_START + 5)
 
 struct daemon_module;
 

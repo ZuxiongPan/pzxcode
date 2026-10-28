@@ -58,7 +58,7 @@ static void ch_input_exit(void)
     }
     ch_input.fd = -1;
 
-    dprint("ch_input exit");
+    dprint("ch_input exit\n");
     return ;
 }
 

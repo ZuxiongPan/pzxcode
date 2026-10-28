@@ -8,6 +8,7 @@
 #include <linux/scatterlist.h>
 #include <linux/crypto.h>
 #include "kernel/pzxktools.h"
+#include "common/uk_netlink.h"
 
 #define MEMBLKENC_DEVICE_NAME "memblkenc"
 
@@ -193,6 +194,7 @@ static int memblkenc_probe(struct platform_device *pdev)
     }
 
     pr_info("memblkenc init ret = %d, block device start address 0x%llx\n", ret, (unsigned long long)memblkenc->vaddr);
+    genl_async_send(USER_MEMBLK_MODNAME, MEMBLKENC_DEVICE_NAME, sizeof(MEMBLKENC_DEVICE_NAME));
 
     return ret;
 }

@@ -1,6 +1,4 @@
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/mount.h>
 
 #include "dlog.h"
 #include "dconf.h"

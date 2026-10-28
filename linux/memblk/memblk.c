@@ -5,6 +5,7 @@
 #include <linux/of_address.h>
 #include <linux/of_reserved_mem.h>
 #include "kernel/pzxktools.h"
+#include "common/uk_netlink.h"
 
 #define MEMBLK_DEVICE_NAME "memblk"
 
@@ -135,6 +136,7 @@ static int memblk_probe(struct platform_device *pdev)
     }
 
     pr_info("memblk init ret = %d, block device start address 0x%llx\n", ret, (unsigned long long)memblk->vaddr);
+    genl_async_send(USER_MEMBLK_MODNAME, MEMBLK_DEVICE_NAME, sizeof(MEMBLK_DEVICE_NAME));
 
     return ret;
 }
