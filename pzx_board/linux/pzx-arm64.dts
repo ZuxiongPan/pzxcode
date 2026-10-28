@@ -138,6 +138,15 @@
 			interrupt-controller;
 			#interrupt-cells = <2>;
 		};
+
+		i2c0: i2c@1100000 {
+			compatible = "pzx,pzx-i2c";
+			reg = <0x0 0x01100000 0x0 0x1000>;
+			interrupts = <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+		};
 	};
 
 	gpio-keys {
