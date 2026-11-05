@@ -24,15 +24,18 @@ static int ueventmod_ontask(dmod_t *m, int src_compid, unsigned int msgid,
     switch (msgid)
     {
         case MSGID_UEVENT_BIN:
-            for (unsigned int i = 0; i < data_size; i++)
+            if (likely(data_size > 0))
             {
-                if (str[i] == '\0')
+                for (unsigned int i = 0; i < data_size; i++)
                 {
-                    str[i] = ',';
+                    if (str[i] == '\0')
+                    {
+                        str[i] = ',';
+                    }
                 }
+                str[data_size - 1] = '\0';
+                dprint("uevent string {%s}\n", str);
             }
-            str[data_size - 1] = '\0';
-            dprint("uevent string {%s}\n", str);
             break;
         case MSGID_GENL_BIN:
             dprint("genl string {%s}\n", (char *)data);

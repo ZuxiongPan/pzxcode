@@ -42,7 +42,7 @@ void daemon_context_init(void)
     context_init_check(g_ctx.worker_mgr != NULL ? Success : Fail);
 
     g_ctx.epfd = epoll_create1(EPOLL_CLOEXEC);
-    context_init_check(g_ctx.epfd > 0 ? Success : Fail);
+    context_init_check(g_ctx.epfd >= 0 ? Success : Fail);
 
     atomic_store(&g_ctx.status, true);
     ret = worker_manager_init(g_ctx.worker_mgr);

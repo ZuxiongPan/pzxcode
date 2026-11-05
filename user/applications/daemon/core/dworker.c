@@ -20,7 +20,7 @@ static const int task_max_needed = TASK_DATA_MAXSIZE + sizeof(dtask_t);
 static int process_task(char *buffer);
 static int rawbinary_parse(char *binary, int *real_dst, void **payload,
     unsigned int *real_size, unsigned int *msgid, unsigned int data_size);
-static void genlbin_parse(char *binary, int *real_dst, void **payload,
+static int genlbin_parse(char *binary, int *real_dst, void **payload,
     unsigned int *real_size, unsigned int data_size);
 
 static inline dtask_t* get_task_addr(task_queue_t *queue, unsigned int offset)
@@ -242,8 +242,11 @@ static int process_task(char *buffer)
             }
             break;
         case DataGenlAttrs:
-            genlbin_parse(task->data, &real_dst, &payload, &data_realsize, task->data_size);
-            ret = dmodule_handle(task->src_compid, real_dst, msgid, payload, data_realsize);
+            ret = genlbin_parse(task->data, &real_dst, &payload, &data_realsize, task->data_size);
+            if (ret == Success)
+            {
+                ret = dmodule_handle(task->src_compid, real_dst, msgid, payload, data_realsize);
+            }
             break;
         case DataKeyEvent:
             struct input_event *ev = (struct input_event *)payload;
@@ -267,14 +270,19 @@ static int rawbinary_parse(char *binary, int *real_dst, void **payload,
     if (*binary == '/')
     {
         const char *target = binary + 1;
-        char *data = strchr(target, '/');
+        char *data = memchr(target, '/', data_size);
+        if (unlikely(data == NULL))
+        {
+            derror("invalid binary: [%s]\n", binary);
+            return Fail;
+        }
         char module[MODULE_TMPNAME_MAXSIZE] = { 0 };
         unsigned long len = (data - target);
         if (len > sizeof(module))
         {
             len = sizeof(module) - 1;
         }
-        strncpy(module, target, len);
+        memcpy(module, target, len);
         module[len] = '\0';
         const dcomp_t *comp = find_dcomponent_by_name(module);
         if (comp == NULL)
@@ -332,7 +340,7 @@ static int rawbinary_parse(char *binary, int *real_dst, void **payload,
     return ret;
 }
 
-static void genlbin_parse(char *binary, int *real_dst, void **payload,
+static int genlbin_parse(char *binary, int *real_dst, void **payload,
     unsigned int *real_size, unsigned int data_size)
 {
     struct nlattr *tb[NLATTR_MAX + 1] = {0};
@@ -341,19 +349,19 @@ static void genlbin_parse(char *binary, int *real_dst, void **payload,
     if (ret != Success)
     {
         derror("invalid generic netlink data\n");
-        return ;
+        return Fail;
     }
 
     const dcomp_t *target = find_dcomponent_by_name((char *)tb[NLATTR_TARGET] + NLA_HDRLEN);
     if (target == NULL)
     {
         derror("target not found\n");
-        return ;
+        return Fail;
     }
 
     *real_dst = target->dcompid;
     *real_size = tb[NLATTR_DATA]->nla_len - NLA_HDRLEN;
     *payload = (char *)tb[NLATTR_DATA] + NLA_HDRLEN;
 
-    return ;
+    return Success;
 }

@@ -43,7 +43,7 @@ static int memblkmod_ontask(dmod_t *m, int src_compid, unsigned int msgid,
     switch (msgid)
     {
         case MSGID_GENL_BIN:
-            if (!data || data_size != 0)
+            if (data && data_size > 0)
             {
                 dprint("a new memory block device [%s] installed\n", (const char *)data);
                 blkinfo_t *info = (blkinfo_t *)calloc(1, sizeof(blkinfo_t));

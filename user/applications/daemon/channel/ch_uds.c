@@ -169,7 +169,7 @@ static int ch_uds_init(void)
     }
     dcomponent_init(&g_uds_mgr.server.dcomp, ChannelIDUdsServer, "uds_server");
     g_uds_mgr.server.ops = &uds_server_chnl_ops;
-    g_uds_mgr.server.fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+    g_uds_mgr.server.fd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (g_uds_mgr.server.fd < 0)
     {
         derror("uds socket create failed\n");
@@ -209,9 +209,9 @@ static void ch_uds_exit(void)
 {
     for (int i = 0; i < CLIENT_MAXNUM; i++)
     {
-        dchannel_unregister(&g_uds_mgr.clients[i]);
         if (g_uds_mgr.clients[i].fd >= 0)
         {
+            dchannel_unregister(&g_uds_mgr.clients[i]);
             close(g_uds_mgr.clients[i].fd);
             g_uds_mgr.clients[i].fd = -1;
         }

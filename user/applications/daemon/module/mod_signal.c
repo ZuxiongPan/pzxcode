@@ -74,11 +74,12 @@ static int signalmod_ontask(dmod_t *m, int src_compid, unsigned int msgid,
     UNUSED(src_compid);
     UNUSED(data_size);
     int ret = Success;
-    uint32_t signo = *((uint32_t *)data);
+    uint32_t signo = 0;
 
     switch (msgid)
     {
         case MSGID_SYS_SIGNAL:
+            signo = *((uint32_t *)data);
             handle_signal(signo);
             break;
         default:
