@@ -102,9 +102,21 @@
 		serial0: serial@400000 {
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0x00400000 0x0 0x00001000>;
-			interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&refclk>, <&refclk>;
 			clock-names = "uartclk", "apb_pclk";
+		};
+
+		serial1: serial@401000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x0 0x00401000 0x0 0x00001000>;
+			interrupts = <GIC_SPI 17 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&refclk>, <&refclk>;
+			clock-names = "uartclk", "apb_pclk";
+
+			fpga: fpga-ctl {
+				compatible = "pzx,uart-fpga";
+			};
 		};
 
 		sysctl: pzxsysctl@600000 {
@@ -124,13 +136,13 @@
 		virtio_net: virtio@700000 {
 			compatible = "virtio,mmio";
 			reg = <0x0 0x00700000 0x0 0x00000200>;
-			interrupts = <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		gpio0: gpio@800000 {
 			compatible = "arm,pl061", "arm,primecell";
 			reg = <0x0 0x00800000 0x0 0x00001000>;
-			interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&refclk>;
 			clock-names = "apb_pclk";
 			gpio-controller;
@@ -142,7 +154,7 @@
 		i2c0: i2c@1100000 {
 			compatible = "pzx,pzx-i2c";
 			reg = <0x0 0x01100000 0x0 0x1000>;
-			interrupts = <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "okay";

@@ -108,7 +108,8 @@ struct PzxI2CState {
 enum {
     ID_MROM = 0,
     ID_SRAM,
-    ID_UART,
+    ID_UART0,
+    ID_UART1,
     ID_SD,
     ID_SYSCTL,
     ID_VIRTIO_NET,
@@ -119,18 +120,18 @@ enum {
     ID_DRAM,
 };
 
-enum {
-    IRQ_UART = 0,
-    IRQ_SD,
-    IRQ_VIRTIO_NET,
-    IRQ_GPIO,
-    IRQ_I2C,
-};
+#define IRQ_GPIO 0
+#define IRQ_VIRTIO_NET 1
+#define IRQ_SD 2
+#define IRQ_I2C 3
+#define IRQ_UART0 16
+#define IRQ_UART1 17
 
 static const MemMapEntry pzx_memmap[] = {
     [ID_MROM] = { 0x00000000, 0x00080000 },
     [ID_SRAM] = { 0x00100000, 0x00200000 },
-    [ID_UART] = { 0x00400000, 0x00001000 },
+    [ID_UART0] = { 0x00400000, 0x00001000 },
+    [ID_UART1] = { 0x00401000, 0x00001000 },
     [ID_SD] = { 0x00500000, 0x0001000 },
     [ID_SYSCTL] = { 0x00600000, 0x00001000 },
     [ID_VIRTIO_NET] = { 0x00700000, 0x00000200 },
@@ -501,11 +502,17 @@ static void pzx_machine_init(MachineState *machine)
         sysbus_connect_irq(SYS_BUS_DEVICE(state->gic), i + 3 * machine->smp.cpus, qdev_get_gpio_in(cpudev, ARM_CPU_VFIQ));
     }
 
-    DeviceState *pl011 = qdev_new(TYPE_PL011);
-    qdev_prop_set_chr(pl011, "chardev", serial_hd(0));
-    sysbus_realize_and_unref(SYS_BUS_DEVICE(pl011), &error_fatal);
-    sysbus_mmio_map(SYS_BUS_DEVICE(pl011), 0, pzx_memmap[ID_UART].base);
-    sysbus_connect_irq(SYS_BUS_DEVICE(pl011), 0, qdev_get_gpio_in(state->gic, IRQ_UART));
+    DeviceState *pl011_0 = qdev_new(TYPE_PL011);
+    qdev_prop_set_chr(pl011_0, "chardev", serial_hd(0));
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(pl011_0), &error_fatal);
+    sysbus_mmio_map(SYS_BUS_DEVICE(pl011_0), 0, pzx_memmap[ID_UART0].base);
+    sysbus_connect_irq(SYS_BUS_DEVICE(pl011_0), 0, qdev_get_gpio_in(state->gic, IRQ_UART0));
+
+    DeviceState *pl011_1 = qdev_new(TYPE_PL011);
+    qdev_prop_set_chr(pl011_1, "chardev", serial_hd(1));
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(pl011_1), &error_fatal);
+    sysbus_mmio_map(SYS_BUS_DEVICE(pl011_1), 0, pzx_memmap[ID_UART1].base);
+    sysbus_connect_irq(SYS_BUS_DEVICE(pl011_1), 0, qdev_get_gpio_in(state->gic, IRQ_UART1));
 
     DeviceState *sdhost = qdev_new("pl181");
     sysbus_realize_and_unref(SYS_BUS_DEVICE(sdhost), &error_fatal);
