@@ -7,6 +7,7 @@
 #include "qapi/error.h"
 #include "qobject/qlist.h"
 #include "hw/boards.h"
+#include "hw/qdev-clock.h"
 #include "hw/arm/boot.h"
 #include "hw/sd/sd.h"
 #include "hw/char/pl011.h"
@@ -54,6 +55,7 @@ struct PzxMachineState {
 
     ARMCPU *cpu[MAX_CPUS];
     DeviceState *gic;
+    Clock *refclk24m;
     MemoryRegion mrom;  // store bootcode
     MemoryRegion sram;
     MemoryRegion dram;
@@ -477,6 +479,9 @@ static void pzx_machine_init(MachineState *machine)
     sysbus_mmio_map(SYS_BUS_DEVICE(state->gic), 0, pzx_memmap[ID_GIC_DIST].base);
     sysbus_mmio_map(SYS_BUS_DEVICE(state->gic), 1, pzx_memmap[ID_GIC_REDIST].base);
 
+    state->refclk24m = clock_new(OBJECT(machine), "refclk24m");
+    clock_set_hz(state->refclk24m, 24000000);
+
     // connect cpu to gic
     const int timer_irq[] = {
         [GTIMER_PHYS] = ARCH_TIMER_NS_EL1_IRQ,
@@ -504,12 +509,14 @@ static void pzx_machine_init(MachineState *machine)
 
     DeviceState *pl011_0 = qdev_new(TYPE_PL011);
     qdev_prop_set_chr(pl011_0, "chardev", serial_hd(0));
+    qdev_connect_clock_in(pl011_0, "clk", state->refclk24m);
     sysbus_realize_and_unref(SYS_BUS_DEVICE(pl011_0), &error_fatal);
     sysbus_mmio_map(SYS_BUS_DEVICE(pl011_0), 0, pzx_memmap[ID_UART0].base);
     sysbus_connect_irq(SYS_BUS_DEVICE(pl011_0), 0, qdev_get_gpio_in(state->gic, IRQ_UART0));
 
     DeviceState *pl011_1 = qdev_new(TYPE_PL011);
     qdev_prop_set_chr(pl011_1, "chardev", serial_hd(1));
+    qdev_connect_clock_in(pl011_1, "clk", state->refclk24m);
     sysbus_realize_and_unref(SYS_BUS_DEVICE(pl011_1), &error_fatal);
     sysbus_mmio_map(SYS_BUS_DEVICE(pl011_1), 0, pzx_memmap[ID_UART1].base);
     sysbus_connect_irq(SYS_BUS_DEVICE(pl011_1), 0, qdev_get_gpio_in(state->gic, IRQ_UART1));

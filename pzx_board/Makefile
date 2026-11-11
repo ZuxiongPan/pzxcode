@@ -88,7 +88,9 @@ boot:
     	-drive file=$(TOP_DIR)/boot.bin,if=sd,format=raw \
 		-netdev user,id=net0,tftp=$(TOP_DIR) \
 		-device virtio-net-device,netdev=net0 \
-		-device i2c-echo,address=0x50 \
+		-serial mon:stdio \
+		-chardev socket,id=fpga_socket,path=/tmp/uart_fpga.sock,server=on,wait=off \
+		-serial chardev:fpga_socket \
 		-nographic -no-reboot
 
 boot_debug:
