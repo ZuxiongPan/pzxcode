@@ -1,367 +1,339 @@
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "dlog.h"
-#include "dconf.h"
-#include "core/dworker.h"
+#include "dextension.h"
 #include "core/dcontext.h"
-#include "core/dmodule.h"
-#include "core/dchannel.h"
-#include "module/dmsgid.h"
-#include "lib/cJSON.h"
-#include "channel/chnl_api.h"
-#include "common/uk_netlink.h"
+#include "core/dworker.h"
 
-#include <linux/input.h>
+static const unsigned int spool_data_maxlen = SMALL_POOL_SLOT_SIZE - sizeof(struct dtask);
+static const unsigned int mpool_data_maxlen = MEDIUM_POOL_SLOT_SIZE - sizeof(struct dtask);
+static const unsigned int lpool_data_maxlen = LARGE_POOL_SLOT_SIZE - sizeof(struct dtask);
 
-#define MODULE_TMPNAME_MAXSIZE 32
+static char *taskmem = NULL;
+static struct worker_mgr worker_mgr = { 0 };
 
-static const int task_max_needed = TASK_DATA_MAXSIZE + sizeof(dtask_t);
-static int process_task(char *buffer);
-static int rawbinary_parse(char *binary, int *real_dst, void **payload,
-    unsigned int *real_size, unsigned int *msgid, unsigned int data_size);
-static int genlbin_parse(char *binary, int *real_dst, void **payload,
-    unsigned int *real_size, unsigned int data_size);
-
-static inline dtask_t* get_task_addr(task_queue_t *queue, unsigned int offset)
+static inline int pool_select(unsigned int task_size)
 {
-    return (dtask_t *)(queue->tasks + offset);
+    int ret = PoolMax;
+
+    if (task_size <= spool_data_maxlen)
+    {
+        ret = SmallPool;
+    }
+    else if (task_size <= mpool_data_maxlen)
+    {
+        ret = MediumPool;
+    }
+    else if (task_size <= lpool_data_maxlen)
+    {
+        ret = LargePool;
+    }
+
+    return ret;
 }
 
-static void* worker_thread(void* arg)
+// this function must be called with lock held
+static inline struct dtask* alloc_task(struct dtask_pool *pool)
+{
+    struct dtask *ret = NULL;
+    int bit_pos = -1;
+    int slot_idx = -1;
+
+    for (unsigned int i = 0; i < pool->bitmap_size; i++)
+    {
+        if (pool->bitmap[i] == BITMAP_UNIT_FULL)
+        {
+            continue;
+        }
+        // here we check bitmap[i] is not all 1, following code will not invalid behavior
+        bit_pos = __builtin_ctzll(~pool->bitmap[i]);
+        pool->bitmap[i] |= (1 << bit_pos);
+        slot_idx = i * BITMAP_UNIT_BITS + bit_pos;
+        ret = pool->base + slot_idx * pool->slot_size;
+        ret->slot_idx = slot_idx;
+        ret->next = NULL;
+        break;
+    }
+
+    return ret;
+}
+
+static inline void recycle_task(struct dtask *task)
+{
+    int pool = pool_select(task->data_size);
+    if (unlikely(pool == PoolMax))
+    {
+        derror("invalid task size %u\n", task->data_size);
+        return ;
+    }
+
+    struct dtask_pool *pool = &worker_mgr.queue.pools[pool];
+    pool->bitmap[task->slot_idx / BITMAP_UNIT_BITS] &= ~(1 << (task->slot_idx & (BITMAP_UNIT_BITS - 1)));
+
+    return;
+}
+
+static void* worker_thread(void *arg)
 {
     UNUSED(arg);
-    char buffer[task_max_needed];
-    dctx_t *ctx = dctx_instance();
-    dtask_t *task = NULL;
-    task_queue_t *queue = &ctx->worker_mgr->queue;
+    char buffer[LARGE_POOL_SLOT_SIZE];
+    struct dtask *task = NULL;
+    struct dctx_t *ctx = dctx_instance();
+    struct dtask_queue *queue = &worker_mgr.queue;
 
-    while (true)
+    while (atomic_load(&ctx->status))
     {
-        memset(buffer, 0, sizeof(buffer));
-        pthread_mutex_lock(&queue->mutex);
+        pthread_mutex_lock(&queue->lock);
         while (queue->count == 0 && atomic_load(&ctx->status))
         {
-            pthread_cond_wait(&queue->cond, &queue->mutex);
+            pthread_cond_wait(&queue->cond, &queue->lock);
         }
         if (!atomic_load(&ctx->status))
         {
-            pthread_mutex_unlock(&queue->mutex);
+            pthread_mutex_unlock(&queue->lock);
             break;
         }
-        atomic_fetch_add(&ctx->worker_mgr->busy, 1);
-        task = get_task_addr(queue, queue->first_offset);
-        queue->first_offset = task->next_offset;
-        /** here we use temporary buffer to store task data
-         *  to avoid after unlock queue the data is polluted
-        */
-        memcpy(buffer, task, sizeof(dtask_t) + task->data_size);
+
+        atomic_fetch_add(&worker_mgr.busy, 1);
+        task = queue->head;
+        queue->head = task->next;
+        if (queue->head == NULL)
+        {
+            queue->tail = NULL;
+        }
         queue->count--;
-        pthread_mutex_unlock(&queue->mutex);
-        /* process task */
-        process_task(buffer);
-        //ddebug("process task ret %d\n", inner_ret);
-        atomic_fetch_sub(&ctx->worker_mgr->busy, 1);
+        memset(buffer, 0, LARGE_POOL_SLOT_SIZE);
+        memcpy(buffer, task, sizeof(struct dtask) + task->data_size);
+        recycle_task(task);
+        pthread_mutex_unlock(&queue->lock);
+
+        /** todo
+            process_task(buffer);
+         */
+        atomic_fetch_sub(worker_mgr.busy, 1);
     }
 
     return NULL;
 }
 
-int task_enqueue(dtask_datatype_e datatype, int src, int dst,
-    unsigned int msgid, unsigned int data_size, const char *data)
+static void* monitor_thread(void *arg)
 {
-    dctx_t *ctx = dctx_instance();
-    task_queue_t *queue = &ctx->worker_mgr->queue;
-    unsigned int aligned = (data_size + 7) & ~7;    // 8 bytes align
-    unsigned int required = sizeof(dtask_t) + aligned;
+    UNUSED(arg);
+    struct dctx_t *ctx = dctx_instance();
 
-    if (required > task_max_needed)
+    while (atomic_load(&ctx->status))
     {
-        pthread_mutex_lock(&queue->mutex);
-        queue->total++;
-        queue->drop++;
-        pthread_mutex_unlock(&queue->mutex);
-        derror("data_size %d is too large\n", data_size);
-        return Fail;
+        struct timeval tv = { 0, MONITOR_INTERVAL_MS * 1000 };
+        select(0, NULL, NULL, NULL, &tv);
+        dprint("monitor: busy workers %u\n", atomic_load(&ctx->worker_mgr->busy));
     }
 
-    dtask_t *last_task = NULL;
-    dtask_t *new_task = NULL;
-    pthread_mutex_lock(&queue->mutex);
-    queue->total++;
-
-    if (queue->count == 0)
-    {
-        queue->first_offset = 0;
-        queue->last_offset = 0;
-        queue->idle_offset = 0;
-    }
-    
-    unsigned int target_offset = queue->idle_offset;
-    
-    if (queue->idle_offset >= queue->first_offset)
-    {
-        if ((TASK_QUEUE_BYTES - queue->idle_offset) < required)
-        {
-            if (queue->first_offset < required)
-            {
-                derror("there is no space for new task\n");
-                queue->drop++;
-                pthread_mutex_unlock(&queue->mutex);
-                return Fail;
-            }
-            target_offset = 0;
-        }
-    }
-    else
-    {
-        if ((queue->first_offset - queue->idle_offset) < required)
-        {
-            derror("there is no space for new task\n");
-            queue->drop++;
-            pthread_mutex_unlock(&queue->mutex);
-            return Fail;
-        }
-    }
-
-    if (queue->count > 0)
-    {
-        last_task = get_task_addr(queue, queue->last_offset);
-        last_task->next_offset = target_offset;
-    }
-
-    new_task = get_task_addr(queue, target_offset);
-    new_task->datatype = datatype;
-    new_task->msgid = msgid;
-    new_task->src_compid = src;
-    new_task->dst_compid = dst;
-    new_task->data_size = data_size;
-    new_task->next_offset = target_offset + required;
-    if (data != NULL && data_size > 0)
-    {
-        memcpy(new_task->data, data, data_size);
-    }
-    queue->last_offset = target_offset;
-    queue->idle_offset = new_task->next_offset;
-    queue->count++;
-
-    /*dprint("task info: datatype[%d], src[0x%x], dst[0x%x], msgid[0x%x], data_size[%d], next_offset[0x%x]\n", \
-        datatype, src, dst, msgid, data_size, new_task->next_offset);
-    dprint("queue info: first_offset[0x%x], last_offset[0x%x], idle_offset[0x%x], count[%d]\n", \
-        queue->first_offset, queue->last_offset, queue->idle_offset, queue->count); */
-
-    pthread_cond_signal(&queue->cond);
-    pthread_mutex_unlock(&queue->mutex);
-
-    return Success;
+    return NULL;
 }
 
-int worker_manager_init(dworker_mgr_t* mgr)
+static void task_queue_init(struct dtask_queue *q)
 {
-    // here we shoule check mgr is valid, but this is a key init, mgr must be valid
+    pthread_mutex_init(&q->lock, NULL);
+    pthread_cond_init(&q->cond, NULL);
+    q->head = NULL;
+    q->tail = NULL;
+    q->count = 0;
+    q->total = 0;
+    q->drop = 0;
+
+    // init task pools
+    q->pools[SmallPool].base = taskmem;
+    q->pools[SmallPool].slot_size = SMALL_POOL_SLOT_SIZE;
+    q->pools[SmallPool].slots = SMALL_POOL_SLOTS;
+    q->pools[SmallPool].bitmap_size = (SMALL_POOL_SLOTS + BITMAP_UNIT_BITS - 1) / BITMAP_UNIT_BITS;
+
+    q->pools[MediumPool].base = taskmem + SMALL_POOL_SIZE;
+    q->pools[MediumPool].slot_size = MEDIUM_POOL_SLOT_SIZE;
+    q->pools[MediumPool].slots = MEDIUM_POOL_SLOTS;
+    q->pools[MediumPool].bitmap_size = (MEDIUM_POOL_SLOTS + BITMAP_UNIT_BITS - 1) / BITMAP_UNIT_BITS;
+
+    q->pools[LargePool].base = taskmem + SMALL_POOL_SIZE + MEDIUM_POOL_SIZE;
+    q->pools[LargePool].slot_size = LARGE_POOL_SLOT_SIZE;
+    q->pools[LargePool].slots = LARGE_POOL_SLOTS;
+    q->pools[LargePool].bitmap_size = (LARGE_POOL_SLOTS + BITMAP_UNIT_BITS - 1) / BITMAP_UNIT_BITS;
+
+    return ;
+}
+
+int worker_mgr_init(void)
+{
     uint8_t tmp = 0;
     int inner_ret = 0;
-    task_queue_t *queue = &mgr->queue;
 
-    // 1. init task queue, first version we use a fixed-size array
-    pthread_mutex_init(&queue->mutex, NULL);
-    pthread_cond_init(&queue->cond, NULL);
-    queue->tasks = calloc(1, TASK_QUEUE_BYTES);
-    if (queue->tasks == NULL)
+    worker_mgr.initialized = false;
+    taskmem = calloc(1, TASK_QUEUE_SIZE);
+    if (taskmem == NULL)
     {
-        derror("failed to malloc task queue\n");
+        derror("failed to alloc task memory\n");
         return Fail;
     }
-    queue->first_offset = 0;
-    queue->last_offset = 0;
-    queue->idle_offset = 0;
-    queue->count = 0;
-    queue->total = 0;
-    queue->drop = 0;
 
-    // 2. init worker threads
-    atomic_init(&mgr->busy, 0);
+    task_queue_init(&worker_mgr.queue);
+    atomic_init(&worker_mgr.busy, 0);
     for (int i = 0; i < WORKER_MAXNUM; i++)
     {
-        inner_ret = pthread_create(&mgr->workers[i].tid, NULL, worker_thread, NULL);
+        inner_ret = pthread_create(&worker_mgr.workers[i].tid, NULL, worker_thread, NULL);
         if (inner_ret != 0)
         {
-            mgr->workers[i].valid = false;
+            worker_mgr.workers[i].valid = false;
             derror("failed to create worker thread %d\n", i);
         }
         else
         {
-            mgr->workers[i].valid = true;
+            worker_mgr.workers[i].valid = true;
             tmp++;
         }
     }
 
-    mgr->valid = tmp;
+    inner_ret = pthread_create(&worker_mgr.monitor.tid, NULL, monitor_thread, NULL);
+    if (inner_ret != 0)
+    {
+        worker_mgr.monitor.valid = false;
+        derror("failed to create monitor thread\n");
+    }
+    else
+    {
+        worker_mgr.monitor.valid = true;
+    }
+
+    worker_mgr.initialized = true;
     dprint("created %d worker threads, expect %d\n", tmp, WORKER_MAXNUM);
     return Success;
 }
 
-void worker_manager_destroy(dworker_mgr_t* mgr)
+void worker_mgr_destroy(void)
 {
-    pthread_cond_broadcast(&mgr->queue.cond);
+    if (!worker_mgr.initialized)
+    {
+        return;
+    }
+
+    worker_mgr.initialized = false;
+    pthread_mutex_lock(&worker_mgr.queue.lock);
+    worker_mgr.queue.count = 0;
+    worker_mgr.queue.head = NULL;
+    worker_mgr.queue.tail = NULL;
+    pthread_mutex_unlock(&worker_mgr.queue.lock);
+    pthread_cond_broadcast(&worker_mgr.queue.cond);
+    
+    free(taskmem);
+
     for (int i = 0; i < WORKER_MAXNUM; i++)
     {
-        if (mgr->workers[i].valid)
+        if (worker_mgr.workers[i].valid)
         {
-            pthread_join(mgr->workers[i].tid, NULL);
+            pthread_join(worker_mgr.workers[i].tid, NULL);
         }
     }
-    
-    if (mgr->queue.tasks != NULL)
+
+    if (worker_mgr.monitor.valid)
     {
-        free(mgr->queue.tasks);
+        pthread_join(worker_mgr.monitor.tid, NULL);
     }
-    
-    return ;
+
+    return;
 }
 
-static int process_task(char *buffer)
+int task_enqueue_by_id(int srcid, int dstid, unsigned int msgid,
+    unsigned int data_size, const char *data)
 {
-    dtask_t *task = (dtask_t *)buffer;
-    int real_dst = task->dst_compid;
-    unsigned int msgid = task->msgid;
-    unsigned int data_realsize = task->data_size;
-    void *payload = task->data;
+    int pool = pool_select(data_size);
     int ret = Success;
 
-    switch (task->datatype)
+    pthread_mutex_lock(&worker_mgr.queue.lock);
+    worker_mgr.queue.total++;
+    if (likely(pool != PoolMax))
     {
-        case DataRawBinary:
-            if ((unsigned int)real_dst == DCOMPID_NONE && msgid == 0)
-            {
-                ret = rawbinary_parse(task->data, &real_dst, &payload, &msgid, &data_realsize, task->data_size);
-            }
-            if (ret == Success)
-            {
-                ret = dmodule_handle(task->src_compid, real_dst, msgid, payload, data_realsize);
-            }
-            break;
-        case DataGenlAttrs:
-            ret = genlbin_parse(task->data, &real_dst, &payload, &data_realsize, task->data_size);
-            if (ret == Success)
-            {
-                ret = dmodule_handle(task->src_compid, real_dst, msgid, payload, data_realsize);
-            }
-            break;
-        case DataKeyEvent:
-            struct input_event *ev = (struct input_event *)payload;
-            dprint("KeyEvent: type[%u] code[%u] value[%d]\n", ev->type, ev->code, ev->value);
-            break;
-        case DataToOuter:   
-            ret = dchannel_write_to_outer(buffer);
-            break;
-        default:
-            derror("unknown task datatype %d\n", task->datatype);
-            break;
-    }
-
-    return ret;
-}
-
-static int rawbinary_parse(char *binary, int *real_dst, void **payload,
-    unsigned int *msgid, unsigned int *real_size, unsigned int data_size)
-{
-    int ret = Success;
-    if (*binary == '/')
-    {
-        const char *target = binary + 1;
-        char *data = memchr(target, '/', data_size);
-        if (unlikely(data == NULL))
+        struct dtask *task = alloc_task(&worker_mgr.queue.pools[pool]);
+        if (task == NULL)
         {
-            derror("invalid binary: [%s]\n", binary);
-            return Fail;
-        }
-        char module[MODULE_TMPNAME_MAXSIZE] = { 0 };
-        unsigned long len = (data - target);
-        if (len > sizeof(module))
-        {
-            len = sizeof(module) - 1;
-        }
-        memcpy(module, target, len);
-        module[len] = '\0';
-        const dcomp_t *comp = find_dcomponent_by_name(module);
-        if (comp == NULL)
-        {
-            derror("target [%s] not found, data size %d\n", module, data_size);
+            derror("failed to alloc task slot\n");
+            worker_mgr.queue.drop++;
             ret = Fail;
         }
         else
         {
-            *real_dst = comp->dcompid;
-            *msgid = MSGID_SIMPLE_STR;
-            *real_size = data_size - (data - binary);
-            *payload = data + 1;
-            ret = Success;
+            task->srcid = srcid;
+            task->dstinfo.dst.id = dstid;
+            task->dstinfo.type = DEST_ID;
+            task->msgid = msgid;
+            task->data_size = data_size;
+            memcpy(task->data, data, data_size);
+            worker_mgr.queue.count++;
+            if (worker_mgr.queue.head == NULL)
+            {
+                worker_mgr.queue.head = task;
+            }
+            else
+            {
+                worker_mgr.queue.tail->next = task;
+            }
+            worker_mgr.queue.tail = task;
+            pthread_cond_signal(&worker_mgr.queue.cond);
         }
     }
-/*
-    else if (*binary == '{')
-    {
-        cJSON *root = cJSON_Parse(binary);
-        if (root == NULL)
-        {
-            derror("failed to parse binary %s\n", binary);
-            return ;
-        }
-
-        cJSON *dst = cJSON_GetObjectItem(root, "target");
-        if (dst == NULL)
-        {
-            derror("failed to parse rawstr %s, no target field\n", rawstr);
-            cJSON_Delete(root);
-            return ;
-        }
-
-        const dcomp_t *comp = find_dcomponent_by_name(dst->valuestring);
-        if (comp == NULL)
-        {
-            derror("target not found\n");
-            cJSON_Delete(root);
-            return ;
-        }
-
-        *real_dst = comp->dcompid;
-        *msgid = MSGID_JSON_RAWSTR;
-
-        cJSON_Delete(root);
-    }
-*/
     else
     {
-        derror("invalid binary: [%s]\n", binary);
+        derror("task size %d is too large\n", data_size);
+        worker_mgr.queue.drop++;
         ret = Fail;
     }
+    pthread_mutex_unlock(&worker_mgr.queue.lock);
 
     return ret;
 }
 
-static int genlbin_parse(char *binary, int *real_dst, void **payload,
-    unsigned int *real_size, unsigned int data_size)
+int task_enqueue_by_name(int srcid, const char *dst_name, unsigned int msgid,
+    unsigned int data_size, const char *data)
 {
-    struct nlattr *tb[NLATTR_MAX + 1] = {0};
-    int ret = genl_parse_attrs_armd(binary, data_size, tb);
+    int ret = Success;
+    int pool = pool_select(data_size);
 
-    if (ret != Success)
+    pthread_mutex_lock(&worker_mgr.queue.lock);
+    worker_mgr.queue.total++;
+    if (likely(pool != PoolMax))
     {
-        derror("invalid generic netlink data\n");
-        return Fail;
+        struct dtask *task = alloc_task(&worker_mgr.queue.pools[pool]);
+        if (task == NULL)
+        {
+            derror("failed to alloc task slot\n");
+            worker_mgr.queue.drop++;
+            ret = Fail;
+        }
+        else
+        {
+            task->srcid = srcid;
+            task->dstinfo.dst.name = dst_name;
+            task->dstinfo.type = DEST_NAME;
+            task->msgid = msgid;
+            task->data_size = data_size;
+            memcpy(task->data, data, data_size);
+            worker_mgr.queue.count++;
+            if (worker_mgr.queue.head == NULL)
+            {
+                worker_mgr.queue.head = task;
+            }
+            else
+            {
+                worker_mgr.queue.tail->next = task;
+            }
+            worker_mgr.queue.tail = task;
+            pthread_cond_signal(&worker_mgr.queue.cond);
+        }
     }
-
-    const dcomp_t *target = find_dcomponent_by_name((char *)tb[NLATTR_TARGET] + NLA_HDRLEN);
-    if (target == NULL)
+    else
     {
-        derror("target not found\n");
-        return Fail;
+        derror("task size %d is too large\n", data_size);
+        worker_mgr.queue.drop++;
+        ret = Fail;
     }
+    pthread_mutex_unlock(&worker_mgr.queue.lock);
 
-    *real_dst = target->dcompid;
-    *real_size = tb[NLATTR_DATA]->nla_len - NLA_HDRLEN;
-    *payload = (char *)tb[NLATTR_DATA] + NLA_HDRLEN;
-
-    return Success;
+    return ret;
 }

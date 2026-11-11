@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/epoll.h>
@@ -10,49 +9,51 @@
 
 extern void dchannel_handle(void *arg);
 
-static dctx_t g_ctx;
+static struct dctx g_ctx;
 
-dctx_t* dctx_instance(void)
+struct dctx* dctx_instance(void)
 {
     return &g_ctx;
 }
 
-static inline void context_init_check(int retcode)
+static inline void dctx_init_check(int judge)
 {
-    if (retcode != Success)
+    if (unlikely(judge))
     {
-        demerg("context init failed, exit process\n");
-        daemon_context_destroy();
+        early_log("daemon context init failed, exit process\n");
+        atomic_store(&g_ctx.status, false);
+        dctx_destroy();
         exit(EXIT_FAILURE);
     }
 }
 
-void daemon_context_init(void)
+void dctx_init(void)
 {
     int ret = Success;
-    memset(&g_ctx, 0, sizeof(dctx_t));
+    memset(&g_ctx, 0, sizeof(struct dctx));
+
     atomic_init(&g_ctx.status, false);
-    pthread_rwlock_init(&g_ctx.ht_rwlock, NULL);
+    atomic_init(&g_ctx.next_id, 0);
+    pthread_rwlock_init(&g_ctx.name_tb.rwlock, NULL);
+    pthread_rwlock_init(&g_ctx.id_tb.rwlock, NULL);
     for (int i = 0; i < COMPREC_HTABLE_SIZE; i++)
     {
-        g_ctx.htable[i] = NULL;
+        lnode_init(&g_ctx.name_tb.list[i]);
+        lnode_init(&g_ctx.id_tb.list[i]);
     }
 
-    g_ctx.worker_mgr = calloc(1, sizeof(dworker_mgr_t));
-    context_init_check(g_ctx.worker_mgr != NULL ? Success : Fail);
-
     g_ctx.epfd = epoll_create1(EPOLL_CLOEXEC);
-    context_init_check(g_ctx.epfd >= 0 ? Success : Fail);
+    dctx_init_check(g_ctx.epfd < 0);
 
     atomic_store(&g_ctx.status, true);
-    ret = worker_manager_init(g_ctx.worker_mgr);
-    context_init_check(ret);
+    ret = worker_mgr_init();
+    dctx_init_check(ret != Success);
     
     dprint("context init success\n");
     return ;
 }
 
-void daemon_context_run(void)
+void start_dctx_evloop(void)
 {
     int nfds = 0;
     struct epoll_event events[EPOLL_EVENTS];
@@ -73,15 +74,11 @@ void daemon_context_run(void)
     }
 }
 
-void daemon_context_destroy(void)
+void dctx_destroy(void)
 {
-    if (g_ctx.worker_mgr != NULL)
-    {
-        worker_manager_destroy(g_ctx.worker_mgr);
-        free(g_ctx.worker_mgr);
-    }
+    worker_mgr_destroy();
 
-    if (g_ctx.epfd > 0)
+    if (g_ctx.epfd >= 0)
     {
         close(g_ctx.epfd);
     }
@@ -94,12 +91,18 @@ void stop_daemon_evloop(void)
     atomic_store(&g_ctx.status, false);
 }
 
-static inline int dcomp_hash(unsigned int compid)
+// DJB2 hash function
+static inline unsigned int str_to_key(const char *str)
 {
-    return (compid % COMPREC_HTABLE_SIZE);
+    unsigned int key = 5381;
+    for (const char *p = str; *p; p++)
+    {
+        key = ((key << 5) + key) + (*p);
+    }
+    return key;
 }
 
-void dcomponent_init(dcomp_t *comp, int compid, const char *name)
+void dcomp_init(struct dcomp *comp, const char *name)
 {
     if (comp == NULL)
     {
@@ -107,113 +110,108 @@ void dcomponent_init(dcomp_t *comp, int compid, const char *name)
         return ;
     }
 
-    comp->dcompid = compid;
+    comp->dcompid = atomic_fetch_add(&g_ctx.next_id, 1);
     comp->name = name;
-    comp->next = NULL;
+    lnode_init(&comp->name_node);
+    lnode_init(&comp->id_node);
 }
 
-int dcomponent_record_add(dcomp_t *comp)
+int dcomp_record_add(struct dcomp *comp)
 {
-    if (comp == NULL)
+    if (unlikely(comp == NULL || comp->name == NULL))
     {
         derror("component is invalid\n");
         return Fail;
     }
 
-    int hash = dcomp_hash(comp->dcompid);
-    pthread_rwlock_wrlock(&g_ctx.ht_rwlock);
-    // here the id will not be duplicated, it may be a risk
-    comp->next = g_ctx.htable[hash];
-    g_ctx.htable[hash] = comp;
-    pthread_rwlock_unlock(&g_ctx.ht_rwlock);
+    unsigned int idx = 0;
+    unsigned int skey = str_to_key(comp->name);
+
+    pthread_rwlock_wrlock(&g_ctx.name_tb.rwlock);
+    idx = skey % COMPREC_HTABLE_SIZE;
+    lnode_add_tail(&comp->name_node, &g_ctx.name_tb.list[idx]);
+    pthread_rwlock_unlock(&g_ctx.name_tb.rwlock);
+
+    pthread_rwlock_wrlock(&g_ctx.id_tb.rwlock);
+    idx = comp->dcompid % COMPREC_HTABLE_SIZE;
+    lnode_add_tail(&comp->id_node, &g_ctx.id_tb.list[idx]);
+    pthread_rwlock_unlock(&g_ctx.id_tb.rwlock);
 
     return Success;
 }
 
-void dcomponent_record_del(dcomp_t *comp)
+void dcomp_record_del(struct dcomp *comp)
 {
-    if (comp == NULL)
+    if (unlikely(comp == NULL || comp->name == NULL))
     {
         derror("component is invalid\n");
         return ;
     }
 
-    int hash = dcomp_hash(comp->dcompid);
-    pthread_rwlock_wrlock(&g_ctx.ht_rwlock);
-    dcomp_t *prev = NULL;
-    dcomp_t *cur = g_ctx.htable[hash];
-    while (cur != NULL)
-    {
-        if (cur->dcompid == comp->dcompid)
-        {
-            if (prev != NULL)
-            {
-                prev->next = cur->next;
-            }
-            else
-            {
-                g_ctx.htable[hash] = cur->next;
-            }
-            break;
-        }
-        prev = cur;
-        cur = cur->next;
-    }
-    pthread_rwlock_unlock(&g_ctx.ht_rwlock);
+    unsigned int idx = 0;
+    unsigned int skey = str_to_key(comp->name);
+
+    pthread_rwlock_wrlock(&g_ctx.name_tb.rwlock);
+    idx = skey % COMPREC_HTABLE_SIZE;
+    list_del(&comp->name_node);
+    pthread_rwlock_unlock(&g_ctx.name_tb.rwlock);
+
+    pthread_rwlock_wrlock(&g_ctx.id_tb.rwlock);
+    idx = comp->dcompid % COMPREC_HTABLE_SIZE;
+    list_del(&comp->id_node);
+    pthread_rwlock_unlock(&g_ctx.id_tb.rwlock);
 
     return ;
 }
 
-dcomp_t* find_dcomponent_by_id(int compid)
+const struct dcomp* find_dcomp_by_id(unsigned int compid)
 {
-    int hash = dcomp_hash(compid);
-    dcomp_t *comp = NULL;
-    pthread_rwlock_rdlock(&g_ctx.ht_rwlock);
-    comp = g_ctx.htable[hash];
-    while (comp != NULL)
+    unsigned int idx = compid % COMPREC_HTABLE_SIZE;
+    struct dcomp *tmp = NULL, *comp = NULL;
+    struct lnode *node = NULL;
+    pthread_rwlock_rdlock(&g_ctx.id_tb.rwlock);
+    for (node = g_ctx.id_tb.list[idx].next; node != &g_ctx.id_tb.list[idx]; node = node->next)
     {
-        if (comp->dcompid == compid)
+        tmp = container_of(node, struct dcomp, id_node);
+        if (tmp->dcompid == compid)
         {
+            comp = tmp;
             break;
         }
-        comp = comp->next;
     }
-    pthread_rwlock_unlock(&g_ctx.ht_rwlock);
+    pthread_rwlock_unlock(&g_ctx.id_tb.rwlock);
 
     return comp;
 }
 
-dcomp_t* find_dcomponent_by_name(const char *name)
+const struct dcomp* find_dcomp_by_name(const char *name)
 {
-    if (name == NULL)
+    if (unlikely(name == NULL))
     {
         derror("invalid name\n");
         return NULL;
     }
 
-    dcomp_t *comp = NULL;
-    bool not_found = true;
-    int i = 0;
-    pthread_rwlock_rdlock(&g_ctx.ht_rwlock);
-    while (i < COMPREC_HTABLE_SIZE && not_found)
+    unsigned int idx = str_to_key(name) % COMPREC_HTABLE_SIZE;
+    struct dcomp *tmp = NULL, *comp = NULL;
+    struct lnode *node = NULL;
+
+    pthread_rwlock_rdlock(&g_ctx.name_tb.rwlock);
+    for (node = g_ctx.name_tb.list[idx].next; node != &g_ctx.name_tb.list[idx]; node = node->next)
     {
-        comp = g_ctx.htable[i];
-        while (comp != NULL)
+        tmp = container_of(node, struct dcomp, name_node);
+        if (strcmp(tmp->name, name) == 0)
         {
-            if (strcmp(comp->name, name) == 0)
-            {
-                not_found = false;
-                break;
-            }
-            comp = comp->next;
+            comp = tmp;
+            break;
         }
-        i++;
     }
-    pthread_rwlock_unlock(&g_ctx.ht_rwlock);
+    pthread_rwlock_unlock(&g_ctx.name_tb.rwlock);
 
     return comp;
 }
 
+/**
 int dctx_info(char *inbuf, int bufsize)
 {
     if (inbuf == NULL || bufsize <= 0)
@@ -254,3 +252,4 @@ int dctx_info(char *inbuf, int bufsize)
 
     return bytes;
 }
+*/

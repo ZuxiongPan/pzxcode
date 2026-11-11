@@ -7,11 +7,11 @@
 #define Fail -1
 
 #define EPOLL_EVENTS 256
-#define COMPREC_HTABLE_SIZE 19
+#define COMPREC_HTABLE_SIZE 19U
 
-#define TASK_QUEUE_BYTES (512 * 1024)
-#define TASK_DATA_MAXSIZE 4096  // limit task data size
+#define TASK_QUEUE_SIZE (512 * 1024)
 #define WORKER_MAXNUM 4
+#define MONITOR_INTERVAL_MS 300  // 300ms interval
 
 #define MAX_DTIMER_COUNT 128
 
@@ -19,9 +19,5 @@
 #define LISTENED_CLIENT_NUM 2
 #define CLIENT_MAXNUM 5
 #define TCP_PORT 8888
-
-#define UNUSED(x) (void)x
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
 
 #endif

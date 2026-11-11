@@ -15,7 +15,7 @@ int dmodule_register(dmod_t *mod)
         return Fail;
     }
 
-    int ret = dcomponent_record_add(&mod->dcomp);
+    int ret = dcomp_record_add(&mod->dcomp);
     if (ret != Success)
     {
         derror("failed to add mod[%s] to record\n",
@@ -35,14 +35,14 @@ void dmodule_unregister(dmod_t *mod)
         return;
     }
     
-    dcomponent_record_del(&mod->dcomp);
+    dcomp_record_del(&mod->dcomp);
 }
 
 int dmodule_handle(int src_compid, int dst_compid, unsigned int msgid,
     void *data, unsigned int data_size)
 {
     int ret = Success;
-    dcomp_t *dst = find_dcomponent_by_id(dst_compid);
+    dcomp_t *dst = find_dcomp_by_id(dst_compid);
     if (NULL != dst)
     {
         dmod_t *mod = (dmod_t *)dst;

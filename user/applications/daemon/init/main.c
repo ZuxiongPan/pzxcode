@@ -16,19 +16,19 @@ static void dcomp_lowprio_exit(void);
 int main(/*int argc, const char *argv[]*/)
 {
     signal_set_mask();
-    daemon_context_init();
+    dctx_init();
 
     dcomp_highprio_init();
     dcomp_normprio_init();
     dcomp_lowprio_init();
 
-    daemon_context_run();
+    start_dctx_evloop();
 
     dcomp_lowprio_exit();
     dcomp_normprio_exit();
     dcomp_highprio_exit();
 
-    daemon_context_destroy();
+    dctx_destroy();
 
     return Success;
 }

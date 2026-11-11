@@ -4,48 +4,52 @@
 #include <stdatomic.h>
 #include <pthread.h>
 
-struct daemon_worker_manager;
+#include "dextension.h"
 
-// mask definition
-// bit 0-23: the component id of type
-// bit 24-31: the type of this id, 00-component 01-uds client 02-tcp client
-#define DCOMPID_NONE 0xFFFFFFFF
-#define COMP_IDMASK 0x00ffffff
-#define COMP_TYPEMASK 0xff000000
-#define FIXEDCOMP_IDSTART 0x00000000
-#define UDSCLIENT_IDSTART 0x01000000
-#define TCPCLIENT_IDSTART 0x02000000
+// forward declaration
+struct dworker_mgr;
 
-// component layer id definition, bit 16-23 is the layer
-#define CHANNELID_START (0x1 << 16)
-#define MODULEID_START (0x2 << 16)
-
-struct daemon_component {
-    int dcompid;
-    const char *name;
-    struct daemon_component *next;
+// this is the daemon-component-type definition
+enum dcomp_type {
+    DCOMPTYPE_NONE = 0,
+    DCOMPTYPE_CHANNEL = 1,
+    DCOMPTYPE_MODULE = 2,
 };
-typedef struct daemon_component dcomp_t;
 
-struct daemon_context {
+// this is the daemon-component definition
+struct dcomp {
+    unsigned int dcompid;   // dynamic set
+    const char *name;   // fixed set
+    enum dcomp_type type;
+    struct lnode name_node;
+    struct lnode id_node;
+};
+
+struct htable {
+    struct lnode list[COMPREC_HTABLE_SIZE];
+    pthread_rwlock_t rwlock;
+};
+
+// this is the daemon-context definition
+struct dctx {
     atomic_bool status;
+    atomic_uint next_id;
     int epfd;
-    struct daemon_worker_manager *worker_mgr;
-    dcomp_t *htable[COMPREC_HTABLE_SIZE];
-    pthread_rwlock_t ht_rwlock;
+    struct htable name_tb;
+    struct htable id_tb;
 };
-typedef struct daemon_context dctx_t;
 
-dctx_t* dctx_instance(void);
-void daemon_context_init(void);
-void daemon_context_run(void);
-void daemon_context_destroy(void);
-void stop_daemon_evloop(void);
-void dcomponent_init(dcomp_t *comp, int compid, const char *name);
-int dcomponent_record_add(dcomp_t *comp);
-void dcomponent_record_del(dcomp_t *comp);
-dcomp_t* find_dcomponent_by_id(int compid);
-dcomp_t* find_dcomponent_by_name(const char *name);
-int dctx_info(char *inbuf, int bufsize);
+struct dctx* dctx_instance(void);
+void dctx_init(void);
+void dctx_destroy(void);
+void start_dctx_evloop(void);
+void stop_dctx_evloop(void);
+void dcomp_init(struct dcomp *comp, const char *name);
+int dcomp_record_add(struct dcomp *comp);
+void dcomp_record_del(struct dcomp *comp);
+const struct dcomp* find_dcomp_by_id(unsigned int id);
+const struct dcomp* find_dcomp_by_name(const char *name);
+
+//int dctx_info(char *inbuf, int bufsize);
 
 #endif
