@@ -1,3 +1,4 @@
+#if 0
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -229,3 +230,4 @@ static void ch_uds_exit(void)
 
 DCOMP_INIT_LOWPRIO(ch_uds_init);
 DCOMP_EXIT_LOWPRIO(ch_uds_exit);
+#endif

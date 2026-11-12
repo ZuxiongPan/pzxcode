@@ -2,94 +2,52 @@
 #include <sys/epoll.h>
 
 #include "dlog.h"
-#include "dconf.h"
-#include "core/dworker.h"
+#include "core/dcontext.h"
 #include "core/dchannel.h"
 
-int dchannel_register(uint32_t events, dchannel_t *chnl)
+int dchannel_register(uint32_t events, struct dchannel *ch)
 {
-    if (chnl == NULL)
+    if (NULL == ch)
     {
-        derror("channel is NULL\n");
+        derror("channel to register is NULL\n");
         return Fail;
     }
 
-    int ret = dcomp_record_add(&chnl->dcomp);
-    if (ret != Success)
+    int ret = dcomp_record_add(&ch->comp);
+    if (unlikely(ret != Success))
     {
         derror("failed to add channel[%s] to record\n",
-            chnl->dcomp.name == NULL ? "no name" : chnl->dcomp.name);
+            ch->comp.name == NULL ? "no name" : ch->comp.name);
         return Fail;
     }
-    dprint("channel[%s] id[0x%x]\n", chnl->dcomp.name ? chnl->dcomp.name : "no name", chnl->dcomp.dcompid);
 
-    dctx_t *ctx = dctx_instance();
+    struct dctx *ctx = dctx_instance();
     struct epoll_event ev;
     ev.events = events;
-    ev.data.ptr = (void *)chnl;
+    ev.data.ptr = (void *)ch;
 
-    ret = epoll_ctl(ctx->epfd, EPOLL_CTL_ADD, chnl->fd, &ev);
+    ret = epoll_ctl(ctx->epfd, EPOLL_CTL_ADD, ch->fd, &ev);
     if (ret != 0)
     {
         derror("failed to add channel[%s] to epoll\n",
-            chnl->dcomp.name == NULL ? "no name" : chnl->dcomp.name);
-        dcomp_record_del(&chnl->dcomp);
+            ch->comp.name == NULL ? "no name" : ch->comp.name);
+        dcomp_record_del(&ch->comp);
         return Fail;
     }
 
     return Success;
 }
 
-void dchannel_unregister(dchannel_t *chnl)
+void dchannel_unregister(struct dchannel *ch)
 {
-    if (chnl == NULL)
-    {
-        derror("channel is NULL\n");
-        return;
-    }
-    
-    dctx_t *ctx = dctx_instance();
-    dcomp_record_del(&chnl->dcomp);
-    epoll_ctl(ctx->epfd, EPOLL_CTL_DEL, chnl->fd, NULL);
-}
-
-void dchannel_handle(void *arg)
-{
-    dchannel_t *chnl = (dchannel_t *)arg;
-    if (chnl == NULL)
+    if (NULL == ch)
     {
         return ;
     }
 
-    chnl->ops->read_from_outer(chnl);
+    dcomp_record_del(&ch->comp);
+    struct dctx *ctx = dctx_instance();
+    epoll_ctl(ctx->epfd, EPOLL_CTL_DEL, ch->fd, NULL);
 
     return ;
-}
-
-int dchannel_write_to_outer(void *arg)
-{
-    int ret = Success;
-    dtask_t *task = (dtask_t *)arg;
-    if (task == NULL)
-    {
-        derror("task is NULL\n");
-        return Fail;
-    }
-    
-    dcomp_t *dst = find_dcomp_by_id(task->dst_compid);
-    if (NULL != dst)
-    {
-        dchannel_t *chnl = (dchannel_t *)dst;
-        if (NULL != chnl->ops->write_to_outer)
-        {
-            ret = chnl->ops->write_to_outer(task);
-        }
-    }
-    else
-    {
-        derror("dst is NULL\n");
-        ret = Fail;
-    }
-
-    return ret;
 }

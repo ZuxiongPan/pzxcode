@@ -10,8 +10,9 @@ static const unsigned int spool_data_maxlen = SMALL_POOL_SLOT_SIZE - sizeof(stru
 static const unsigned int mpool_data_maxlen = MEDIUM_POOL_SLOT_SIZE - sizeof(struct dtask);
 static const unsigned int lpool_data_maxlen = LARGE_POOL_SLOT_SIZE - sizeof(struct dtask);
 
+static uint8_t real_workers = 0;
 static char *taskmem = NULL;
-static struct worker_mgr worker_mgr = { 0 };
+static struct dworker_mgr worker_mgr = { 0 };
 
 static inline int pool_select(unsigned int task_size)
 {
@@ -37,8 +38,8 @@ static inline int pool_select(unsigned int task_size)
 static inline struct dtask* alloc_task(struct dtask_pool *pool)
 {
     struct dtask *ret = NULL;
-    int bit_pos = -1;
-    int slot_idx = -1;
+    unsigned int bit_pos = 0;
+    unsigned int slot_idx = 0;
 
     for (unsigned int i = 0; i < pool->bitmap_size; i++)
     {
@@ -46,11 +47,11 @@ static inline struct dtask* alloc_task(struct dtask_pool *pool)
         {
             continue;
         }
-        // here we check bitmap[i] is not all 1, following code will not invalid behavior
-        bit_pos = __builtin_ctzll(~pool->bitmap[i]);
+        // here we check bitmap[i] is not all 1, following code will not be invalid
+        bit_pos = __builtin_ctz(~pool->bitmap[i]);
         pool->bitmap[i] |= (1 << bit_pos);
         slot_idx = i * BITMAP_UNIT_BITS + bit_pos;
-        ret = pool->base + slot_idx * pool->slot_size;
+        ret = (struct dtask *) (pool->base + slot_idx * pool->slot_size);
         ret->slot_idx = slot_idx;
         ret->next = NULL;
         break;
@@ -61,17 +62,53 @@ static inline struct dtask* alloc_task(struct dtask_pool *pool)
 
 static inline void recycle_task(struct dtask *task)
 {
-    int pool = pool_select(task->data_size);
-    if (unlikely(pool == PoolMax))
+    int poolid = pool_select(task->data_size);
+    if (unlikely(poolid == PoolMax))
     {
         derror("invalid task size %u\n", task->data_size);
         return ;
     }
 
-    struct dtask_pool *pool = &worker_mgr.queue.pools[pool];
+    struct dtask_pool *pool = &worker_mgr.queue.pools[poolid];
     pool->bitmap[task->slot_idx / BITMAP_UNIT_BITS] &= ~(1 << (task->slot_idx & (BITMAP_UNIT_BITS - 1)));
 
     return;
+}
+
+static inline void process_task(void *buf)
+{
+    int ret = Success;
+    // this buffer must be valid, so skip check
+    struct dtask *task = (struct dtask *)buf;
+    const struct dcomp *comp = NULL;
+
+    if (task->dstinfo.type == DEST_ID)
+    {
+        comp = find_dcomp_by_id(task->dstinfo.dst.dstid);
+    }
+    else if (task->dstinfo.type == DEST_NAME)
+    {
+        comp = find_dcomp_by_name(task->dstinfo.dst.dstname);
+    }
+
+    if (comp == NULL)
+    {
+        derror("component %s not found\n", task->dstinfo.dst.dstname);
+        return ;
+    }
+
+    for (unsigned int i = 0; i < comp->handle_num; i++)
+    {
+        if (comp->handlers[i].msgid == task->msgid)
+        {
+            ret = comp->handlers[i].func(comp, task->srcid, task->data_size, task->data);
+            break;
+        }
+    }
+
+    dprint("process task %u, ret %d\n", task->msgid, ret);
+
+    return ;
 }
 
 static void* worker_thread(void *arg)
@@ -79,7 +116,7 @@ static void* worker_thread(void *arg)
     UNUSED(arg);
     char buffer[LARGE_POOL_SLOT_SIZE];
     struct dtask *task = NULL;
-    struct dctx_t *ctx = dctx_instance();
+    struct dctx *ctx = dctx_instance();
     struct dtask_queue *queue = &worker_mgr.queue;
 
     while (atomic_load(&ctx->status))
@@ -96,6 +133,7 @@ static void* worker_thread(void *arg)
         }
 
         atomic_fetch_add(&worker_mgr.busy, 1);
+
         task = queue->head;
         queue->head = task->next;
         if (queue->head == NULL)
@@ -107,11 +145,9 @@ static void* worker_thread(void *arg)
         memcpy(buffer, task, sizeof(struct dtask) + task->data_size);
         recycle_task(task);
         pthread_mutex_unlock(&queue->lock);
+        process_task(buffer);
 
-        /** todo
-            process_task(buffer);
-         */
-        atomic_fetch_sub(worker_mgr.busy, 1);
+        atomic_fetch_sub(&worker_mgr.busy, 1);
     }
 
     return NULL;
@@ -120,13 +156,16 @@ static void* worker_thread(void *arg)
 static void* monitor_thread(void *arg)
 {
     UNUSED(arg);
-    struct dctx_t *ctx = dctx_instance();
+    struct dctx *ctx = dctx_instance();
+    struct timeval tv = { 0, MONITOR_INTERVAL_MS * 1000 };
 
     while (atomic_load(&ctx->status))
     {
-        struct timeval tv = { 0, MONITOR_INTERVAL_MS * 1000 };
         select(0, NULL, NULL, NULL, &tv);
-        dprint("monitor: busy workers %u\n", atomic_load(&ctx->worker_mgr->busy));
+        if (atomic_load(&worker_mgr.busy) == real_workers)
+        {
+            dprint("monitor: all worker busy!!!\n");
+        }
     }
 
     return NULL;
@@ -163,7 +202,6 @@ static void task_queue_init(struct dtask_queue *q)
 
 int worker_mgr_init(void)
 {
-    uint8_t tmp = 0;
     int inner_ret = 0;
 
     worker_mgr.initialized = false;
@@ -187,7 +225,7 @@ int worker_mgr_init(void)
         else
         {
             worker_mgr.workers[i].valid = true;
-            tmp++;
+            real_workers++;
         }
     }
 
@@ -203,7 +241,7 @@ int worker_mgr_init(void)
     }
 
     worker_mgr.initialized = true;
-    dprint("created %d worker threads, expect %d\n", tmp, WORKER_MAXNUM);
+    dprint("created %d worker threads, expect %d\n", real_workers, WORKER_MAXNUM);
     return Success;
 }
 
@@ -240,7 +278,7 @@ void worker_mgr_destroy(void)
     return;
 }
 
-int task_enqueue_by_id(int srcid, int dstid, unsigned int msgid,
+int task_enqueue_by_id(unsigned int srcid, unsigned int dstid, unsigned int msgid,
     unsigned int data_size, const char *data)
 {
     int pool = pool_select(data_size);
@@ -260,7 +298,7 @@ int task_enqueue_by_id(int srcid, int dstid, unsigned int msgid,
         else
         {
             task->srcid = srcid;
-            task->dstinfo.dst.id = dstid;
+            task->dstinfo.dst.dstid = dstid;
             task->dstinfo.type = DEST_ID;
             task->msgid = msgid;
             task->data_size = data_size;
@@ -289,7 +327,7 @@ int task_enqueue_by_id(int srcid, int dstid, unsigned int msgid,
     return ret;
 }
 
-int task_enqueue_by_name(int srcid, const char *dst_name, unsigned int msgid,
+int task_enqueue_by_name(unsigned int srcid, const char *dst_name, unsigned int msgid,
     unsigned int data_size, const char *data)
 {
     int ret = Success;
@@ -309,7 +347,7 @@ int task_enqueue_by_name(int srcid, const char *dst_name, unsigned int msgid,
         else
         {
             task->srcid = srcid;
-            task->dstinfo.dst.name = dst_name;
+            task->dstinfo.dst.dstname = dst_name;
             task->dstinfo.type = DEST_NAME;
             task->msgid = msgid;
             task->data_size = data_size;

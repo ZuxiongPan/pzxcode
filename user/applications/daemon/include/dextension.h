@@ -1,6 +1,8 @@
 #ifndef _DEXENSION_H_
 #define _DEXENSION_H_
 
+#include <stddef.h>
+
 #define UNUSED(x) (void)(x)
 
 #define likely(x) __builtin_expect(!!(x), 1)
@@ -10,7 +12,7 @@
     const typeof(((type *)0)->member) *__mptr = (ptr); \
     (type *)((char *)__mptr - offsetof(type, member)); })
 
-#define type_cast(type, ptr) ((type *)(ptr))
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
 // this is a double-linked list node definition
 struct lnode {

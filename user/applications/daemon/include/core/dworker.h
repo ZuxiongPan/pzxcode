@@ -8,9 +8,9 @@
 
 #include "dconf.h"
 
-#define SMALL_POOL_SLOT_SIZE 256
-#define MEDIUM_POOL_SLOT_SIZE 1024
-#define LARGE_POOL_SLOT_SIZE 4096
+#define SMALL_POOL_SLOT_SIZE 256U
+#define MEDIUM_POOL_SLOT_SIZE 1024U
+#define LARGE_POOL_SLOT_SIZE 4096U
 
 // task queue allocation policy small:medium:large = 1:2:1
 #define SMALL_POOL_SIZE (TASK_QUEUE_SIZE / 4)
@@ -21,9 +21,9 @@
 #define MEDIUM_POOL_SLOTS (MEDIUM_POOL_SIZE / MEDIUM_POOL_SLOT_SIZE)
 #define LARGE_POOL_SLOTS (LARGE_POOL_SIZE / LARGE_POOL_SLOT_SIZE)
 
-#define BITMAP_BITS 1024    // max bit size of bitmap
-#define BITMAP_UNIT_BITS 32 // storage unit of bitmap
-#define BITMAP_UNIT_FULL 0xffffffff
+#define BITMAP_BITS 1024U    // max bit size of bitmap
+#define BITMAP_UNIT_BITS 32U // storage unit of bitmap
+#define BITMAP_UNIT_FULL 0xffffffffU
 
 #define BITMAP_MAXSIZE (BITMAP_BITS / BITMAP_UNIT_BITS)
 
@@ -40,8 +40,8 @@ enum dest_type {
 };
 
 union destination {
-    int dst_id;
-    const char *dst_name;
+    unsigned int dstid;
+    const char *dstname;
 };
 
 struct destinfo {
@@ -50,10 +50,10 @@ struct destinfo {
 };
 
 struct dtask {
-    int slot_idx;     // task index in pool memory
+    unsigned int slot_idx;     // task index in pool memory
     struct dtask *next; // next task in queue
     // task info
-    int srcid; // source component id of task
+    unsigned int srcid; // source component id of task
     struct destinfo dstinfo; // destination component info of task
     unsigned int msgid; // message id of task
     unsigned int data_size; // data size of task
@@ -95,9 +95,9 @@ struct dworker_mgr {
 
 int worker_mgr_init(void);
 void worker_mgr_destroy(void);
-int task_enqueue_by_id(int srcid, int dstid, unsigned int msgid,
+int task_enqueue_by_id(unsigned int srcid, unsigned int dstid, unsigned int msgid,
     unsigned int data_size, const char *data);
-int task_enqueue_by_name(int srcid, const char *dst_name, unsigned int msgid,
+int task_enqueue_by_name(unsigned int srcid, const char *dst_name, unsigned int msgid,
     unsigned int data_size, const char *data);
 
 

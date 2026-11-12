@@ -1,13 +1,14 @@
 #include <string.h>
+#include <stdbool.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/epoll.h>
 
 #include "dlog.h"
 #include "dconf.h"
+#include "core/dchannel.h"
 #include "core/dworker.h"
 #include "core/dcontext.h"
-
-extern void dchannel_handle(void *arg);
 
 static struct dctx g_ctx;
 
@@ -20,7 +21,7 @@ static inline void dctx_init_check(int judge)
 {
     if (unlikely(judge))
     {
-        early_log("daemon context init failed, exit process\n");
+        earlylog("daemon context init failed, exit process\n");
         atomic_store(&g_ctx.status, false);
         dctx_destroy();
         exit(EXIT_FAILURE);
@@ -36,7 +37,7 @@ void dctx_init(void)
     atomic_init(&g_ctx.next_id, 0);
     pthread_rwlock_init(&g_ctx.name_tb.rwlock, NULL);
     pthread_rwlock_init(&g_ctx.id_tb.rwlock, NULL);
-    for (int i = 0; i < COMPREC_HTABLE_SIZE; i++)
+    for (unsigned int i = 0; i < COMPREC_HTABLE_SIZE; i++)
     {
         lnode_init(&g_ctx.name_tb.list[i]);
         lnode_init(&g_ctx.id_tb.list[i]);
@@ -69,7 +70,11 @@ void start_dctx_evloop(void)
         
         for (int i = 0; i < nfds; i++)
         {
-            dchannel_handle(events[i].data.ptr);
+            struct dchannel *ch = (struct dchannel *)events[i].data.ptr;
+            if (events[i].events & EPOLLIN && ch->read_from_out != NULL)
+            {
+                ch->read_from_out(ch);
+            }
         }
     }
 }
@@ -129,12 +134,12 @@ int dcomp_record_add(struct dcomp *comp)
 
     pthread_rwlock_wrlock(&g_ctx.name_tb.rwlock);
     idx = skey % COMPREC_HTABLE_SIZE;
-    lnode_add_tail(&comp->name_node, &g_ctx.name_tb.list[idx]);
+    list_add_tail(&comp->name_node, &g_ctx.name_tb.list[idx]);
     pthread_rwlock_unlock(&g_ctx.name_tb.rwlock);
 
     pthread_rwlock_wrlock(&g_ctx.id_tb.rwlock);
     idx = comp->dcompid % COMPREC_HTABLE_SIZE;
-    lnode_add_tail(&comp->id_node, &g_ctx.id_tb.list[idx]);
+    list_add_tail(&comp->id_node, &g_ctx.id_tb.list[idx]);
     pthread_rwlock_unlock(&g_ctx.id_tb.rwlock);
 
     return Success;
@@ -148,16 +153,11 @@ void dcomp_record_del(struct dcomp *comp)
         return ;
     }
 
-    unsigned int idx = 0;
-    unsigned int skey = str_to_key(comp->name);
-
     pthread_rwlock_wrlock(&g_ctx.name_tb.rwlock);
-    idx = skey % COMPREC_HTABLE_SIZE;
     list_del(&comp->name_node);
     pthread_rwlock_unlock(&g_ctx.name_tb.rwlock);
 
     pthread_rwlock_wrlock(&g_ctx.id_tb.rwlock);
-    idx = comp->dcompid % COMPREC_HTABLE_SIZE;
     list_del(&comp->id_node);
     pthread_rwlock_unlock(&g_ctx.id_tb.rwlock);
 

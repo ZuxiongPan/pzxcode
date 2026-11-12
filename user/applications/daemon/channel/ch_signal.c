@@ -6,42 +6,34 @@
 
 #include "dlog.h"
 #include "dconf.h"
+#include "dmsgid.h"
+#include "dcomp_name.h"
 #include "core/dchannel.h"
 #include "core/dworker.h"
-#include "core/dmodule.h"
 #include "core/dfuncalls.h"
-#include "module/dmsgid.h"
 
-static dchannel_t signal_chnl;
+static struct dchannel ch_signal;
 
-static int signal_read_from_outer(dchannel_t *chnl)
+static int ch_signal_read_from_out(struct dchannel *ch)
 {
-    ssize_t ret = Success;
-    uint32_t signo = 0;
-    struct signalfd_siginfo info;
-    memset(&info, 0, sizeof(info));
+    ssize_t ret = 0;
+    struct signalfd_siginfo info = { 0 };
 
-    ret = read(chnl->fd, &info, sizeof(info));
+    ret = read(ch->fd, &info, sizeof(info));
     if (ret != sizeof(info))
     {
         derror("read failed");
         return Fail;
     }
-    signo = info.ssi_signo;
 
-    return task_enqueue(DataRawBinary, chnl->dcomp.dcompid, ModuleIDSignal,
-        MSGID_SYS_SIGNAL, sizeof(signo), (const char *)&signo);
+    return task_enqueue_by_name(ch->comp.dcompid, ModuleSignal,
+        MSGID_SYS_SIGNAL, sizeof(info), (const char *)&info);
 }
-
-static const channel_ops_t signal_ops = {
-    .read_from_outer = signal_read_from_outer,
-    .write_to_outer = NULL,
-};
 
 static int ch_signal_init(void)
 {
     int ret = Success;
-    memset(&signal_chnl, 0, sizeof(dchannel_t));
+    memset(&ch_signal, 0, sizeof(ch_signal));
     sigset_t mask;
 
     sigemptyset(&mask);
@@ -49,31 +41,32 @@ static int ch_signal_init(void)
     sigaddset(&mask, SIGTERM);
     sigaddset(&mask, SIGCHLD);
 
-    dcomponent_init(&signal_chnl.dcomp, ChannelIDSignal, "ch_signal");
-    signal_chnl.ops = &signal_ops;
-    signal_chnl.fd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
-    if (signal_chnl.fd < 0)
+    dcomp_init(&ch_signal.comp, ChannelSignal);
+    dcomp_set_handlers(&ch_signal.comp, 0, NULL);
+    ch_signal.read_from_out = ch_signal_read_from_out;
+    ch_signal.fd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
+    if (ch_signal.fd < 0)
     {
         derror("signalfd failed");
         return Fail;
     }
 
-    ret = dchannel_register(EPOLLIN, &signal_chnl);
+    ret = dchannel_register(EPOLLIN, &ch_signal);
 
-    dprint("signal channel fd = %d\n", signal_chnl.fd);
+    dprint("%s info: fd[%d], id[%u]\n", ch_signal.comp.name, ch_signal.fd, ch_signal.comp.dcompid);
     return ret;
 }
 
 static void ch_signal_exit(void)
 {
-    dchannel_unregister(&signal_chnl);
-    if (signal_chnl.fd >= 0)
+    dchannel_unregister(&ch_signal);
+    if (ch_signal.fd >= 0)
     {
-        close(signal_chnl.fd);
+        close(ch_signal.fd);
     }
-    signal_chnl.fd = -1;
+    ch_signal.fd = -1;
 
-    dprint("signal channel exit\n");
+    dprint("%s exit\n", ch_signal.comp.name);
     return ;
 }
 

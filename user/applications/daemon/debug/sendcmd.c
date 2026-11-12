@@ -41,7 +41,7 @@ int main(int argc, const char *argv[])
     int type = strtol(argv[1], NULL, 10);
     ssize_t len = -1;
     struct sockaddr_un addr;
-    char buf[TASK_DATA_MAXSIZE];
+    char buf[1024];
 
     if (type < 1 || type > 3)
     {

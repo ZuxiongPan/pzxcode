@@ -1,3 +1,4 @@
+#if 0
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -484,3 +485,4 @@ static void ch_genl_exit(void)
 
 DCOMP_INIT_HIGHPRIO(ch_genl_init);
 DCOMP_EXIT_HIGHPRIO(ch_genl_exit);
+#endif

@@ -1,3 +1,4 @@
+#if 0
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -348,3 +349,4 @@ int dtimer_info(char *inbuf, int bufsize)
 
     return bytes;
 }
+#endif

@@ -4,23 +4,26 @@
 #include <stdatomic.h>
 #include <pthread.h>
 
+#include "dconf.h"
 #include "dextension.h"
 
 // forward declaration
 struct dworker_mgr;
+struct dcomp;
 
-// this is the daemon-component-type definition
-enum dcomp_type {
-    DCOMPTYPE_NONE = 0,
-    DCOMPTYPE_CHANNEL = 1,
-    DCOMPTYPE_MODULE = 2,
+struct msg_handler {
+    const char *name;
+    unsigned int msgid;
+    int (*func)(const struct dcomp *self, unsigned int srcid,
+        unsigned int data_size, const char *data);
 };
 
 // this is the daemon-component definition
 struct dcomp {
     unsigned int dcompid;   // dynamic set
     const char *name;   // fixed set
-    enum dcomp_type type;
+    unsigned int handle_num;
+    const struct msg_handler *handlers;
     struct lnode name_node;
     struct lnode id_node;
 };
@@ -49,6 +52,13 @@ int dcomp_record_add(struct dcomp *comp);
 void dcomp_record_del(struct dcomp *comp);
 const struct dcomp* find_dcomp_by_id(unsigned int id);
 const struct dcomp* find_dcomp_by_name(const char *name);
+
+static inline void dcomp_set_handlers(struct dcomp *comp, unsigned int num,
+    const struct msg_handler *handlers)
+{
+    comp->handle_num = num;
+    comp->handlers = handlers;
+}
 
 //int dctx_info(char *inbuf, int bufsize);
 
