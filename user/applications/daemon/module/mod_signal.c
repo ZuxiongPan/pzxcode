@@ -1,121 +1,85 @@
 #include <string.h>
+#include <stdbool.h>
 #include <signal.h>
-#include <errno.h>
-#include <sys/wait.h>
+#include <sys/signalfd.h>
 
 #include "dlog.h"
-#include "dconf.h"
-#include "core/dmodule.h"
-#include "core/dworker.h"
+#include "dmsgid.h"
+#include "dextension.h"
+#include "dcomp_name.h"
 #include "core/dcontext.h"
 #include "core/dfuncalls.h"
-#include "channel/chnl_api.h"
-#include "module/dmsgid.h"
-#include "lib/util.h"
 
-static dmod_t signalmod;
+static struct dcomp signalmod;
 
-static int handle_signal(uint32_t signo)
+static int msg_signal_handler(const struct dcomp *comp, uint32_t srcid,
+    unsigned int data_size, const char *data)
 {
-    switch (signo)
+    UNUSED(comp);
+    UNUSED(srcid);
+    
+    if (unlikely(data_size != sizeof(struct signalfd_siginfo) || data == NULL))
+    {
+        derror("invalid data size: %u, data: %p\n", data_size, data);
+        return Fail;
+    }
+
+    struct signalfd_siginfo *info = (struct signalfd_siginfo *)data;
+
+    switch (info->ssi_signo)
     {
         case SIGINT:
         case SIGTERM:
-            demerg("receive signal %d, the event loop ended\n", signo);
-            stop_daemon_evloop();
+        {
+            demerg("receive INT/TERM signal, the event loop ended\n");
+            struct dctx *ctx = dctx_instance();
+            atomic_store(&ctx->status, false);
             // this timer is used for stop the pending of daemon_context_run
-            timer_add(100, 0, false, DCOMPID_NONE, MSGID_SYS_TIMER);
+            // timer_add(100, 0, false, DCOMPID_NONE, MSGID_SYS_TIMER);
             break;
+        }
         case SIGCHLD:
-            int status = 0;
-            pid_t child = 0;
-            do
-            {
-                child = waitpid(-1, &status, WNOHANG);
-                if(child > 0)
-                {
-                    int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : Fail;
-                    set_child_finished(child, exit_code);
-                }
-                else if (child == 0)
-                {
-                    dprint("no child process exited\n");
-                }
-                else if (child < 0)
-                {
-                    if (errno == EINTR)
-                    {
-                        continue;
-                    }
-                    else if (errno == ECHILD)
-                    {   // there is no child process derived from this process
-                        break;
-                    }
-                    else
-                    {
-                        derror("waitpid failed, errno = %d\n", errno);
-                        break;
-                    }
-                }
-            } while(child > 0);
+            dprint("receive child signal\n");
             break;
         default:
-            derror("unknown signal %d\n", signo);
+            derror("unknown signal %d\n", info->ssi_signo);
             break;
     }
 
     return Success;
 }
 
-static int signalmod_ontask(dmod_t *m, int src_compid, unsigned int msgid,
-    void *data, unsigned int data_size)
-{
-    UNUSED(m);
-    UNUSED(src_compid);
-    UNUSED(data_size);
-    int ret = Success;
-    uint32_t signo = 0;
-
-    switch (msgid)
-    {
-        case MSGID_SYS_SIGNAL:
-            signo = *((uint32_t *)data);
-            handle_signal(signo);
-            break;
-        default:
-            dprint("invalid msgid 0x%x\n", msgid);
-            break;
-    }
-
-    return ret;
-}
-
-static const mod_ops_t signalmod_ops = {
-    .ontask = signalmod_ontask,
+static const struct msg_handler handlers[] = {
+    { .name = "signal", .msgid = MSGID_SYS_SIGNAL, .func = msg_signal_handler},
 };
 
 static int signalmod_init(void)
 {
     int ret = Success;
-    memset(&signalmod, 0, sizeof(dmod_t));
-    dcomponent_init(&signalmod.dcomp, ModuleIDSignal, "signal");
-    signalmod.ops = &signalmod_ops;
+    memset(&signalmod, 0, sizeof(signalmod));
+    dcomp_init(&signalmod, ModuleSignal);
+    dcomp_set_handlers(&signalmod, ARRAY_SIZE(handlers), handlers);
 
-    ret = dmodule_register(&signalmod);
-    if (ret != Success)
+    ret = dcomp_record_add(&signalmod);
+    if (unlikely(ret != Success))
     {
-        derror("signal module register failed\n");
-        return Fail;
+        derror("failed to add module[%s] to record\n",
+            signalmod.name == NULL ? "no name" : signalmod.name);
+    }
+    else
+    {
+        dprint("signal module init success\n");
     }
 
-    dprint("signal module register ret = %d\n", ret);
     return ret;
 }
 
 static void signalmod_exit(void)
 {
-    dmodule_unregister(&signalmod);
-    dprint("signal module unregister done\n");
+    dcomp_record_del(&signalmod);
+    dprint("signal module exited\n");
+
+    return ;
 }
 
 DCOMP_INIT_NORMPRIO(signalmod_init);

@@ -1,7 +1,7 @@
 #ifndef _DCONF_H_
 #define _DCONF_H_
 
-#define ARMD_VERSION "0.0.2"
+#define ARMD_VERSION "0.1.0"
 
 #define Success 0
 #define Fail -1

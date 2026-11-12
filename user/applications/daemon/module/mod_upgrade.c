@@ -1,3 +1,4 @@
+#if 0
 #include <string.h>
 
 #include "dlog.h"
@@ -93,3 +94,4 @@ static void upgrademod_exit(void)
 
 DCOMP_INIT_LOWPRIO(upgrademod_init);
 DCOMP_EXIT_LOWPRIO(upgrademod_exit);
+#endif

@@ -46,7 +46,6 @@ struct dctx* dctx_instance(void);
 void dctx_init(void);
 void dctx_destroy(void);
 void start_dctx_evloop(void);
-void stop_dctx_evloop(void);
 void dcomp_init(struct dcomp *comp, const char *name);
 int dcomp_record_add(struct dcomp *comp);
 void dcomp_record_del(struct dcomp *comp);

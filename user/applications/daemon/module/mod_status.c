@@ -1,3 +1,4 @@
+#if 0
 #include <string.h>
 #include <unistd.h>
 #include <sys/syscall.h>
@@ -89,3 +90,4 @@ static void statmod_exit(void)
 
 DCOMP_INIT_NORMPRIO(statmod_init);
 DCOMP_EXIT_NORMPRIO(statmod_exit);
+#endif

@@ -1,4 +1,3 @@
-#if 0
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -11,28 +10,32 @@
 
 #include "dlog.h"
 #include "dconf.h"
+#include "dextension.h"
 #include "core/dchannel.h"
 #include "core/dworker.h"
 #include "core/dfuncalls.h"
 
-typedef struct daemon_timer {
+struct dtimer {
     int timer_id;
     uint64_t expire_ms;
     uint64_t interval_ms;
-    bool repeat;
-    int modid;
+    unsigned int compid;
     unsigned int msgid;
-} dtimer_t;
+    struct lnode node;
+};
 
-typedef struct dtimer_mgr {
-    dtimer_t* heap[MAX_DTIMER_COUNT];
+struct dtimer_mgr {
+    dtimer_t* tmp_timers[TMP_DTIMER_MAXCNT];
+    struct lnode dup_timers;
     int count;
     int next_tid;
     pthread_mutex_t lock;
-} dtimer_mgr_t;
+};
 
 static dtimer_mgr_t dtimer_mgr;
-static dchannel_t timer_chnl;
+
+static struct dchannel ch_timer_repeat;
+static struct dchannel ch_timer_once;
 
 static uint64_t get_current_ms(void)
 {
@@ -349,4 +352,3 @@ int dtimer_info(char *inbuf, int bufsize)
 
     return bytes;
 }
-#endif
