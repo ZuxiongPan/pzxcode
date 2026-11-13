@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <errno.h>
+#include <limits.h>
 #include <unistd.h>
 #include <time.h>
 #include <pthread.h>
@@ -18,6 +20,10 @@
 
 #define DTIMER_REPID_START 0x0
 #define DTIMER_ONCEID_START 0x10000000
+
+// how many expired timers are delivered per timerfd wakeup, the rest is picked
+// up by the next (1ms) reprogram so a single wakeup does not stall the loop
+#define DTIMER_DUE_BATCH 16
 
 struct dtimer {
     int timer_id;
@@ -75,33 +81,25 @@ static void rep_timer_insert_locked(struct dtimer *timer)
     return ;
 }
 
-static void rep_timerfd_reprogram(void)
+/* caller must hold rtimer_mgr.lock */
+static void rep_timerfd_reprogram_locked(void)
 {
     struct itimerspec its;
-    uint64_t now = 0, diff = 0, expire = 0;
-    bool empty = true;
+    uint64_t now = 0, diff = 0;
 
     memset(&its, 0, sizeof(its));
 
-    pthread_mutex_lock(&rtimer_mgr.lock);
     if (rtimer_mgr.rep_timers.next != &rtimer_mgr.rep_timers)
     {
-        empty = false;
-        expire = container_of(rtimer_mgr.rep_timers.next,
+        uint64_t expire = container_of(rtimer_mgr.rep_timers.next,
             struct dtimer, node)->expire_ms;
-    }
-    pthread_mutex_unlock(&rtimer_mgr.lock);
 
-    if (empty)
-    {
-        timerfd_settime(rtimer_mgr.ch_repeat.fd, 0, &its, NULL);
-        return ;
+        now = get_current_ms();
+        diff = expire > now ? expire - now : 1;
+        its.it_value.tv_sec = (time_t)(diff / 1000);
+        its.it_value.tv_nsec = (long)((diff % 1000) * 1000000);
     }
 
-    now = get_current_ms();
-    diff = expire > now ? expire - now : 1;
-    its.it_value.tv_sec = diff / 1000;
-    its.it_value.tv_nsec = (diff % 1000) * 1000000;
     timerfd_settime(rtimer_mgr.ch_repeat.fd, 0, &its, NULL);
 
     return ;
@@ -109,40 +107,61 @@ static void rep_timerfd_reprogram(void)
 
 static void ch_timer_repeat_expire(void)
 {
+    struct due_msg {
+        unsigned int compid;
+        unsigned int msgid;
+    } due[DTIMER_DUE_BATCH];
+    unsigned int due_num = 0;
     uint64_t now_ms = get_current_ms();
     struct dtimer *timer = NULL;
     struct lnode *node = NULL;
     struct lnode *next = NULL;
 
+    // collect under the lock, deliver after unlocking: task_enqueue takes the
+    // queue lock and doing it here would create a timer-lock -> queue-lock order
     pthread_mutex_lock(&rtimer_mgr.lock);
-    node = rtimer_mgr.rep_timers.next;
-    while (node != &rtimer_mgr.rep_timers)
+    for (node = rtimer_mgr.rep_timers.next; node != &rtimer_mgr.rep_timers; node = next)
     {
         timer = container_of(node, struct dtimer, node);
         next = node->next;
-        if (timer->expire_ms > now_ms)
+        if (timer->expire_ms > now_ms || due_num >= DTIMER_DUE_BATCH)
         {
             break;
         }
 
         list_del(node);
-        task_enqueue_by_id(rtimer_mgr.ch_repeat.comp.dcompid,
-            timer->compid, timer->msgid, 0, NULL);
+        due[due_num].compid = timer->compid;
+        due[due_num].msgid = timer->msgid;
+        due_num++;
+
         timer->expire_ms += timer->interval_ms;
         rep_timer_insert_locked(timer);
-        node = next;
     }
+    rep_timerfd_reprogram_locked();
     pthread_mutex_unlock(&rtimer_mgr.lock);
 
-    rep_timerfd_reprogram();
+    for (unsigned int i = 0; i < due_num; i++)
+    {
+        task_enqueue_by_id(rtimer_mgr.ch_repeat.comp.dcompid,
+            due[i].compid, due[i].msgid, 0, NULL);
+    }
+
     return ;
 }
 
 static int ch_timer_repeat_read_from_out(struct dchannel *ch)
 {
     uint64_t cnt = 0;
+    ssize_t ret = 0;
 
-    read(ch->fd, &cnt, sizeof(cnt));
+    // must drain the counter, otherwise the level-triggered timerfd fires again
+    ret = read(ch->fd, &cnt, sizeof(cnt));
+    if (ret < 0)
+    {
+        derror("read repeat timerfd failed, errno: %d\n", errno);
+        return Fail;
+    }
+
     ch_timer_repeat_expire();
 
     return Success;
@@ -242,32 +261,24 @@ static void once_heap_remove(int idx)
     return ;
 }
 
-static void once_timerfd_reprogram(void)
+/* caller must hold otimer_mgr.lock */
+static void once_timerfd_reprogram_locked(void)
 {
     struct itimerspec its;
-    uint64_t now = 0, diff = 0, expire = 0;
-    bool empty = true;
+    uint64_t now = 0, diff = 0;
 
     memset(&its, 0, sizeof(its));
 
-    pthread_mutex_lock(&otimer_mgr.lock);
     if (otimer_mgr.count > 0)
     {
-        empty = false;
-        expire = otimer_mgr.once_timers[0].expire_ms;
-    }
-    pthread_mutex_unlock(&otimer_mgr.lock);
+        uint64_t expire = otimer_mgr.once_timers[0].expire_ms;
 
-    if (empty)
-    {
-        timerfd_settime(otimer_mgr.ch_once.fd, 0, &its, NULL);
-        return ;
+        now = get_current_ms();
+        diff = expire > now ? expire - now : 1;
+        its.it_value.tv_sec = (time_t)(diff / 1000);
+        its.it_value.tv_nsec = (long)((diff % 1000) * 1000000);
     }
 
-    now = get_current_ms();
-    diff = expire > now ? expire - now : 1;
-    its.it_value.tv_sec = diff / 1000;
-    its.it_value.tv_nsec = (diff % 1000) * 1000000;
     timerfd_settime(otimer_mgr.ch_once.fd, 0, &its, NULL);
 
     return ;
@@ -275,28 +286,47 @@ static void once_timerfd_reprogram(void)
 
 static void ch_timer_once_expire(void)
 {
+    struct due_msg {
+        unsigned int compid;
+        unsigned int msgid;
+    } due[DTIMER_DUE_BATCH];
+    unsigned int due_num = 0;
     uint64_t now_ms = get_current_ms();
 
     pthread_mutex_lock(&otimer_mgr.lock);
     while (otimer_mgr.count > 0 &&
-        otimer_mgr.once_timers[0].expire_ms <= now_ms)
+        otimer_mgr.once_timers[0].expire_ms <= now_ms &&
+        due_num < DTIMER_DUE_BATCH)
     {
-        task_enqueue_by_id(otimer_mgr.ch_once.comp.dcompid,
-            otimer_mgr.once_timers[0].compid,
-            otimer_mgr.once_timers[0].msgid, 0, NULL);
+        due[due_num].compid = otimer_mgr.once_timers[0].compid;
+        due[due_num].msgid = otimer_mgr.once_timers[0].msgid;
+        due_num++;
         once_heap_pop();
     }
+    once_timerfd_reprogram_locked();
     pthread_mutex_unlock(&otimer_mgr.lock);
 
-    once_timerfd_reprogram();
+    for (unsigned int i = 0; i < due_num; i++)
+    {
+        task_enqueue_by_id(otimer_mgr.ch_once.comp.dcompid,
+            due[i].compid, due[i].msgid, 0, NULL);
+    }
+
     return ;
 }
 
 static int ch_timer_once_read_from_out(struct dchannel *ch)
 {
     uint64_t cnt = 0;
+    ssize_t ret = 0;
 
-    read(ch->fd, &cnt, sizeof(cnt));
+    ret = read(ch->fd, &cnt, sizeof(cnt));
+    if (ret < 0)
+    {
+        derror("read once timerfd failed, errno: %d\n", errno);
+        return Fail;
+    }
+
     ch_timer_once_expire();
 
     return Success;
@@ -411,11 +441,21 @@ DCOMP_EXIT_NORMPRIO(ch_timer_exit);
 int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat,
     unsigned int modid, unsigned int msgid)
 {
+    if (repeat && interval_ms == 0)
+    {
+        // a repeat timer with a zero interval would be re-armed every 1ms forever
+        derror("repeat timer requires a non-zero interval\n");
+        return Fail;
+    }
+
     if (repeat)
     {
         struct dtimer *timer = calloc(1, sizeof(struct dtimer));
+        int tid = Fail;
+
         if (timer == NULL)
         {
+            derror("failed to alloc repeat timer\n");
             return Fail;
         }
 
@@ -425,41 +465,66 @@ int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat,
         timer->msgid = msgid;
 
         pthread_mutex_lock(&rtimer_mgr.lock);
-        timer->timer_id = rtimer_mgr.next_tid++;
-        rep_timer_insert_locked(timer);
+        if (rtimer_mgr.next_tid >= (int)DTIMER_ONCEID_START)
+        {
+            derror("repeat timer id space exhausted\n");
+        }
+        else
+        {
+            timer->timer_id = rtimer_mgr.next_tid++;
+            rep_timer_insert_locked(timer);
+            // rearm while the lock is held, otherwise a concurrent insert can
+            // be overwritten by the settime we are about to issue
+            rep_timerfd_reprogram_locked();
+            tid = timer->timer_id;
+        }
         pthread_mutex_unlock(&rtimer_mgr.lock);
 
-        rep_timerfd_reprogram();
-        return timer->timer_id;
+        if (tid == Fail)
+        {
+            free(timer);
+        }
+
+        return tid;
     }
 
     struct dtimer *timer = NULL;
-    int tid = 0;
+    int tid = Fail;
 
     pthread_mutex_lock(&otimer_mgr.lock);
-    if (otimer_mgr.count >= ONCE_DTIMER_MAXCNT)
+    if (otimer_mgr.count < ONCE_DTIMER_MAXCNT && otimer_mgr.next_tid < INT_MAX)
     {
-        pthread_mutex_unlock(&otimer_mgr.lock);
-        return Fail;
+        timer = &otimer_mgr.once_timers[otimer_mgr.count];
+        tid = otimer_mgr.next_tid++;
+        timer->timer_id = tid;
+        timer->expire_ms = get_current_ms() + timeout_ms;
+        timer->interval_ms = interval_ms;
+        timer->compid = modid;
+        timer->msgid = msgid;
+        otimer_mgr.count++;
+        once_siftup(otimer_mgr.count - 1);
+        once_timerfd_reprogram_locked();
     }
-
-    timer = &otimer_mgr.once_timers[otimer_mgr.count];
-    tid = otimer_mgr.next_tid++;
-    timer->timer_id = tid;
-    timer->expire_ms = get_current_ms() + timeout_ms;
-    timer->interval_ms = interval_ms;
-    timer->compid = modid;
-    timer->msgid = msgid;
-    otimer_mgr.count++;
-    once_siftup(otimer_mgr.count - 1);
+    else
+    {
+        derror("once timer exhausted: %d/%d in use\n",
+            otimer_mgr.count, ONCE_DTIMER_MAXCNT);
+    }
     pthread_mutex_unlock(&otimer_mgr.lock);
 
-    once_timerfd_reprogram();
     return tid;
 }
 
 void timer_del(int timer_id)
 {
+    struct lnode *node = NULL;
+
+    if (timer_id < 0)
+    {
+        derror("invalid timer id %d\n", timer_id);
+        return ;
+    }
+
     if (timer_id >= DTIMER_ONCEID_START)
     {
         pthread_mutex_lock(&otimer_mgr.lock);
@@ -471,12 +536,10 @@ void timer_del(int timer_id)
                 break;
             }
         }
+        once_timerfd_reprogram_locked();
         pthread_mutex_unlock(&otimer_mgr.lock);
-        once_timerfd_reprogram();
         return ;
     }
-
-    struct lnode *node = NULL;
 
     pthread_mutex_lock(&rtimer_mgr.lock);
     for (node = rtimer_mgr.rep_timers.next; node != &rtimer_mgr.rep_timers;
@@ -490,8 +553,8 @@ void timer_del(int timer_id)
             break;
         }
     }
+    rep_timerfd_reprogram_locked();
     pthread_mutex_unlock(&rtimer_mgr.lock);
 
-    rep_timerfd_reprogram();
     return ;
 }

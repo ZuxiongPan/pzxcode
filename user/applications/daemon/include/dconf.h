@@ -18,6 +18,9 @@
 #define UDS_PATH "/var/armd.sock"
 #define LISTENED_CLIENT_NUM 2
 #define CLIENT_MAXNUM 5
+// max bytes of one uds request, a whole json object. it has to fit into a single
+// large task pool slot. sendcmd uses the same limit for the encoded message.
+#define UDS_MSG_MAXLEN 1024
 #define TCP_PORT 8888
 
 #endif

@@ -1,4 +1,5 @@
 #include <string.h>
+#include <errno.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/epoll.h>
@@ -20,9 +21,19 @@ static int ch_signal_read_from_out(struct dchannel *ch)
     struct signalfd_siginfo info = { 0 };
 
     ret = read(ch->fd, &info, sizeof(info));
-    if (ret != sizeof(info))
+    if (ret < 0)
     {
-        derror("read failed");
+        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
+        {
+            // spurious wakeup, nothing to do
+            return Success;
+        }
+        derror("read signalfd failed, errno: %d\n", errno);
+        return Fail;
+    }
+    if (ret != (ssize_t)sizeof(info))
+    {
+        derror("short read on signalfd, got %zd of %zu\n", ret, sizeof(info));
         return Fail;
     }
 
@@ -47,14 +58,22 @@ static int ch_signal_init(void)
     ch_signal.fd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
     if (ch_signal.fd < 0)
     {
-        derror("signalfd failed");
+        derror("signalfd failed, errno: %d\n", errno);
         return Fail;
     }
 
     ret = dchannel_register(EPOLLIN, &ch_signal);
+    if (ret != Success)
+    {
+        derror("dchannel_register [%s] failed\n", ch_signal.comp.name);
+        close(ch_signal.fd);
+        ch_signal.fd = -1;
+        return Fail;
+    }
 
-    dprint("[%s] info: fd[%d], id[%u]\n", ch_signal.comp.name, ch_signal.fd, ch_signal.comp.dcompid);
-    return ret;
+    dprint("[%s] info: fd[%d], id[%u]\n", ch_signal.comp.name,
+        ch_signal.fd, ch_signal.comp.dcompid);
+    return Success;
 }
 
 static void ch_signal_exit(void)

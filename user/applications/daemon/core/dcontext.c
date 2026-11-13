@@ -2,7 +2,9 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/epoll.h>
+#include <sys/eventfd.h>
 
 #include "dlog.h"
 #include "dconf.h"
@@ -31,10 +33,15 @@ static inline void dctx_init_check(int judge)
 void dctx_init(void)
 {
     int ret = Success;
+    struct epoll_event ev;
+
     memset(&g_ctx, 0, sizeof(struct dctx));
+    g_ctx.epfd = -1;
+    g_ctx.wakefd = -1;
 
     atomic_init(&g_ctx.status, false);
-    atomic_init(&g_ctx.next_id, 0);
+    // 0 is reserved for "invalid / broadcast", the first real component is 1
+    atomic_init(&g_ctx.next_id, 1U);
     pthread_rwlock_init(&g_ctx.name_tb.rwlock, NULL);
     pthread_rwlock_init(&g_ctx.id_tb.rwlock, NULL);
     for (unsigned int i = 0; i < COMPREC_HTABLE_SIZE; i++)
@@ -45,6 +52,17 @@ void dctx_init(void)
 
     g_ctx.epfd = epoll_create1(EPOLL_CLOEXEC);
     dctx_init_check(g_ctx.epfd < 0);
+
+    // eventfd is the only way to wake epoll_wait up from another thread,
+    // it replaces the old "arm a 100ms one-shot timer" trick
+    g_ctx.wakefd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    dctx_init_check(g_ctx.wakefd < 0);
+
+    memset(&ev, 0, sizeof(ev));
+    ev.events = EPOLLIN;
+    ev.data.ptr = NULL;     // NULL is the wakeup sentinel in the dispatch loop
+    ret = epoll_ctl(g_ctx.epfd, EPOLL_CTL_ADD, g_ctx.wakefd, &ev);
+    dctx_init_check(ret != 0);
 
     atomic_store(&g_ctx.status, true);
     ret = worker_mgr_init();
@@ -62,18 +80,64 @@ void start_dctx_evloop(void)
     while (atomic_load(&g_ctx.status))
     {
         nfds = epoll_wait(g_ctx.epfd, events, EPOLL_EVENTS, -1);
-        if (nfds <= 0)
+        if (nfds < 0)
         {
-            derror("epoll_wait failed, retcode: %d\n", nfds);
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            derror("epoll_wait failed, errno: %d\n", errno);
+            break;
+        }
+        if (nfds == 0)
+        {
             continue;
         }
         
         for (int i = 0; i < nfds; i++)
         {
             struct dchannel *ch = (struct dchannel *)events[i].data.ptr;
-            if (events[i].events & EPOLLIN && ch->read_from_out != NULL)
+
+            if (ch == NULL)
             {
-                ch->read_from_out(ch);
+                // wakeup sentinel: drain the counter and re-check status
+                uint64_t cnt = 0;
+                (void)!read(g_ctx.wakefd, &cnt, sizeof(cnt));
+                continue;
+            }
+
+            // read first: a peer that closed right after sending still has its
+            // last message pending, and a channel learns about the EOF here
+            if ((events[i].events & EPOLLIN) && ch->read_from_out != NULL)
+            {
+                if (ch->read_from_out(ch) != Success)
+                {
+                    ddebug("channel[%s] read_from_out failed\n",
+                        ch->comp.name == NULL ? "no name" : ch->comp.name);
+                }
+            }
+
+            if (events[i].events & (EPOLLERR | EPOLLHUP))
+            {
+                // a peer closing normally raises EPOLLIN|EPOLLHUP too, at this
+                // point the channel has already seen the EOF and released
+                // itself, so the hook must tolerate being called twice.
+                // level triggered: a channel that does not drop its fd would
+                // fire on every wakeup, so it has to leave epoll in any case.
+                if (ch->on_hangup != NULL)
+                {
+                    ddebug("channel[%s] hangup, events: 0x%x\n",
+                        ch->comp.name == NULL ? "no name" : ch->comp.name,
+                        events[i].events);
+                    ch->on_hangup(ch);
+                }
+                else
+                {
+                    derror("channel[%s] error/hangup without hook, dropping it, events: 0x%x\n",
+                        ch->comp.name == NULL ? "no name" : ch->comp.name,
+                        events[i].events);
+                    dchannel_unregister(ch);
+                }
             }
         }
     }
@@ -83,17 +147,35 @@ void dctx_destroy(void)
 {
     worker_mgr_destroy();
 
+    if (g_ctx.wakefd >= 0)
+    {
+        close(g_ctx.wakefd);
+        g_ctx.wakefd = -1;
+    }
+
     if (g_ctx.epfd >= 0)
     {
         close(g_ctx.epfd);
+        g_ctx.epfd = -1;
     }
+
+    pthread_rwlock_destroy(&g_ctx.name_tb.rwlock);
+    pthread_rwlock_destroy(&g_ctx.id_tb.rwlock);
 
     return ;
 }
 
 void stop_daemon_evloop(void)
 {
+    uint64_t one = 1;
+
     atomic_store(&g_ctx.status, false);
+
+    // epoll_wait may be blocked in another thread, kick it out immediately
+    if (g_ctx.wakefd >= 0)
+    {
+        (void)!write(g_ctx.wakefd, &one, sizeof(one));
+    }
 }
 
 // DJB2 hash function
@@ -102,7 +184,8 @@ static inline unsigned int str_to_key(const char *str)
     unsigned int key = 5381;
     for (const char *p = str; *p; p++)
     {
-        key = ((key << 5) + key) + (*p);
+        // char may be signed, a negative value would be sign-extended here
+        key = ((key << 5) + key) + (unsigned int)(unsigned char)(*p);
     }
     return key;
 }
@@ -116,6 +199,11 @@ void dcomp_init(struct dcomp *comp, const char *name)
     }
 
     comp->dcompid = atomic_fetch_add(&g_ctx.next_id, 1);
+    if (unlikely(comp->dcompid == DCOMPID_RESERVED))
+    {
+        // next_id wrapped around, ids must stay unique inside the record table
+        derror("component id space exhausted, name[%s]\n", name);
+    }
     comp->name = name;
     lnode_init(&comp->name_node);
     lnode_init(&comp->id_node);

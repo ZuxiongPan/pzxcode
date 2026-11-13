@@ -86,7 +86,13 @@ struct dworker {
 
 struct dworker_mgr {
     bool initialized;
+    bool stopped;
+    atomic_bool stop;   // set before broadcasting, workers/monitor exit on it
     struct dtask_queue queue;
+    // dedicated condvar for the monitor thread, it must not share queue.cond:
+    // pthread_cond_signal() wakes exactly one waiter and the monitor could
+    // steal the wakeup that a worker was supposed to get
+    pthread_cond_t monitor_cond;
     struct dworker workers[WORKER_MAXNUM];
     // for monitoring workers, there will add saving feature when workers are all blocked
     struct dworker monitor;
@@ -94,6 +100,8 @@ struct dworker_mgr {
 };
 
 int worker_mgr_init(void);
+// stop and join all worker/monitor threads, task memory is kept alive
+void worker_mgr_stop(void);
 void worker_mgr_destroy(void);
 int task_enqueue_by_id(unsigned int srcid, unsigned int dstid, unsigned int msgid,
     unsigned int data_size, const char *data);

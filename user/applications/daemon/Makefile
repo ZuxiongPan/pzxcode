@@ -10,7 +10,10 @@ $(foreach dir, $(DIRS-y), $(eval $(call add_dir_objs,$(dir))))
 $(foreach dir, $(MOD_SUBDIRS-y), $(eval $(call add_dir_objs,$(dir))))
 
 CFLAGS += -I$(DAEMON_DIR)/include -I$(DAEMON_DIR) -I$(CODE_DIR)/include
+CFLAGS += -MMD -MP
 LDFLAGS += -lpthread
+
+DEPS := $(OBJS-y:.o=.d)
 
 all: $(TARGET) sendcmd
 
@@ -21,12 +24,14 @@ $(TARGET): $(OBJS-y)
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-sendcmd: debug/sendcmd.o
-	$(CC) $(CFLAGS) -o $@ $^
+sendcmd: debug/sendcmd.o lib/cJSON.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 install:
 	cp $(TARGET) $(ROOT_DIR)/usr/bin/ -f
 	cp sendcmd $(ROOT_DIR)/usr/bin/ -f
 
 clean:
-	rm -f $(TARGET) $(OBJS-y) debug/sendcmd.o sendcmd
+	rm -f $(TARGET) $(OBJS-y) $(DEPS) debug/sendcmd.o debug/sendcmd.d sendcmd
+
+-include $(DEPS)

@@ -21,6 +21,8 @@ enum upgrade_stage {
 #define UPGRADE_FILE_PATH "tftp://10.0.2.2/upgrade.bin"
 #define DOWNLOAD_FILE_PATH "/var/fw.bin"
 #define UDS_PATH "/var/armd.sock"
+// component the armd dispatcher routes an upgrade report to, see inform.c
+#define UPG_JSON_TARGET "upgrade"
 #define PUBKEY_FILEPATH "/etc/pzx.pub"
 #define UPG_MSG_MAXLEN 128
 #define CONFIG_UPGRADE_FRAGMENT

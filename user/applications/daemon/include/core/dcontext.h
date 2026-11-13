@@ -33,11 +33,15 @@ struct htable {
     pthread_rwlock_t rwlock;
 };
 
+// dcompid 0 is reserved as the "invalid / broadcast" marker, real ids start at 1
+#define DCOMPID_RESERVED 0U
+
 // this is the daemon-context definition
 struct dctx {
     atomic_bool status;
     atomic_uint next_id;
     int epfd;
+    int wakefd;     // eventfd used to break out of epoll_wait from any thread
     struct htable name_tb;
     struct htable id_tb;
 };
@@ -46,9 +50,13 @@ struct dctx* dctx_instance(void);
 void dctx_init(void);
 void dctx_destroy(void);
 void start_dctx_evloop(void);
+void stop_daemon_evloop(void);
 void dcomp_init(struct dcomp *comp, const char *name);
 int dcomp_record_add(struct dcomp *comp);
 void dcomp_record_del(struct dcomp *comp);
+/* NOTE: the lookup runs under the table read lock, but the returned pointer is
+ * used after the lock is released. The caller must guarantee the component
+ * outlives the use (all current components are static, keep it that way). */
 const struct dcomp* find_dcomp_by_id(unsigned int id);
 const struct dcomp* find_dcomp_by_name(const char *name);
 

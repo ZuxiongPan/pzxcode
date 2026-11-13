@@ -9,7 +9,6 @@
 #include "dcomp_name.h"
 #include "core/dcontext.h"
 #include "core/dfuncalls.h"
-#include "channel/chnl_api.h"
 
 static struct dcomp signalmod;
 
@@ -33,10 +32,9 @@ static int msg_signal_handler(const struct dcomp *comp, uint32_t srcid,
         case SIGTERM:
         {
             demerg("receive INT/TERM signal, the event loop ended\n");
-            struct dctx *ctx = dctx_instance();
-            atomic_store(&ctx->status, false);
-            // this timer is used for stop the pending of daemon_context_run
-            timer_add(100, 0, false, signalmod.dcompid, MSGID_SYS_TIMER);
+            // stop_daemon_evloop() also kicks the blocked epoll_wait through
+            // the wakeup eventfd, no timer hack is needed anymore
+            stop_daemon_evloop();
             break;
         }
         case SIGCHLD:
@@ -66,6 +64,7 @@ static int signalmod_init(void)
     {
         derror("failed to add module[%s] to record\n",
             signalmod.name == NULL ? "no name" : signalmod.name);
+        return ret;
     }
 
     dprint("[%s] init success\n", signalmod.name);
@@ -80,5 +79,8 @@ static void signalmod_exit(void)
     return ;
 }
 
-DCOMP_INIT_NORMPRIO(signalmod_init);
-DCOMP_EXIT_NORMPRIO(signalmod_exit);
+// high priority: the module must be registered in the record table *before*
+// the signal channel starts reading signalfd, otherwise a signal arriving in
+// between would be consumed and then dropped (nobody to deliver it to)
+DCOMP_INIT_HIGHPRIO(signalmod_init);
+DCOMP_EXIT_HIGHPRIO(signalmod_exit);
