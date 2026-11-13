@@ -9,6 +9,7 @@
 #include "dcomp_name.h"
 #include "core/dcontext.h"
 #include "core/dfuncalls.h"
+#include "channel/chnl_api.h"
 
 static struct dcomp signalmod;
 
@@ -35,7 +36,7 @@ static int msg_signal_handler(const struct dcomp *comp, uint32_t srcid,
             struct dctx *ctx = dctx_instance();
             atomic_store(&ctx->status, false);
             // this timer is used for stop the pending of daemon_context_run
-            // timer_add(100, 0, false, DCOMPID_NONE, MSGID_SYS_TIMER);
+            timer_add(100, 0, false, signalmod.dcompid, MSGID_SYS_TIMER);
             break;
         }
         case SIGCHLD:
@@ -66,18 +67,15 @@ static int signalmod_init(void)
         derror("failed to add module[%s] to record\n",
             signalmod.name == NULL ? "no name" : signalmod.name);
     }
-    else
-    {
-        dprint("signal module init success\n");
-    }
 
+    dprint("[%s] init success\n", signalmod.name);
     return ret;
 }
 
 static void signalmod_exit(void)
 {
     dcomp_record_del(&signalmod);
-    dprint("signal module exited\n");
+    dprint("[%s] exit\n", signalmod.name);
 
     return ;
 }

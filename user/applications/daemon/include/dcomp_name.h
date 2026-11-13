@@ -2,7 +2,8 @@
 #define _DCOMP_NAME_H_
 
 #define ChannelSignal "channel.signal"
-#define ChannelTimer "channel.timer"
+#define ChannelTimerRepeat "channel.timer.repeat"
+#define ChannelTimerOnce "channel.timer.once"
 #define ChannelUnixDomainSocket "channel.uds"
 #define ChannelGenericNetlink "channel.generic-netlink"
 

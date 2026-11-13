@@ -106,7 +106,7 @@ static inline void process_task(void *buf)
         }
     }
 
-    dprint("process task %u, ret %d\n", task->msgid, ret);
+    ddebug("process task msgid[0x%x], ret[%d]\n", task->msgid, ret);
 
     return ;
 }

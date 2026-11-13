@@ -55,7 +55,10 @@ static void dcomp_highprio_init(void)
     while (func < __stop_highprio_initfuncs && *func != NULL)
     {
         inner_ret = (*func)();
-        dprint("highprio init %p ret %d\n", func, inner_ret);
+        if (unlikely(inner_ret != Success))
+        {
+            derror("highprio init %p ret %d\n", func, inner_ret);
+        }
         func++;
     }
 
@@ -72,7 +75,10 @@ static void dcomp_normprio_init(void)
     while (func < __stop_normprio_initfuncs && *func != NULL)
     {
         inner_ret = (*func)();
-        dprint("normprio init %p ret %d\n", func, inner_ret);
+        if (unlikely(inner_ret != Success))
+        {
+            derror("normprio init %p ret %d\n", func, inner_ret);
+        }
         func++;
     }
 
@@ -89,7 +95,10 @@ static void dcomp_lowprio_init(void)
     while (func < __stop_lowprio_initfuncs && *func != NULL)
     {
         inner_ret = (*func)();
-        dprint("lowprio init %p ret %d\n", func, inner_ret);
+        if (unlikely(inner_ret != Success))
+        {
+            derror("lowprio init %p ret %d\n", func, inner_ret);
+        }
         func++;
     }
 

@@ -53,7 +53,7 @@ static int ch_signal_init(void)
 
     ret = dchannel_register(EPOLLIN, &ch_signal);
 
-    dprint("%s info: fd[%d], id[%u]\n", ch_signal.comp.name, ch_signal.fd, ch_signal.comp.dcompid);
+    dprint("[%s] info: fd[%d], id[%u]\n", ch_signal.comp.name, ch_signal.fd, ch_signal.comp.dcompid);
     return ret;
 }
 
@@ -66,7 +66,7 @@ static void ch_signal_exit(void)
     }
     ch_signal.fd = -1;
 
-    dprint("%s exit\n", ch_signal.comp.name);
+    dprint("[%s] exit\n", ch_signal.comp.name);
     return ;
 }
 

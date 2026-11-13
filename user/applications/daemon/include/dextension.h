@@ -26,6 +26,22 @@ static inline void lnode_init(struct lnode *node)
     node->prev = node;
 }
 
+static inline void list_add_head(struct lnode *new_node, struct lnode *head)
+{
+    new_node->next = head->next;
+    new_node->prev = head;
+    head->next->prev = new_node;
+    head->next = new_node;
+}
+
+static inline void list_add_after(struct lnode *new_node, struct lnode *node)
+{
+    new_node->next = node->next;
+    new_node->prev = node;
+    node->next->prev = new_node;
+    node->next = new_node;
+}
+
 static inline void list_add_tail(struct lnode *new_node, struct lnode *head)
 {
     new_node->next = head;

@@ -13,7 +13,7 @@
 #define WORKER_MAXNUM 4
 #define MONITOR_INTERVAL_MS 300  // 300ms interval
 
-#define TMP_DTIMER_MAXCNT 128
+#define ONCE_DTIMER_MAXCNT 128
 
 #define UDS_PATH "/var/armd.sock"
 #define LISTENED_CLIENT_NUM 2

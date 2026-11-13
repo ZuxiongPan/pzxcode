@@ -8,7 +8,7 @@
 int genl_parse_attrs_armd(const void *attrs, int len, struct nlattr **tb);
 
 int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat,
-            int modid, unsigned int msgid);
+            unsigned int modid, unsigned int msgid);
 void timer_del(int timer_id);
 int dtimer_info(char *inbuf, int bufsize);
 
