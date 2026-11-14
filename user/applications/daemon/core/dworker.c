@@ -65,6 +65,16 @@ static inline struct dtask* alloc_task(struct dtask_pool *pool)
     return ret;
 }
 
+static inline void recycle_slot(int poolid, unsigned int slot_idx)
+{
+    struct dtask_pool *pool = &worker_mgr.queue.pools[poolid];
+
+    pool->bitmap[slot_idx / BITMAP_UNIT_BITS] &=
+        ~(1U << (slot_idx & (BITMAP_UNIT_BITS - 1)));
+
+    return ;
+}
+
 static inline void recycle_task(struct dtask *task)
 {
     int poolid = pool_select(task->data_size);
@@ -74,9 +84,7 @@ static inline void recycle_task(struct dtask *task)
         return ;
     }
 
-    struct dtask_pool *pool = &worker_mgr.queue.pools[poolid];
-    pool->bitmap[task->slot_idx / BITMAP_UNIT_BITS] &=
-        ~(1U << (task->slot_idx & (BITMAP_UNIT_BITS - 1)));
+    recycle_slot(poolid, task->slot_idx);
 
     return;
 }
@@ -144,7 +152,7 @@ static void* worker_thread(void *arg)
     struct dctx *ctx = dctx_instance();
     struct dtask_queue *queue = &worker_mgr.queue;
 
-    while (atomic_load(&ctx->status) && !atomic_load(&worker_mgr.stop))
+    while (true)
     {
         pthread_mutex_lock(&queue->lock);
         while (queue->count == 0 &&
@@ -192,20 +200,21 @@ static void* monitor_thread(void *arg)
     struct timespec ts;
     bool warned = false;
 
-    while (atomic_load(&ctx->status) && !atomic_load(&worker_mgr.stop))
+    while (true)
     {
-        // absolute CLOCK_MONOTONIC timeout; select() would rewrite its timeval
-        // argument and the rest of the sleep becomes a busy loop
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        ts.tv_nsec += (long)MONITOR_INTERVAL_MS * 1000000L;
-        while (ts.tv_nsec >= 1000000000L)
+        pthread_mutex_lock(&worker_mgr.monitor_lock);
+        if (!atomic_load(&ctx->status) || atomic_load(&worker_mgr.stop))
         {
-            ts.tv_sec++;
-            ts.tv_nsec -= 1000000000L;
+            pthread_mutex_unlock(&worker_mgr.monitor_lock);
+            break;
         }
 
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        ts.tv_sec += MONITOR_INTERVAL_SEC;
+        pthread_cond_timedwait(&worker_mgr.monitor_cond, &worker_mgr.monitor_lock, &ts);
+        pthread_mutex_unlock(&worker_mgr.monitor_lock);
+
         pthread_mutex_lock(&queue->lock);
-        pthread_cond_timedwait(&worker_mgr.monitor_cond, &queue->lock, &ts);
         unsigned int pending = queue->count;
         pthread_mutex_unlock(&queue->lock);
 
@@ -214,19 +223,19 @@ static void* monitor_thread(void *arg)
             break;
         }
 
-        if (atomic_load(&worker_mgr.busy) == real_workers)
+        if (real_workers > 0 && atomic_load(&worker_mgr.busy) == real_workers)
         {
             // only log on the transition, otherwise a busy system floods the log
             if (!warned)
             {
-                dprint("monitor: all %u workers busy, %u task(s) pending\n",
+                dprint("monitor: all %u workers busy, %u tasks pending\n",
                     real_workers, pending);
                 warned = true;
             }
         }
         else if (warned)
         {
-            dprint("monitor: worker available again, %u task(s) pending\n", pending);
+            dprint("monitor: worker available again, %u tasks pending\n", pending);
             warned = false;
         }
     }
@@ -236,35 +245,8 @@ static void* monitor_thread(void *arg)
 
 static void task_queue_init(struct dtask_queue *q)
 {
-    pthread_condattr_t attr;
-    int ret = 0;
-
     pthread_mutex_init(&q->lock, NULL);
     pthread_cond_init(&q->cond, NULL);
-
-    // monitor_cond must be driven by CLOCK_MONOTONIC, otherwise the absolute
-    // timestamp built in monitor_thread() would be interpreted as CLOCK_REALTIME
-    // and pthread_cond_timedwait() would time out immediately (busy loop)
-    ret = pthread_condattr_init(&attr);
-    if (ret == 0)
-    {
-        ret = pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-        if (ret != 0)
-        {
-            derror("condattr_setclock failed: %d\n", ret);
-        }
-        ret = pthread_cond_init(&worker_mgr.monitor_cond, &attr);
-        if (ret != 0)
-        {
-            derror("monitor cond init failed: %d\n", ret);
-        }
-        pthread_condattr_destroy(&attr);
-    }
-    else
-    {
-        derror("condattr_init failed: %d\n", ret);
-        pthread_cond_init(&worker_mgr.monitor_cond, NULL);
-    }
 
     q->head = NULL;
     q->tail = NULL;
@@ -294,15 +276,47 @@ static void task_queue_init(struct dtask_queue *q)
 int worker_mgr_init(void)
 {
     int inner_ret = 0;
+    pthread_condattr_t attr;
 
     worker_mgr.initialized = false;
     worker_mgr.stopped = false;
     real_workers = 0;
     atomic_init(&worker_mgr.stop, false);
+
+    pthread_mutex_init(&worker_mgr.monitor_lock, NULL);
+
+    inner_ret = pthread_condattr_init(&attr);
+    if (inner_ret != 0)
+    {
+        derror("monitor condattr init failed: %d\n", inner_ret);
+        pthread_mutex_destroy(&worker_mgr.monitor_lock);
+        return Fail;
+    }
+
+    inner_ret = pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+    if (inner_ret != 0)
+    {
+        derror("failed to set clock for monitor condattr: %d\n", inner_ret);
+        pthread_condattr_destroy(&attr);
+        pthread_mutex_destroy(&worker_mgr.monitor_lock);
+        return Fail;
+    }
+
+    inner_ret = pthread_cond_init(&worker_mgr.monitor_cond, &attr);
+    pthread_condattr_destroy(&attr);
+    if (inner_ret != 0)
+    {
+        derror("monitor cond init failed: %d\n", inner_ret);
+        pthread_mutex_destroy(&worker_mgr.monitor_lock);
+        return Fail;
+    }
+
     taskmem = calloc(1, TASK_QUEUE_SIZE);
     if (taskmem == NULL)
     {
         derror("failed to alloc task memory\n");
+        pthread_cond_destroy(&worker_mgr.monitor_cond);
+        pthread_mutex_destroy(&worker_mgr.monitor_lock);
         return Fail;
     }
 
@@ -349,11 +363,13 @@ void worker_mgr_stop(void)
     worker_mgr.stopped = true;
     atomic_store(&worker_mgr.stop, true);
 
-    // both condvars share queue.lock, take it before broadcasting
     pthread_mutex_lock(&worker_mgr.queue.lock);
     pthread_cond_broadcast(&worker_mgr.queue.cond);
-    pthread_cond_broadcast(&worker_mgr.monitor_cond);
     pthread_mutex_unlock(&worker_mgr.queue.lock);
+
+    pthread_mutex_lock(&worker_mgr.monitor_lock);
+    pthread_cond_broadcast(&worker_mgr.monitor_cond);
+    pthread_mutex_unlock(&worker_mgr.monitor_lock);
 
     for (int i = 0; i < WORKER_MAXNUM; i++)
     {
@@ -393,8 +409,10 @@ void worker_mgr_destroy(void)
     pthread_mutex_unlock(&worker_mgr.queue.lock);
 
     pthread_cond_destroy(&worker_mgr.queue.cond);
-    pthread_cond_destroy(&worker_mgr.monitor_cond);
     pthread_mutex_destroy(&worker_mgr.queue.lock);
+    
+    pthread_cond_destroy(&worker_mgr.monitor_cond);
+    pthread_mutex_destroy(&worker_mgr.monitor_lock);
 
     free(taskmem);
     taskmem = NULL;
@@ -414,6 +432,12 @@ static int task_submit(const struct destinfo *dstinfo, unsigned int srcid,
     if (unlikely(data_size > 0 && data == NULL))
     {
         derror("invalid payload: size %u but data is NULL\n", data_size);
+        return Fail;
+    }
+
+    if (unlikely(atomic_load(&worker_mgr.stop)))
+    {
+        // nothing drains the queue any more, no point in reserving a slot
         return Fail;
     }
 
@@ -444,20 +468,19 @@ static int task_submit(const struct destinfo *dstinfo, unsigned int srcid,
         return Fail;
     }
 
-    if (unlikely(atomic_load(&worker_mgr.stop)))
-    {
-        pthread_mutex_lock(&q->lock);
-        recycle_task(task);
-        pthread_mutex_unlock(&q->lock);
-        return Fail;
-    }
-
-    // the slot is reserved but not linked into the queue yet, so filling it
-    // does not have to happen under the global queue lock
     task->srcid = srcid;
     task->dstinfo = *dstinfo;
     task->msgid = msgid;
     task->data_size = data_size;
+
+    if (unlikely(atomic_load(&worker_mgr.stop)))
+    {
+        pthread_mutex_lock(&q->lock);
+        recycle_slot(poolid, task->slot_idx);
+        pthread_mutex_unlock(&q->lock);
+        return Fail;
+    }
+
     if (data_size > 0)
     {
         memcpy(task->data, data, data_size);

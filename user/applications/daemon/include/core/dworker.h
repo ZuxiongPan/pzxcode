@@ -93,6 +93,7 @@ struct dworker_mgr {
     // pthread_cond_signal() wakes exactly one waiter and the monitor could
     // steal the wakeup that a worker was supposed to get
     pthread_cond_t monitor_cond;
+    pthread_mutex_t monitor_lock;
     struct dworker workers[WORKER_MAXNUM];
     // for monitoring workers, there will add saving feature when workers are all blocked
     struct dworker monitor;

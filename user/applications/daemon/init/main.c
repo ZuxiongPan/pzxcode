@@ -1,12 +1,9 @@
-#include <signal.h>
-
 #include "dlog.h"
 #include "dconf.h"
 #include "core/dcontext.h"
 #include "core/dworker.h"
 #include "core/dfuncalls.h"
 
-static void signal_set_mask(void);
 static void dcomp_highprio_init(void);
 static void dcomp_normprio_init(void);
 static void dcomp_lowprio_init(void);
@@ -16,7 +13,13 @@ static void dcomp_lowprio_exit(void);
 
 int main(/*int argc, const char *argv[]*/)
 {
-    signal_set_mask();
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGINT);
+    sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &mask, NULL);
+
     dctx_init();
 
     dcomp_highprio_init();
@@ -36,18 +39,6 @@ int main(/*int argc, const char *argv[]*/)
     dctx_destroy();
 
     return Success;
-}
-
-static void signal_set_mask(void)
-{
-    sigset_t mask;
-
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGINT);
-    sigaddset(&mask, SIGTERM);
-    sigaddset(&mask, SIGCHLD);
-
-    sigprocmask(SIG_BLOCK, &mask, NULL);
 }
 
 static void dcomp_highprio_init(void)

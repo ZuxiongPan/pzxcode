@@ -9,6 +9,7 @@
 #include "dconf.h"
 #include "dmsgid.h"
 #include "dcomp_name.h"
+#include "core/dcontext.h"
 #include "core/dchannel.h"
 #include "core/dworker.h"
 #include "core/dfuncalls.h"
@@ -46,7 +47,6 @@ static int ch_signal_init(void)
     int ret = Success;
     memset(&ch_signal, 0, sizeof(ch_signal));
     sigset_t mask;
-
     sigemptyset(&mask);
     sigaddset(&mask, SIGINT);
     sigaddset(&mask, SIGTERM);

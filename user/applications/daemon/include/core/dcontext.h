@@ -3,6 +3,7 @@
 
 #include <stdatomic.h>
 #include <pthread.h>
+#include <signal.h>
 
 #include "dconf.h"
 #include "dextension.h"

@@ -1,5 +1,5 @@
-#ifndef _DEXENSION_H_
-#define _DEXENSION_H_
+#ifndef _DEXTENSION_H_
+#define _DEXTENSION_H_
 
 #include <stddef.h>
 

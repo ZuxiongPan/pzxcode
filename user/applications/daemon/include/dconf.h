@@ -11,7 +11,7 @@
 
 #define TASK_QUEUE_SIZE (512 * 1024)
 #define WORKER_MAXNUM 4
-#define MONITOR_INTERVAL_MS 300  // 300ms interval
+#define MONITOR_INTERVAL_SEC 3  // 3s interval
 
 #define ONCE_DTIMER_MAXCNT 128
 
