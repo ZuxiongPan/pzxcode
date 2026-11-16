@@ -5,13 +5,12 @@
 #define ChannelTimerRepeat "channel.timer.repeat"
 #define ChannelTimerOnce "channel.timer.once"
 #define ChannelUnixDomainSocket "channel.uds"
-// one component per connected client, the index is appended: channel.uds.client0
-#define ChannelUnixDomainSocketClient "channel.uds.client"
-// kernel event sources, the daemon never sends data back to the kernel
 #define ChannelGenericNetlink "channel.generic-netlink"
-// retry/revalidate timer that drives the generic netlink attach state machine
-#define ChannelGenericNetlinkTick "channel.generic-netlink.tick"
 #define ChannelUevent "channel.uevent"
+
+// all connected clients under same channel use the same name
+// task_enqueue will check dest name and refuse enqueue "client" included task
+#define ChannelUnixDomainSocketClient "channel.uds.client"
 
 #define ModuleSignal "module.signal"
 #define ModuleDispatcher "module.dispatcher"

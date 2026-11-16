@@ -41,7 +41,7 @@ void dctx_init(void)
 
     atomic_init(&g_ctx.status, false);
     // 0 is reserved for "invalid / broadcast", the first real component is 1
-    atomic_init(&g_ctx.next_id, 1U);
+    atomic_init(&g_ctx.next_id, DCOMPID_RESERVED + 1);
     pthread_rwlock_init(&g_ctx.name_tb.rwlock, NULL);
     pthread_rwlock_init(&g_ctx.id_tb.rwlock, NULL);
     for (unsigned int i = 0; i < COMPREC_HTABLE_SIZE; i++)
@@ -53,14 +53,14 @@ void dctx_init(void)
     g_ctx.epfd = epoll_create1(EPOLL_CLOEXEC);
     dctx_init_check(g_ctx.epfd < 0);
 
-    // eventfd is the only way to wake epoll_wait up from another thread,
-    // it replaces the old "arm a 100ms one-shot timer" trick
+    // this eventfd is used to wake epoll_wait up from main thread
     g_ctx.wakefd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     dctx_init_check(g_ctx.wakefd < 0);
 
     memset(&ev, 0, sizeof(ev));
     ev.events = EPOLLIN;
-    ev.data.ptr = NULL;     // NULL is the wakeup sentinel in the dispatch loop
+    // the wake up fd is not a channel, this is the only fd listened with out channel info
+    ev.data.ptr = NULL;
     ret = epoll_ctl(g_ctx.epfd, EPOLL_CTL_ADD, g_ctx.wakefd, &ev);
     dctx_init_check(ret != 0);
 
@@ -165,7 +165,7 @@ void dctx_destroy(void)
     return ;
 }
 
-void stop_daemon_evloop(void)
+void stop_dctx_evloop(void)
 {
     uint64_t one = 1;
 

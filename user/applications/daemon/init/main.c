@@ -1,3 +1,5 @@
+#include <signal.h>
+
 #include "dlog.h"
 #include "dconf.h"
 #include "core/dcontext.h"

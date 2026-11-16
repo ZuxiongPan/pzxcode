@@ -14,9 +14,7 @@ DIRS-y := $(CHANNEL_DIR) $(CORE_DIR) $(DISPATCHER_DIR) $(INIT_DIR) $(LIB_DIR) $(
 OBJS-y :=
 MOD_SUBDIRS-y :=
 
-# compile_cfg still carries the CONFIG_* switches. the lines below used to be
-# spelled "DIRS-$(CONFIG_...)", and the Makefile only ever walks DIRS-y, so those
-# switches never did anything. gating on the value makes them real.
+DIRS-$(QEMU_VIRT) += $(DAEMON_DIR)/virt_bd
 DIRS-$(CONFIG_MODULE_UEVENT) += $(UEVENT_DIR)
 
 # input/ and module/memblk still use the pre-refactor API (dchannel_t,

@@ -7,7 +7,7 @@ export CC CFLAGS LDFLAGS
 dirs-y :=
 
 dirs-y += daemon/
-dirs-y += verctrl/
+dirs-$(QEMU_VIRT) += verctrl/
 #dirs-y += eduapp/
 #dirs-y += uevent_receiver/
 

@@ -1,30 +1,3 @@
-/*
- * unix domain socket control channel
- *
- * this file is transport only: it moves bytes between a socket and the task
- * queue. it does not know what those bytes mean, which component they are for
- * or how an answer has to look. decoding is the job of ModuleDispatcher, the
- * channel only tags the payload with the wire format of its own transport.
- *
- * one send() is exactly one message (SOCK_SEQPACKET keeps the boundaries, so
- * there is no length prefix and no re-assembly):
- *
- *     json text, the field layout belongs to the dispatcher
- *
- * a request is forwarded as
- *
- *     task_enqueue_by_id(client_id, ModuleDispatcher, MSGID_INPUT_JSON, ...)
- *
- * and the parsed request reaches the addressed component with srcid untouched,
- * so the component answers with
- *
- *     task_enqueue_by_id(self->dcompid, srcid, MSGID_UDS_RESPONSE, len, buf)
- *
- * every connected client owns its own component: that component is the address
- * an answer is delivered to, which is how a reply finds its connection again
- * without the channel having to track requests.
- */
-
 // SO_PEERCRED and struct ucred are glibc extensions, the build does not pass
 // -D_GNU_SOURCE, so enable it before the first system header
 #define _GNU_SOURCE
@@ -49,8 +22,7 @@
 #include "core/dchannel.h"
 #include "core/dworker.h"
 #include "core/dfuncalls.h"
-
-#define UDS_CLIENT_NAME_MAXLEN 32U
+#include "dispatcher/dinput.h"
 
 // drain at most this many messages (accepts) per epoll wakeup: the channel is
 // level triggered, so a flooding peer would otherwise monopolize the loop thread
@@ -59,7 +31,7 @@
 
 struct uds_client {
     struct dchannel ch;     // must stay first, epoll dispatches on &ch
-    const char *name;       // "channel.uds.client<N>", stable for the slot
+    const char *name;       // "channel.uds.client", stable for the slot
     pthread_mutex_t lock;   // serializes fd write against close
     bool alive;             // fd is open, only true while holding lock on use
     bool used;              // slot is taken, only touched by the evloop thread
@@ -67,7 +39,6 @@ struct uds_client {
 
 static struct dchannel ch_uds_server;
 static struct uds_client clients[CLIENT_MAXNUM];
-static char client_names[CLIENT_MAXNUM][UDS_CLIENT_NAME_MAXLEN];
 // resolved once at init: ModuleDispatcher is registered in a higher priority
 // group and never leaves the component table, so the id stays valid
 static unsigned int dispatcher_id = DCOMPID_RESERVED;
@@ -422,7 +393,6 @@ static int ch_uds_init(void)
 {
     struct sockaddr_un addr;
     socklen_t addrlen = 0;
-    const struct dcomp *disp = NULL;
     int ret = Success;
     int pathlen = 0;
     int fd = -1;
@@ -438,25 +408,17 @@ static int ch_uds_init(void)
         clients[i].used = false;
         clients[i].alive = false;
         pthread_mutex_init(&clients[i].lock, NULL);
-        snprintf(client_names[i], sizeof(client_names[i]), "%s%u",
-            ChannelUnixDomainSocketClient, i);
-        clients[i].name = client_names[i];
     }
-
-    // without the dispatcher every received message would be dropped, so a
-    // missing dispatcher is a channel failure, not a half working channel
-    disp = find_dcomp_by_name(ModuleDispatcher);
-    if (unlikely(disp == NULL))
-    {
-        derror("[%s] needs [%s], which is not registered\n",
-            ChannelUnixDomainSocket, ModuleDispatcher);
-        return Fail;
-    }
-    dispatcher_id = disp->dcompid;
 
     dcomp_init(&ch_uds_server.comp, ChannelUnixDomainSocket);
     dcomp_set_handlers(&ch_uds_server.comp, 0, NULL);
     ch_uds_server.read_from_out = ch_uds_server_read_from_out;
+    dispatcher_id = dispatcher_compid();
+    if (unlikely(dispatcher_id == 0))
+    {
+        derror("uds: dispatcher id is Invalid\n");
+        return Fail;
+    }
 
     fd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (unlikely(fd < 0))
@@ -542,7 +504,5 @@ static void ch_uds_exit(void)
     return ;
 }
 
-// lowest priority: the control channel is a debug/management helper, the daemon
-// keeps working without it
 DCOMP_INIT_LOWPRIO(ch_uds_init);
 DCOMP_EXIT_LOWPRIO(ch_uds_exit);

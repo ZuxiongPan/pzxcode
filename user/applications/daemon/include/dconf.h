@@ -15,6 +15,7 @@
 
 #define ONCE_DTIMER_MAXCNT 128
 
+// UNIX_PATH_MAX in linux is 108 
 #define UDS_PATH "/var/armd.sock"
 #define LISTENED_CLIENT_NUM 2
 #define CLIENT_MAXNUM 5

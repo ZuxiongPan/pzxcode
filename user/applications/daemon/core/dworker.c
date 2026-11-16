@@ -57,6 +57,7 @@ static inline struct dtask* alloc_task(struct dtask_pool *pool)
         pool->bitmap[i] |= (1U << bit_pos);
         slot_idx = i * BITMAP_UNIT_BITS + bit_pos;
         ret = (struct dtask *) (pool->base + slot_idx * pool->slot_size);
+        ret->id = worker_mgr.queue.total;
         ret->slot_idx = slot_idx;
         ret->next = NULL;
         break;
@@ -134,12 +135,7 @@ static inline void process_task(void *buf)
         }
     }
 
-    if (unlikely(!handled))
-    {
-        ddebug("component[%s] has no handler for msgid[0x%x]\n", comp->name, task->msgid);
-    }
-
-    ddebug("process task msgid[0x%x], ret[%d]\n", task->msgid, ret);
+    ddebug("process task msgid[0x%x], msg handle exists[%d], ret[%d]\n", task->msgid, handled, ret);
 
     return ;
 }
@@ -155,17 +151,19 @@ static void* worker_thread(void *arg)
     while (true)
     {
         pthread_mutex_lock(&queue->lock);
-        while (queue->count == 0 &&
-            atomic_load(&ctx->status) && !atomic_load(&worker_mgr.stop))
-        {
-            pthread_cond_wait(&queue->cond, &queue->lock);
-        }
         if (!atomic_load(&ctx->status) || atomic_load(&worker_mgr.stop))
         {
             pthread_mutex_unlock(&queue->lock);
             break;
         }
 
+        while (queue->count == 0 &&
+            atomic_load(&ctx->status) && !atomic_load(&worker_mgr.stop))
+        {
+            pthread_cond_wait(&queue->cond, &queue->lock);
+        }
+
+        atomic_fetch_add(&worker_mgr.busy, 1);
         task = queue->head;
         queue->head = task->next;
         if (queue->head == NULL)
@@ -173,7 +171,6 @@ static void* worker_thread(void *arg)
             queue->tail = NULL;
         }
         queue->count--;
-        atomic_fetch_add(&worker_mgr.busy, 1);
         pthread_mutex_unlock(&queue->lock);
 
         // the slot is off the queue now, nobody else can touch it, so the copy
@@ -198,7 +195,6 @@ static void* monitor_thread(void *arg)
     struct dctx *ctx = dctx_instance();
     struct dtask_queue *queue = &worker_mgr.queue;
     struct timespec ts;
-    bool warned = false;
 
     while (true)
     {
@@ -223,20 +219,10 @@ static void* monitor_thread(void *arg)
             break;
         }
 
-        if (real_workers > 0 && atomic_load(&worker_mgr.busy) == real_workers)
+        if (atomic_load(&worker_mgr.busy) == real_workers)
         {
-            // only log on the transition, otherwise a busy system floods the log
-            if (!warned)
-            {
-                dprint("monitor: all %u workers busy, %u tasks pending\n",
+            demerg("monitor: all %u workers busy, %u tasks pending\n",
                     real_workers, pending);
-                warned = true;
-            }
-        }
-        else if (warned)
-        {
-            dprint("monitor: worker available again, %u tasks pending\n", pending);
-            warned = false;
         }
     }
 
@@ -322,6 +308,8 @@ int worker_mgr_init(void)
 
     task_queue_init(&worker_mgr.queue);
     atomic_init(&worker_mgr.busy, 0);
+    worker_mgr.initialized = true;
+
     for (int i = 0; i < WORKER_MAXNUM; i++)
     {
         inner_ret = pthread_create(&worker_mgr.workers[i].tid, NULL, worker_thread, NULL);
@@ -348,8 +336,13 @@ int worker_mgr_init(void)
         worker_mgr.monitor.valid = true;
     }
 
-    worker_mgr.initialized = true;
-    dprint("created %d worker threads, expect %d\n", real_workers, WORKER_MAXNUM);
+    if (unlikely(real_workers <= (WORKER_MAXNUM / 2) || !worker_mgr.monitor.valid))
+    {
+        derror("failed to create worker threads or monitor thread\n");
+        return Fail;
+    }
+
+    dprint("created worker threads [%d], expect [%d], monitor thread [%d]\n", real_workers, WORKER_MAXNUM, worker_mgr.monitor.valid);
     return Success;
 }
 
@@ -386,7 +379,7 @@ void worker_mgr_stop(void)
         worker_mgr.monitor.valid = false;
     }
 
-    dprint("all worker threads stopped\n");
+    dprint("all threads stopped\n");
 
     return ;
 }
@@ -414,6 +407,7 @@ void worker_mgr_destroy(void)
     pthread_cond_destroy(&worker_mgr.monitor_cond);
     pthread_mutex_destroy(&worker_mgr.monitor_lock);
 
+    // taskmem must be valid, because it was checked when initialized
     free(taskmem);
     taskmem = NULL;
     worker_mgr.initialized = false;
@@ -520,9 +514,9 @@ int task_enqueue_by_name(unsigned int srcid, const char *dst_name, unsigned int 
 {
     struct destinfo dstinfo;
 
-    if (unlikely(dst_name == NULL))
+    if (dst_name == NULL || strstr(dst_name, "client") != NULL)
     {
-        derror("destination name is NULL\n");
+        derror("destination is invalid!\n");
         return Fail;
     }
 

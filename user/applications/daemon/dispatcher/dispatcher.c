@@ -303,10 +303,10 @@ static void dispatcher_exit(void)
     return ;
 }
 
-/*
- * the dispatcher has to exist before any channel routes to it, and it has to
- * outlive every component that answers a request, so it is initialised in the
- * highest priority group and torn down in the last one.
- */
 DCOMP_INIT_HIGHPRIO(dispatcher_init);
 DCOMP_EXIT_HIGHPRIO(dispatcher_exit);
+
+unsigned int dispatcher_compid(void)
+{
+    return dispatcher.dcompid;
+}

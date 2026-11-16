@@ -50,6 +50,7 @@ struct destinfo {
 };
 
 struct dtask {
+    unsigned int id; // task id
     unsigned int slot_idx;     // task index in pool memory
     struct dtask *next; // next task in queue
     // task info

@@ -32,9 +32,9 @@ static int msg_signal_handler(const struct dcomp *comp, uint32_t srcid,
         case SIGTERM:
         {
             demerg("receive INT/TERM signal, the event loop ended\n");
-            // stop_daemon_evloop() also kicks the blocked epoll_wait through
+            // stop_dctx_evloop() also kicks the blocked epoll_wait through
             // the wakeup eventfd, no timer hack is needed anymore
-            stop_daemon_evloop();
+            stop_dctx_evloop();
             break;
         }
         case SIGCHLD:
@@ -79,8 +79,5 @@ static void signalmod_exit(void)
     return ;
 }
 
-// high priority: the module must be registered in the record table *before*
-// the signal channel starts reading signalfd, otherwise a signal arriving in
-// between would be consumed and then dropped (nobody to deliver it to)
 DCOMP_INIT_HIGHPRIO(signalmod_init);
 DCOMP_EXIT_HIGHPRIO(signalmod_exit);

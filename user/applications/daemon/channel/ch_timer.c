@@ -345,8 +345,7 @@ static int ch_timer_init(void)
     pthread_mutex_init(&rtimer_mgr.lock, NULL);
     rtimer_mgr.next_tid = DTIMER_REPID_START;
     rtimer_mgr.ch_repeat.read_from_out = ch_timer_repeat_read_from_out;
-    rtimer_mgr.ch_repeat.fd = timerfd_create(CLOCK_MONOTONIC,
-        TFD_NONBLOCK | TFD_CLOEXEC);
+    rtimer_mgr.ch_repeat.fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (rtimer_mgr.ch_repeat.fd < 0)
     {
         derror("repeat timerfd_create failed\n");
@@ -370,8 +369,7 @@ static int ch_timer_init(void)
     otimer_mgr.next_tid = DTIMER_ONCEID_START;
     otimer_mgr.count = 0;
     otimer_mgr.ch_once.read_from_out = ch_timer_once_read_from_out;
-    otimer_mgr.ch_once.fd = timerfd_create(CLOCK_MONOTONIC,
-        TFD_NONBLOCK | TFD_CLOEXEC);
+    otimer_mgr.ch_once.fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (otimer_mgr.ch_once.fd < 0)
     {
         derror("once timerfd_create failed\n");
@@ -445,18 +443,18 @@ int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat,
     {
         // a repeat timer with a zero interval would be re-armed every 1ms forever
         derror("repeat timer requires a non-zero interval\n");
-        return Fail;
+        return -1;
     }
 
+    int tid = -1;
+    struct dtimer *timer = NULL;
     if (repeat)
     {
-        struct dtimer *timer = calloc(1, sizeof(struct dtimer));
-        int tid = Fail;
-
+        timer = calloc(1, sizeof(struct dtimer));
         if (timer == NULL)
         {
             derror("failed to alloc repeat timer\n");
-            return Fail;
+            return -1;
         }
 
         timer->expire_ms = get_current_ms() + timeout_ms;
@@ -480,16 +478,13 @@ int timer_add(uint64_t timeout_ms, uint64_t interval_ms, bool repeat,
         }
         pthread_mutex_unlock(&rtimer_mgr.lock);
 
-        if (tid == Fail)
+        if (tid == -1)
         {
             free(timer);
         }
 
         return tid;
     }
-
-    struct dtimer *timer = NULL;
-    int tid = Fail;
 
     pthread_mutex_lock(&otimer_mgr.lock);
     if (otimer_mgr.count < ONCE_DTIMER_MAXCNT && otimer_mgr.next_tid < INT_MAX)

@@ -76,4 +76,6 @@ enum din_genl_attr {
  * order and the text the kernel used, which is what makes the dump useful.
  */
 
+unsigned int dispatcher_compid(void);
+
 #endif

@@ -6,7 +6,6 @@
 #include <sys/signalfd.h>
 
 #include "dlog.h"
-#include "dconf.h"
 #include "dmsgid.h"
 #include "dcomp_name.h"
 #include "core/dcontext.h"
