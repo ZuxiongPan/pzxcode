@@ -1,7 +1,3 @@
-// SO_PEERCRED and struct ucred are glibc extensions, the build does not pass
-// -D_GNU_SOURCE, so enable it before the first system header
-#define _GNU_SOURCE
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -24,40 +20,29 @@
 #include "core/dfuncalls.h"
 #include "dispatcher/dinput.h"
 
-// drain at most this many messages (accepts) per epoll wakeup: the channel is
-// level triggered, so a flooding peer would otherwise monopolize the loop thread
-#define UDS_RECV_BATCH 16U
-#define UDS_ACCEPT_BATCH 8U
+#define UDS_RECV_BATCH 4U
 
 struct uds_client {
-    struct dchannel ch;     // must stay first, epoll dispatches on &ch
-    const char *name;       // "channel.uds.client", stable for the slot
-    pthread_mutex_t lock;   // serializes fd write against close
-    bool alive;             // fd is open, only true while holding lock on use
-    bool used;              // slot is taken, only touched by the evloop thread
+    struct dchannel ch;
+    const char *name;
+    pthread_mutex_t lock;
+    bool alive;
+    bool used;
 };
 
 static struct dchannel ch_uds_server;
 static struct uds_client clients[CLIENT_MAXNUM];
-// resolved once at init: ModuleDispatcher is registered in a higher priority
-// group and never leaves the component table, so the id stays valid
 static unsigned int dispatcher_id = DCOMPID_RESERVED;
 
 static int ch_uds_client_read_from_out(struct dchannel *ch);
 static int uds_client_send(struct uds_client *client, const char *data,
     unsigned int size);
 
-/*
- * the answer of a component arrives here: the client component is the address a
- * request's srcid points at. nothing has to be correlated, the reply is written
- * to the socket this slot owns.
- */
 static int ch_uds_response_handler(const struct dcomp *self, unsigned int srcid,
     unsigned int data_size, const char *data)
 {
     UNUSED(srcid);
 
-    // self points at the dcomp embedded in our own client object
     struct uds_client *client = container_of(self, struct uds_client, ch.comp);
 
     if (unlikely(data == NULL || data_size == 0))
@@ -70,41 +55,17 @@ static int ch_uds_response_handler(const struct dcomp *self, unsigned int srcid,
 }
 
 static const struct msg_handler client_handlers[] = {
-    { .name = "uds.response", .msgid = MSGID_UDS_RESPONSE, .func = ch_uds_response_handler },
+    { .name = "response", .msgid = MSGID_UDS_RESPONSE, .func = ch_uds_response_handler },
 };
 
-static int set_nonblock_cloexec(int fd)
+static inline void set_nonblock_cloexec(int fd)
 {
     int flags = fcntl(fd, F_GETFL, 0);
-    if (unlikely(flags < 0))
-    {
-        return Fail;
-    }
-    // O_CLOEXEC is a descriptor flag, it does not belong in F_SETFL
-    if (unlikely(fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0))
-    {
-        return Fail;
-    }
+    fcntl(fd, F_SETFL, flags | O_NONBLOCK | O_CLOEXEC);
 
-    flags = fcntl(fd, F_GETFD, 0);
-    if (unlikely(flags < 0))
-    {
-        return Fail;
-    }
-    if (unlikely(fcntl(fd, F_SETFD, flags | FD_CLOEXEC) < 0))
-    {
-        return Fail;
-    }
-
-    return Success;
+    return ;
 }
 
-/*
- * the client fd may be closed by the event loop thread while a worker thread is
- * still writing a response, so every send is done under the per client lock and
- * re-validates the fd. the slot is never freed, which keeps a stale dcomp
- * pointer handed out by find_dcomp_by_id() harmless.
- */
 static int uds_client_send(struct uds_client *client, const char *data,
     unsigned int size)
 {
@@ -115,7 +76,7 @@ static int uds_client_send(struct uds_client *client, const char *data,
     if (!client->alive || client->ch.fd < 0)
     {
         pthread_mutex_unlock(&client->lock);
-        ddebug("uds client[%s] is gone, response dropped\n", client->name);
+        ddebug("uds client is gone, response dropped\n");
         return Fail;
     }
 
@@ -125,18 +86,17 @@ static int uds_client_send(struct uds_client *client, const char *data,
     {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
         {
-            derror("uds client[%s] buffer full, response of %u bytes dropped\n",
-                client->name, size);
+            derror("uds client buffer full, response of %u bytes dropped\n", size);
         }
         else
         {
-            derror("uds client[%s] send failed, errno: %d\n", client->name, errno);
+            derror("uds client send failed, errno: %d\n", errno);
         }
     }
     else if ((unsigned int)sent != size)
     {
         // seqpacket is all or nothing, a short send means the message was cut
-        derror("uds client[%s] short send: %zd of %u\n", client->name, sent, size);
+        derror("uds client short send: %zd of %u\n", sent, size);
     }
     else
     {
@@ -147,14 +107,9 @@ static int uds_client_send(struct uds_client *client, const char *data,
     return ret;
 }
 
-/*
- * framing level failures only: the channel may answer those because the message
- * never reached the protocol layer, so no component could report them. anything
- * about content is answered by the dispatcher.
- */
 static int ch_uds_reply_error(struct uds_client *client, const char *text)
 {
-    char buf[UDS_MSG_MAXLEN];
+    char buf[MEDIUM_POOL_SLOT_SIZE];
     int len = 0;
 
     len = snprintf(buf, sizeof(buf), "armd: %s\n", text);
@@ -179,9 +134,6 @@ static void ch_uds_client_release(struct uds_client *client)
         return ;
     }
 
-    // drop the record first so no new task can be routed to this client while
-    // the fd is being torn down, then take the lock: any send already in flight
-    // holds it and finishes before we close
     dchannel_unregister(&client->ch);
 
     pthread_mutex_lock(&client->lock);
@@ -197,12 +149,10 @@ static void ch_uds_client_release(struct uds_client *client)
     lnode_init(&client->ch.comp.name_node);
     lnode_init(&client->ch.comp.id_node);
 
-    dprint("[%s] client released\n", client->name);
+    dprint("uds client released\n");
     return ;
 }
 
-/* epoll hook, see struct dchannel. called after the read path already had its
- * chance, so the release has to be idempotent */
 static void ch_uds_client_hangup(struct dchannel *ch)
 {
     ch_uds_client_release(container_of(ch, struct uds_client, ch));
@@ -211,19 +161,11 @@ static void ch_uds_client_hangup(struct dchannel *ch)
 static void ch_uds_forward(struct uds_client *client, const char *data,
     unsigned int len)
 {
-    if (unlikely(dispatcher_id == DCOMPID_RESERVED))
-    {
-        derror("uds client[%s] request dropped, no dispatcher\n", client->name);
-        ch_uds_reply_error(client, "dispatcher unavailable");
-        return ;
-    }
-
     if (unlikely(task_enqueue_by_id(client->ch.comp.dcompid, dispatcher_id,
-        MSGID_INPUT_JSON, len, data) != Success))
+        MSGID_INPUT_SOCKET, len, data) != Success))
     {
-        derror("uds client[%s] request of %u bytes dropped, queue is full\n",
-            client->name, len);
-        ch_uds_reply_error(client, "dispatcher busy");
+        derror("uds client request of %u bytes dropped, queue is full\n", len);
+        ch_uds_reply_error(client, "task queue full");
     }
 
     return ;
@@ -232,7 +174,7 @@ static void ch_uds_forward(struct uds_client *client, const char *data,
 static int ch_uds_client_read_from_out(struct dchannel *ch)
 {
     struct uds_client *client = container_of(ch, struct uds_client, ch);
-    char buf[UDS_MSG_MAXLEN];
+    char buf[MEDIUM_POOL_SLOT_SIZE];
     unsigned int handled = 0;
     ssize_t len = 0;
 
@@ -251,13 +193,13 @@ static int ch_uds_client_read_from_out(struct dchannel *ch)
             {
                 break;
             }
-            derror("uds client[%s] recv failed, errno: %d\n", client->name, errno);
+            derror("uds client recv failed, errno: %d\n", errno);
             ch_uds_client_release(client);
             return Fail;
         }
         if (len == 0)
         {
-            dprint("uds client[%s] closed by peer\n", client->name);
+            dprint("uds client closed by peer\n");
             ch_uds_client_release(client);
             return Success;
         }
@@ -266,8 +208,7 @@ static int ch_uds_client_read_from_out(struct dchannel *ch)
 
         if (unlikely((size_t)len > sizeof(buf)))
         {
-            derror("uds client[%s] request too large: %zd > %zu\n",
-                client->name, len, sizeof(buf));
+            derror("uds client request too large: %zd > %zu\n", len, sizeof(buf));
             ch_uds_reply_error(client, "request too large");
             continue;
         }
@@ -287,12 +228,9 @@ static int ch_uds_client_read_from_out(struct dchannel *ch)
 
 static int ch_uds_client_setup(struct uds_client *client, int fd)
 {
-    struct ucred cred;
-    socklen_t credlen = sizeof(cred);
     int ret = Success;
 
-    // every connection gets a fresh id, ids are never recycled
-    dcomp_init(&client->ch.comp, client->name);
+    dcomp_init(&client->ch.comp, ChannelUnixDomainSocketClient);
     dcomp_set_handlers(&client->ch.comp, ARRAY_SIZE(client_handlers), client_handlers);
     client->ch.read_from_out = ch_uds_client_read_from_out;
     client->ch.on_hangup = ch_uds_client_hangup;
@@ -310,33 +248,25 @@ static int ch_uds_client_setup(struct uds_client *client, int fd)
         return Fail;
     }
 
-    if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &credlen) == 0)
-    {
-        dprint("[%s] connected, fd[%d], id[%u], peer pid[%d], uid[%u]\n",
-            client->name, fd, client->ch.comp.dcompid,
-            (int)cred.pid, (unsigned int)cred.uid);
-    }
-    else
-    {
-        dprint("[%s] connected, fd[%d], id[%u], peer unknown\n",
-            client->name, fd, client->ch.comp.dcompid);
-    }
+    dprint("[%s] connected, fd[%d], id[%u]\n", client->name, fd, client->ch.comp.dcompid);
 
     return Success;
 }
 
 static struct uds_client *ch_uds_client_alloc(void)
 {
+    struct uds_client *client = NULL;
     for (unsigned int i = 0; i < CLIENT_MAXNUM; i++)
     {
         if (!clients[i].used)
         {
             clients[i].used = true;
-            return &clients[i];
+            client = &clients[i];
+            break;
         }
     }
 
-    return NULL;
+    return client;
 }
 
 static int ch_uds_server_read_from_out(struct dchannel *ch)
@@ -345,7 +275,7 @@ static int ch_uds_server_read_from_out(struct dchannel *ch)
     unsigned int accepted = 0;
     int fd = -1;
 
-    while (accepted < UDS_ACCEPT_BATCH)
+    while (accepted < LISTENED_CLIENT_NUM)
     {
         fd = accept(ch->fd, NULL, NULL);
         if (fd < 0)
@@ -364,15 +294,9 @@ static int ch_uds_server_read_from_out(struct dchannel *ch)
         }
         accepted++;
 
-        if (unlikely(set_nonblock_cloexec(fd) != Success))
-        {
-            derror("uds client fd setup failed, errno: %d\n", errno);
-            close(fd);
-            continue;
-        }
-
+        set_nonblock_cloexec(fd);
         client = ch_uds_client_alloc();
-        if (unlikely(client == NULL))
+        if (client == NULL)
         {
             derror("no free uds client slot, connection rejected\n");
             close(fd);
@@ -380,7 +304,7 @@ static int ch_uds_server_read_from_out(struct dchannel *ch)
             continue;
         }
 
-        if (unlikely(ch_uds_client_setup(client, fd) != Success))
+        if (ch_uds_client_setup(client, fd) != Success)
         {
             continue;
         }
@@ -392,10 +316,7 @@ static int ch_uds_server_read_from_out(struct dchannel *ch)
 static int ch_uds_init(void)
 {
     struct sockaddr_un addr;
-    socklen_t addrlen = 0;
     int ret = Success;
-    int pathlen = 0;
-    int fd = -1;
 
     memset(&ch_uds_server, 0, sizeof(ch_uds_server));
     ch_uds_server.fd = -1;
@@ -414,40 +335,32 @@ static int ch_uds_init(void)
     dcomp_set_handlers(&ch_uds_server.comp, 0, NULL);
     ch_uds_server.read_from_out = ch_uds_server_read_from_out;
     dispatcher_id = dispatcher_compid();
-    if (unlikely(dispatcher_id == 0))
+    if (unlikely(dispatcher_id == 0 || dispatcher_id == DCOMPID_RESERVED))
     {
         derror("uds: dispatcher id is Invalid\n");
         return Fail;
     }
 
-    fd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-    if (unlikely(fd < 0))
+    ch_uds_server.fd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+    if (unlikely(ch_uds_server.fd < 0))
     {
         derror("uds socket create failed, errno: %d\n", errno);
         return Fail;
     }
-    ch_uds_server.fd = fd;
 
     addr.sun_family = AF_UNIX;
-    pathlen = snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", UDS_PATH);
-    if (unlikely(pathlen < 0 || (size_t)pathlen >= sizeof(addr.sun_path)))
-    {
-        derror("uds path[%s] is too long\n", UDS_PATH);
-        ret = Fail;
-        goto fail;
-    }
+    snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", UDS_PATH);
     // a stale socket file left by a crashed instance would fail bind()
     unlink(UDS_PATH);
 
-    addrlen = (socklen_t)(offsetof(struct sockaddr_un, sun_path) + (size_t)pathlen + 1U);
-    if (unlikely(bind(fd, (struct sockaddr *)&addr, addrlen) < 0))
+    if (unlikely(bind(ch_uds_server.fd, (struct sockaddr *)&addr, sizeof(addr)) < 0))
     {
         derror("uds bind[%s] failed, errno: %d\n", UDS_PATH, errno);
         ret = Fail;
         goto fail;
     }
 
-    if (unlikely(listen(fd, LISTENED_CLIENT_NUM) < 0))
+    if (unlikely(listen(ch_uds_server.fd, LISTENED_CLIENT_NUM) < 0))
     {
         derror("uds listen failed, errno: %d\n", errno);
         ret = Fail;
