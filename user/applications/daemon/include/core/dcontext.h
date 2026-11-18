@@ -67,6 +67,6 @@ static inline void dcomp_set_handlers(struct dcomp *comp, unsigned int num,
     comp->handlers = handlers;
 }
 
-//int dctx_info(char *inbuf, int bufsize);
+void dctx_info(void);
 
 #endif

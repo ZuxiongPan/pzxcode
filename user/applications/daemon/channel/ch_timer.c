@@ -553,3 +553,43 @@ void timer_del(int timer_id)
 
     return ;
 }
+
+void dtimer_info(void)
+{
+    int bytes = 0;
+    char buf[LINUX_PAGE_SIZE];
+
+    bytes += snprintf(buf + bytes, sizeof(buf) - bytes, "----------[Timer]----------\n");
+
+    bytes += snprintf(buf + bytes, sizeof(buf) - bytes, "repeat timer info:\n");
+    pthread_mutex_lock(&rtimer_mgr.lock);
+    for (struct lnode *node = rtimer_mgr.rep_timers.next;
+        node != &rtimer_mgr.rep_timers;
+        node = node->next)
+    {
+        struct dtimer *timer = container_of(node, struct dtimer, node);
+        bytes += snprintf(buf + bytes, sizeof(buf) - bytes,
+            "timer_id: %d, interval_ms: %lu, compid: %u, msgid: 0x%x\n",
+            timer->timer_id, timer->interval_ms,
+            timer->compid, timer->msgid);
+    }
+    pthread_mutex_unlock(&rtimer_mgr.lock);
+    printf("%s", buf);
+
+    memset(buf, 0, sizeof(buf));
+    bytes = 0;
+    bytes += snprintf(buf + bytes, sizeof(buf) - bytes, "once timer info:\n");
+    pthread_mutex_lock(&otimer_mgr.lock);
+    for (int i = 0; i < otimer_mgr.count; i++)
+    {
+        struct dtimer *timer = &otimer_mgr.once_timers[i];
+        bytes += snprintf(buf + bytes, sizeof(buf) - bytes,
+            "timer_id: %d, expire_ms: %lu, compid: %u, msgid: 0x%x\n",
+            timer->timer_id, timer->expire_ms,
+            timer->compid, timer->msgid);
+    }
+    pthread_mutex_unlock(&otimer_mgr.lock);
+    printf("%s", buf);
+
+    return ;
+}

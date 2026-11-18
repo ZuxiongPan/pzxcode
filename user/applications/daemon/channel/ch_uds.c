@@ -24,7 +24,6 @@
 
 struct uds_client {
     struct dchannel ch;
-    const char *name;
     pthread_mutex_t lock;
     bool alive;
     bool used;
@@ -109,7 +108,7 @@ static int uds_client_send(struct uds_client *client, const char *data,
 
 static int ch_uds_reply_error(struct uds_client *client, const char *text)
 {
-    char buf[MEDIUM_POOL_SLOT_SIZE];
+    char buf[LINUX_PAGE_SIZE];
     int len = 0;
 
     len = snprintf(buf, sizeof(buf), "armd: %s\n", text);
@@ -174,7 +173,7 @@ static void ch_uds_forward(struct uds_client *client, const char *data,
 static int ch_uds_client_read_from_out(struct dchannel *ch)
 {
     struct uds_client *client = container_of(ch, struct uds_client, ch);
-    char buf[MEDIUM_POOL_SLOT_SIZE];
+    char buf[LINUX_PAGE_SIZE];
     unsigned int handled = 0;
     ssize_t len = 0;
 
@@ -243,12 +242,12 @@ static int ch_uds_client_setup(struct uds_client *client, int fd)
     ret = dchannel_register(EPOLLIN, &client->ch);
     if (unlikely(ret != Success))
     {
-        derror("uds client[%s] register failed\n", client->name);
+        derror("uds client[%ld] register failed\n", client - clients);
         ch_uds_client_release(client);
         return Fail;
     }
 
-    dprint("[%s] connected, fd[%d], id[%u]\n", client->name, fd, client->ch.comp.dcompid);
+    dprint("[%ld] connected, fd[%d], id[%u]\n", client - clients, fd, client->ch.comp.dcompid);
 
     return Success;
 }

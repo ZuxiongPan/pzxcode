@@ -526,3 +526,30 @@ int task_enqueue_by_name(unsigned int srcid, const char *dst_name, unsigned int 
 
     return task_submit(&dstinfo, srcid, msgid, data_size, data);
 }
+
+void dworker_info(void)
+{
+    int bytes = 0;
+    char buf[LINUX_PAGE_SIZE];
+    struct dtask_queue *q = &worker_mgr.queue;
+
+    bytes += snprintf(buf + bytes, sizeof(buf) - bytes, "----------[Worker]----------\nactive %u\tbusy %u\n",
+        real_workers, atomic_load(&worker_mgr.busy));
+    pthread_mutex_lock(&q->lock);
+    bytes += snprintf(buf + bytes, sizeof(buf) - bytes, "total %u\tcount %u\tdrop %u\n",
+        q->total, q->count, q->drop);
+    for (int i = SmallPool; i < PoolMax; i++)
+    {
+        bytes += snprintf(buf + bytes, sizeof(buf) - bytes, "pool %d bitmap\n", i);
+        for (unsigned int j = 0; j < q->pools[i].bitmap_size; j++)
+        {
+            bytes += snprintf(buf + bytes, sizeof(buf) - bytes, "0x%08x ",
+                q->pools[i].bitmap[j]);
+        }
+        bytes += snprintf(buf + bytes, sizeof(buf) - bytes, "\n");
+    }
+    pthread_mutex_unlock(&q->lock);
+    printf("%s", buf);
+
+    return ;
+}
