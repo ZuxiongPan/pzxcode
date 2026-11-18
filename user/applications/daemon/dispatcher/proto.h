@@ -7,4 +7,10 @@
 int msg_socket_input_handler(const struct dcomp *comp, uint32_t srcid,
     unsigned int data_size, const char *data);
 
+int msg_uevent_input_handler(const struct dcomp *comp, uint32_t srcid,
+    unsigned int data_size, const char *data);
+
+int msg_genl_input_handler(const struct dcomp *comp, uint32_t srcid,
+    unsigned int data_size, const char *data);
+
 #endif

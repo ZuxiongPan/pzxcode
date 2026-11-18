@@ -163,6 +163,15 @@ static void* worker_thread(void *arg)
             pthread_cond_wait(&queue->cond, &queue->lock);
         }
 
+        // the wait also returns when the shutdown broadcast arrives, and then
+        // there is nothing to dequeue: let the top of the loop decide to stop
+        // instead of dereferencing an empty head below
+        if (unlikely(queue->count == 0))
+        {
+            pthread_mutex_unlock(&queue->lock);
+            continue;
+        }
+
         atomic_fetch_add(&worker_mgr.busy, 1);
         task = queue->head;
         queue->head = task->next;

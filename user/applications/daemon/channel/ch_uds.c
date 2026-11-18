@@ -18,7 +18,7 @@
 #include "core/dchannel.h"
 #include "core/dworker.h"
 #include "core/dfuncalls.h"
-#include "dispatcher/dinput.h"
+#include "dispatcher/ddispatcher.h"
 
 #define UDS_RECV_BATCH 4U
 
@@ -334,7 +334,7 @@ static int ch_uds_init(void)
     dcomp_set_handlers(&ch_uds_server.comp, 0, NULL);
     ch_uds_server.read_from_out = ch_uds_server_read_from_out;
     dispatcher_id = dispatcher_compid();
-    if (unlikely(dispatcher_id == 0 || dispatcher_id == DCOMPID_RESERVED))
+    if (unlikely(dispatcher_id == DCOMPID_RESERVED))
     {
         derror("uds: dispatcher id is Invalid\n");
         return Fail;

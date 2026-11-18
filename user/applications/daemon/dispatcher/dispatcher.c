@@ -11,12 +11,14 @@
 #include "core/dcontext.h"
 #include "core/dworker.h"
 #include "core/dfuncalls.h"
-#include "dispatcher/dinput.h"
+#include "dispatcher/ddispatcher.h"
 
-static struct dcomp dispatcher;
+static struct dcomp dispatcher = { 0 };
 
 static const struct msg_handler dispatcher_handlers[] = {
     { .name = "socket", .msgid = MSGID_INPUT_SOCKET, .func = msg_socket_input_handler},
+    { .name = "uevent", .msgid = MSGID_INPUT_UEVENT, .func = msg_uevent_input_handler},
+    { .name = "genl", .msgid = MSGID_INPUT_GENERIC_NETLINK, .func = msg_genl_input_handler},
 };
 
 static int dispatcher_init(void)
