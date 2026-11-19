@@ -142,7 +142,7 @@ int inform_to_armd(enum upgrade_stage stage)
         return -1;
     }
 
-    len = snprintf(payload, sizeof(payload), "result:%s",
+    len = snprintf(payload, sizeof(payload), "upgrade-> %s",
         get_upgrade_stage_str(stage));
     if (len < 0 || (size_t)len >= sizeof(payload))
     {
@@ -152,7 +152,7 @@ int inform_to_armd(enum upgrade_stage stage)
 
     json_escape(escaped, sizeof(escaped), payload);
 
-    len = snprintf(msg, sizeof(msg), "{\"target\":\"%s\",\"data\":\"%s\"}",
+    len = snprintf(msg, sizeof(msg), "{\"target\":\"%s\",\"result\":\"%s\"}",
         UPG_JSON_TARGET, escaped);
     if (len < 0 || (size_t)len >= sizeof(msg))
     {

@@ -9,6 +9,11 @@
 #include "channel/chnl_api.h"
 #include "lib/cJSON.h"
 
+struct str_action {
+    const char *name;
+    void (*func)(const char *str);
+};
+
 static void handle_command(const char *cmd)
 {
     if (strcmp(cmd, "info") == 0)
@@ -24,6 +29,19 @@ static void handle_command(const char *cmd)
 
     return ;
 }
+
+static void handle_result(const char *res)
+{
+    dprint("result: %s\n", res);
+
+    return ;
+}
+
+static const struct str_action str_actions[] = {
+    { "command", handle_command },
+    { "result", handle_result },
+    { NULL, NULL }
+};
 
 int msg_socket_input_handler(const struct dcomp *comp, uint32_t srcid,
     unsigned int data_size, const char *data)
@@ -50,10 +68,14 @@ int msg_socket_input_handler(const struct dcomp *comp, uint32_t srcid,
 
     if (obj != NULL && !strcmp(obj->valuestring, ModuleDispatcher))
     {
-        obj = cJSON_GetObjectItem(root, "command");
-        if (obj != NULL)
+        for (int i = 0; str_actions[i].name != NULL; i++)
         {
-            handle_command(obj->valuestring);
+            obj = cJSON_GetObjectItem(root, str_actions[i].name);
+            if (obj != NULL && obj->valuestring != NULL)
+            {
+                str_actions[i].func(obj->valuestring);
+                break;
+            }
         }
     }
 
