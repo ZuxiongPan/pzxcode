@@ -6,7 +6,7 @@
 #include "dlog.h"
 #include "dmsgid.h"
 #include "dextension.h"
-#include "dcomp_name.h"
+#include "dcomp_info.h"
 #include "core/dcontext.h"
 #include "core/dfuncalls.h"
 
@@ -56,7 +56,7 @@ static int signalmod_init(void)
 {
     int ret = Success;
     memset(&signalmod, 0, sizeof(signalmod));
-    dcomp_init(&signalmod, ModuleSignal);
+    dcomp_init(&signalmod, ModSignalName, ModSignalId);
     dcomp_set_handlers(&signalmod, ARRAY_SIZE(handlers), handlers);
 
     ret = dcomp_record_add(&signalmod);

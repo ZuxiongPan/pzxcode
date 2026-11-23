@@ -15,7 +15,7 @@
 #include "dconf.h"
 #include "dmsgid.h"
 #include "dextension.h"
-#include "dcomp_name.h"
+#include "dcomp_info.h"
 #include "core/dcontext.h"
 #include "core/dchannel.h"
 #include "core/dworker.h"
@@ -59,7 +59,6 @@ struct genl_chnl {
 };
 
 static struct genl_chnl genl;
-static unsigned int dispatcher_id = DCOMPID_RESERVED;
 
 static const char *genl_state_name(enum genl_state state)
 {
@@ -86,7 +85,7 @@ static void genl_set_state_locked(struct genl_chnl *ch, enum genl_state next)
         return ;
     }
 
-    dprint("[%s] state %s -> %s\n", ChannelGenericNetlink,
+    dprint("[%s] state %s -> %s\n", ChGenericNetlinkName,
         genl_state_name(ch->priv.state), genl_state_name(next));
     ch->priv.state = next;
 
@@ -232,13 +231,13 @@ static int genl_req_send_locked(struct genl_chnl *ch)
 
     if (unlikely(ch->ch.fd < 0))
     {
-        derror("[%s] no socket to send the family request on\n", ChannelGenericNetlink);
+        derror("[%s] no socket to send the family request on\n", ChGenericNetlinkName);
         return Fail;
     }
 
     if (unlikely(total > sizeof(buf)))
     {
-        derror("[%s] family request does not fit the buffer\n", ChannelGenericNetlink);
+        derror("[%s] family request does not fit the buffer\n", ChGenericNetlinkName);
         return Fail;
     }
 
@@ -264,14 +263,14 @@ static int genl_req_send_locked(struct genl_chnl *ch)
     sent = sendmsg(ch->ch.fd, &msg, 0);
     if (unlikely(sent < 0))
     {
-        derror("[%s] send family request failed, errno: %d\n", ChannelGenericNetlink, errno);
+        derror("[%s] send family request failed, errno: %d\n", ChGenericNetlinkName, errno);
         return Fail;
     }
 
     if (unlikely((size_t)sent != total))
     {
         derror("[%s] short send on family request: %zd of %zu\n",
-            ChannelGenericNetlink, sent, total);
+            ChGenericNetlinkName, sent, total);
         return Fail;
     }
 
@@ -290,11 +289,11 @@ static void genl_enter_backoff_locked(struct genl_chnl *ch, int code)
     {
         if (code != 0)
         {
-            derror("[%s] link setup failed: %d, retrying\n", ChannelGenericNetlink, code);
+            derror("[%s] link setup failed: %d, retrying\n", ChGenericNetlinkName, code);
         }
         else
         {
-            derror("[%s] link setup failed, retrying\n", ChannelGenericNetlink);
+            derror("[%s] link setup failed, retrying\n", ChGenericNetlinkName);
         }
     }
 
@@ -310,13 +309,13 @@ static void genl_enter_backoff_locked(struct genl_chnl *ch, int code)
     if (unlikely(tid < 0))
     {
         derror("[%s] no timer available for the retry, the link stays down\n",
-            ChannelGenericNetlink);
+            ChGenericNetlinkName);
         genl_set_state_locked(ch, GenlStateDown);
         return ;
     }
 
     ch->priv.retry_tid = tid;
-    ddebug("[%s] attempt %u scheduled in %u ms\n", ChannelGenericNetlink,
+    ddebug("[%s] attempt %u scheduled in %u ms\n", ChGenericNetlinkName,
         ch->priv.attempts, delay);
     genl_set_state_locked(ch, GenlStateBackoff);
 
@@ -334,7 +333,7 @@ static int genl_socket_open_locked(struct genl_chnl *ch)
     if (unlikely(fd < 0))
     {
         derror("[%s] create generic netlink socket failed, errno: %d\n",
-            ChannelGenericNetlink, errno);
+            ChGenericNetlinkName, errno);
         return Fail;
     }
 
@@ -342,7 +341,7 @@ static int genl_socket_open_locked(struct genl_chnl *ch)
     // instead of dropping datagrams with ENOBUFS, best effort only
     if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf)) < 0)
     {
-        ddebug("[%s] SO_RCVBUF not applied, errno: %d\n", ChannelGenericNetlink, errno);
+        ddebug("[%s] SO_RCVBUF not applied, errno: %d\n", ChGenericNetlinkName, errno);
     }
 
     memset(&addr, 0, sizeof(addr));
@@ -353,7 +352,7 @@ static int genl_socket_open_locked(struct genl_chnl *ch)
     if (unlikely(bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0))
     {
         derror("[%s] bind generic netlink socket failed, errno: %d\n",
-            ChannelGenericNetlink, errno);
+            ChGenericNetlinkName, errno);
         close(fd);
         return Fail;
     }
@@ -361,7 +360,7 @@ static int genl_socket_open_locked(struct genl_chnl *ch)
     ch->ch.fd = fd;
     if (unlikely(dchannel_register(EPOLLIN, &ch->ch) != Success))
     {
-        derror("[%s] register channel failed\n", ChannelGenericNetlink);
+        derror("[%s] register channel failed\n", ChGenericNetlinkName);
         close(fd);
         ch->ch.fd = -1;
         return Fail;
@@ -396,14 +395,14 @@ static int genl_ctrl_resolve_locked(struct genl_chnl *ch, const struct nlmsghdr 
 
     if (unlikely(nlh->nlmsg_len < NLMSG_HDRLEN + GENL_HDRLEN))
     {
-        derror("[%s] short control reply\n", ChannelGenericNetlink);
+        derror("[%s] short control reply\n", ChGenericNetlinkName);
         return Fail;
     }
 
     ghdr = (const struct genlmsghdr *)NLMSG_DATA(nlh);
     if (unlikely(ghdr->cmd != CTRL_CMD_NEWFAMILY))
     {
-        derror("[%s] unexpected control command: %u\n", ChannelGenericNetlink, ghdr->cmd);
+        derror("[%s] unexpected control command: %u\n", ChGenericNetlinkName, ghdr->cmd);
         return Fail;
     }
 
@@ -412,7 +411,7 @@ static int genl_ctrl_resolve_locked(struct genl_chnl *ch, const struct nlmsghdr 
 
     if (unlikely(genl_attr_parse(attrs, attr_len, tb, ARRAY_SIZE(tb)) != Success))
     {
-        derror("[%s] malformed control attributes\n", ChannelGenericNetlink);
+        derror("[%s] malformed control attributes\n", ChGenericNetlinkName);
         return Fail;
     }
 
@@ -420,7 +419,7 @@ static int genl_ctrl_resolve_locked(struct genl_chnl *ch, const struct nlmsghdr 
     if (genl_nla_is_str(tb[CTRL_ATTR_FAMILY_NAME]) &&
         strcmp(genl_nla_data(tb[CTRL_ATTR_FAMILY_NAME]), PZX_KEVENT_GENL_FAMILY))
     {
-        derror("[%s] resolved [%s] instead of [%s]\n", ChannelGenericNetlink,
+        derror("[%s] resolved [%s] instead of [%s]\n", ChGenericNetlinkName,
             (char *)genl_nla_data(tb[CTRL_ATTR_FAMILY_NAME]), PZX_KEVENT_GENL_FAMILY);
         return Fail;
     }
@@ -428,21 +427,21 @@ static int genl_ctrl_resolve_locked(struct genl_chnl *ch, const struct nlmsghdr 
     if (tb[CTRL_ATTR_FAMILY_ID] == NULL ||
         genl_nla_payload(tb[CTRL_ATTR_FAMILY_ID]) != sizeof(family_id))
     {
-        derror("[%s] family id missing in control reply\n", ChannelGenericNetlink);
+        derror("[%s] family id missing in control reply\n", ChGenericNetlinkName);
         return Fail;
     }
 
     memcpy(&family_id, genl_nla_data(tb[CTRL_ATTR_FAMILY_ID]), sizeof(family_id));
     if (unlikely(family_id < GENL_MIN_ID))
     {
-        derror("[%s] invalid family id: %u\n", ChannelGenericNetlink, family_id);
+        derror("[%s] invalid family id: %u\n", ChGenericNetlinkName, family_id);
         return Fail;
     }
 
     if (unlikely(genl_find_mcgrp(tb[CTRL_ATTR_MCAST_GROUPS],
             PZX_KEVENT_GENL_GROUP, &group_id) != Success))
     {
-        derror("[%s] multicast group [%s] not found\n", ChannelGenericNetlink,
+        derror("[%s] multicast group [%s] not found\n", ChGenericNetlinkName,
             PZX_KEVENT_GENL_GROUP);
         return Fail;
     }
@@ -451,7 +450,7 @@ static int genl_ctrl_resolve_locked(struct genl_chnl *ch, const struct nlmsghdr 
             &group_id, sizeof(group_id)) < 0))
     {
         derror("[%s] join multicast group failed, errno: %d\n",
-            ChannelGenericNetlink, errno);
+            ChGenericNetlinkName, errno);
         return Fail;
     }
 
@@ -460,7 +459,7 @@ static int genl_ctrl_resolve_locked(struct genl_chnl *ch, const struct nlmsghdr 
     ch->priv.attempts = 0;
     genl_set_state_locked(ch, GenlStateUp);
 
-    dprint("[%s] link up: family[%s] id[%u] group[%u]\n", ChannelGenericNetlink,
+    dprint("[%s] link up: family[%s] id[%u] group[%u]\n", ChGenericNetlinkName,
         PZX_KEVENT_GENL_FAMILY, family_id, group_id);
 
     return Success;
@@ -484,7 +483,7 @@ static int genl_forward(struct genl_chnl *ch, const struct nlmsghdr *nlh)
 
     if (unlikely(nlh->nlmsg_len < NLMSG_HDRLEN + GENL_HDRLEN))
     {
-        derror("[%s] short event message\n", ChannelGenericNetlink);
+        derror("[%s] short event message\n", ChGenericNetlinkName);
         return Fail;
     }
 
@@ -492,7 +491,7 @@ static int genl_forward(struct genl_chnl *ch, const struct nlmsghdr *nlh)
     if (unlikely(ghdr->cmd != NLCMD_INFORM || ghdr->version != PZX_KEVENT_GENL_VERSION))
     {
         ddebug("[%s] unexpected genl message cmd[%u] version[%u], dropped\n",
-            ChannelGenericNetlink, ghdr->cmd, ghdr->version);
+            ChGenericNetlinkName, ghdr->cmd, ghdr->version);
         return Success;
     }
 
@@ -500,7 +499,7 @@ static int genl_forward(struct genl_chnl *ch, const struct nlmsghdr *nlh)
     if (unlikely(genl_attr_parse((const char *)ghdr + GENL_HDRLEN, attr_len,
             tb, ARRAY_SIZE(tb)) != Success))
     {
-        derror("[%s] malformed event attributes, message dropped\n", ChannelGenericNetlink);
+        derror("[%s] malformed event attributes, message dropped\n", ChGenericNetlinkName);
         return Fail;
     }
 
@@ -508,7 +507,7 @@ static int genl_forward(struct genl_chnl *ch, const struct nlmsghdr *nlh)
     if (unlikely(!genl_nla_is_str(target_nla)))
     {
         // without a target the dispatcher cannot route the payload anywhere
-        derror("[%s] event without a target string, message dropped\n", ChannelGenericNetlink);
+        derror("[%s] event without a target string, message dropped\n", ChGenericNetlinkName);
         return Fail;
     }
 
@@ -526,7 +525,7 @@ static int genl_forward(struct genl_chnl *ch, const struct nlmsghdr *nlh)
     if (unlikely(total > sizeof(payload)))
     {
         derror("[%s] event for [%s] too large: %u bytes, dropped\n",
-            ChannelGenericNetlink, target, total);
+            ChGenericNetlinkName, target, total);
         return Fail;
     }
 
@@ -540,11 +539,11 @@ static int genl_forward(struct genl_chnl *ch, const struct nlmsghdr *nlh)
         memcpy(up->body + target_len + 1, data, data_len);
     }
 
-    if (unlikely(task_enqueue_by_id(ch->ch.comp.dcompid, dispatcher_id,
+    if (unlikely(task_enqueue_by_id(ch->ch.comp.dcompid, ModDispatcherId,
             MSGID_INPUT_GENERIC_NETLINK, total, payload) != Success))
     {
         derror("[%s] task queue rejected the event for [%s]\n",
-            ChannelGenericNetlink, target);
+            ChGenericNetlinkName, target);
         return Fail;
     }
 
@@ -560,7 +559,7 @@ static int genl_handle_error(struct genl_chnl *ch, const struct nlmsghdr *nlh)
 
     if (unlikely(nlh->nlmsg_len < NLMSG_HDRLEN + sizeof(struct nlmsgerr)))
     {
-        derror("[%s] short NLMSG_ERROR message\n", ChannelGenericNetlink);
+        derror("[%s] short NLMSG_ERROR message\n", ChGenericNetlinkName);
         return Fail;
     }
 
@@ -580,7 +579,7 @@ static int genl_handle_error(struct genl_chnl *ch, const struct nlmsghdr *nlh)
     {
         // never sent anything that could fail outside the resolving state
         derror("[%s] netlink error %d in state %s, ignored\n",
-            ChannelGenericNetlink, code, state);
+            ChGenericNetlinkName, code, state);
     }
 
     return Success;
@@ -607,7 +606,7 @@ static int genl_handle_ctrl(struct genl_chnl *ch, const struct nlmsghdr *nlh)
 
     if (unlikely(!ours))
     {
-        ddebug("[%s] control reply ignored, state %s\n", ChannelGenericNetlink, state);
+        ddebug("[%s] control reply ignored, state %s\n", ChGenericNetlinkName, state);
     }
 
     return ret;
@@ -630,7 +629,7 @@ static int genl_handle_event(struct genl_chnl *ch, const struct nlmsghdr *nlh)
         // events that arrive before the membership exists, or for a family id
         // that was already rebuilt, are not ours to keep
         ddebug("[%s] message type %u dropped in state %s\n",
-            ChannelGenericNetlink, nlh->nlmsg_type, state);
+            ChGenericNetlinkName, nlh->nlmsg_type, state);
         return Success;
     }
 
@@ -675,7 +674,7 @@ static int genl_handle_datagram(struct genl_chnl *ch, const void *buf, unsigned 
 
     if (unlikely(rem != 0))
     {
-        ddebug("[%s] malformed datagram: %d bytes left\n", ChannelGenericNetlink, rem);
+        ddebug("[%s] malformed datagram: %d bytes left\n", ChGenericNetlinkName, rem);
     }
 
     return ret;
@@ -722,10 +721,10 @@ static int ch_genl_read_from_out(struct dchannel *chnl)
                 // the kernel dropped events because our buffer was full, the
                 // socket is still usable
                 derror("[%s] receive buffer overflow, events were dropped\n",
-                    ChannelGenericNetlink);
+                    ChGenericNetlinkName);
                 break;
             }
-            derror("[%s] receive failed, errno: %d\n", ChannelGenericNetlink, errno);
+            derror("[%s] receive failed, errno: %d\n", ChGenericNetlinkName, errno);
             return Fail;
         }
 
@@ -739,7 +738,7 @@ static int ch_genl_read_from_out(struct dchannel *chnl)
         if (unlikely(msg.msg_flags & MSG_TRUNC))
         {
             derror("[%s] datagram of %zd bytes exceeds %zu, dropped\n",
-                ChannelGenericNetlink, len, sizeof(buf));
+                ChGenericNetlinkName, len, sizeof(buf));
             continue;
         }
 
@@ -747,7 +746,7 @@ static int ch_genl_read_from_out(struct dchannel *chnl)
         {
             // only the kernel is supposed to talk on this family
             derror("[%s] unexpected sender pid[%u], dropped\n",
-                ChannelGenericNetlink, peer.nl_pid);
+                ChGenericNetlinkName, peer.nl_pid);
             continue;
         }
 
@@ -803,7 +802,7 @@ static void ch_genl_hangup(struct dchannel *chnl)
 {
     struct genl_chnl *ch = container_of(chnl, struct genl_chnl, ch);
 
-    derror("[%s] socket hangup, rebuilding the link\n", ChannelGenericNetlink);
+    derror("[%s] socket hangup, rebuilding the link\n", ChGenericNetlinkName);
 
     pthread_mutex_lock(&ch->priv.lock);
 
@@ -842,18 +841,10 @@ static int ch_genl_init(void)
     genl.priv.state = GenlStateDown;
     pthread_mutex_init(&genl.priv.lock, NULL);
 
-    dcomp_init(&genl.ch.comp, ChannelGenericNetlink);
+    dcomp_init(&genl.ch.comp, ChGenericNetlinkName, ChGenericNetlinkId);
     dcomp_set_handlers(&genl.ch.comp, ARRAY_SIZE(genl_handlers), genl_handlers);
     genl.ch.read_from_out = ch_genl_read_from_out;
     genl.ch.on_hangup = ch_genl_hangup;
-
-    dispatcher_id = dispatcher_compid();
-    if (unlikely(dispatcher_id == DCOMPID_RESERVED))
-    {
-        derror("[%s] dispatcher id is invalid\n", ChannelGenericNetlink);
-        ret = Fail;
-        goto err_destroy;
-    }
 
     pthread_mutex_lock(&genl.priv.lock);
     if (unlikely(genl_socket_open_locked(&genl) != Success))
@@ -876,8 +867,8 @@ static int ch_genl_init(void)
         goto err_destroy;
     }
 
-    dprint("[%s] info: fd[%d], id[%u], dispatcher[%u]\n", ChannelGenericNetlink,
-        genl.ch.fd, genl.ch.comp.dcompid, dispatcher_id);
+    dprint("[%s] info: fd[%d], id[%u]\n", ChGenericNetlinkName,
+        genl.ch.fd, genl.ch.comp.dcompid);
 
     return Success;
 
@@ -913,11 +904,10 @@ static void ch_genl_exit(void)
     genl.priv.group_id = 0;
     genl.priv.seq = 0;
     genl.priv.attempts = 0;
-    dispatcher_id = DCOMPID_RESERVED;
 
     pthread_mutex_destroy(&genl.priv.lock);
 
-    dprint("[%s] exit\n", ChannelGenericNetlink);
+    dprint("[%s] exit\n", ChGenericNetlinkName);
     return ;
 }
 

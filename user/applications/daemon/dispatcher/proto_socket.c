@@ -3,7 +3,7 @@
 
 #include "proto.h"
 #include "dlog.h"
-#include "dcomp_name.h"
+#include "dcomp_info.h"
 #include "core/dcontext.h"
 #include "core/dworker.h"
 #include "channel/chnl_api.h"
@@ -66,7 +66,8 @@ int msg_socket_input_handler(const struct dcomp *comp, uint32_t srcid,
 
     obj = cJSON_GetObjectItem(root, "target");
 
-    if (obj != NULL && !strcmp(obj->valuestring, ModuleDispatcher))
+    if (obj != NULL && obj->valuestring != NULL &&
+        !strcmp(obj->valuestring, ModDispatcherName))
     {
         for (int i = 0; str_actions[i].name != NULL; i++)
         {

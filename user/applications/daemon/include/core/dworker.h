@@ -34,28 +34,13 @@ enum {
     PoolMax = 3
 };
 
-enum dest_type {
-    DEST_ID = 0,
-    DEST_NAME = 1,
-};
-
-union destination {
-    unsigned int dstid;
-    const char *dstname;
-};
-
-struct destinfo {
-    union destination dst;
-    enum dest_type type;
-};
-
 struct dtask {
     unsigned int id; // task id
     unsigned int slot_idx;     // task index in pool memory
     struct dtask *next; // next task in queue
     // task info
     unsigned int srcid; // source component id of task
-    struct destinfo dstinfo; // destination component info of task
+    unsigned int dstid; // destination component id of task
     unsigned int msgid; // message id of task
     unsigned int data_size; // data size of task
     char data[];    // flexible array member

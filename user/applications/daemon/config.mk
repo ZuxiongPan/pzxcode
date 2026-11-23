@@ -15,7 +15,6 @@ OBJS-y :=
 MOD_SUBDIRS-y :=
 
 DIRS-$(QEMU_VIRT) += $(DAEMON_DIR)/virt_bd
-DIRS-$(CONFIG_MODULE_UEVENT) += $(UEVENT_DIR)
 
 # input/ and module/memblk still use the pre-refactor API (dchannel_t,
 # dmodule_register, TASK_DATA_MAXSIZE), so they stay out of the build until they

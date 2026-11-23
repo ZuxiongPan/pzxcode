@@ -7,7 +7,7 @@
 
 #include "dlog.h"
 #include "dmsgid.h"
-#include "dcomp_name.h"
+#include "dcomp_info.h"
 #include "core/dcontext.h"
 #include "core/dchannel.h"
 #include "core/dworker.h"
@@ -37,7 +37,7 @@ static int ch_signal_read_from_out(struct dchannel *ch)
         return Fail;
     }
 
-    return task_enqueue_by_name(ch->comp.dcompid, ModuleSignal,
+    return task_enqueue_by_name(ch->comp.dcompid, ModSignalName,
         MSGID_SYS_SIGNAL, sizeof(info), (const char *)&info);
 }
 
@@ -51,7 +51,7 @@ static int ch_signal_init(void)
     sigaddset(&mask, SIGTERM);
     sigaddset(&mask, SIGCHLD);
 
-    dcomp_init(&ch_signal.comp, ChannelSignal);
+    dcomp_init(&ch_signal.comp, ChSignalName, ChSignalId);
     dcomp_set_handlers(&ch_signal.comp, 0, NULL);
     ch_signal.read_from_out = ch_signal_read_from_out;
     ch_signal.fd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);

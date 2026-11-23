@@ -4,8 +4,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-unsigned int dispatcher_compid(void);
-
 struct genl_upmsg {
     uint16_t target_len;    // bytes of target, the trailing NUL is not counted
     uint16_t data_len;

@@ -6,7 +6,7 @@
 #include "dlog.h"
 #include "dconf.h"
 #include "dmsgid.h"
-#include "dcomp_name.h"
+#include "dcomp_info.h"
 #include "dextension.h"
 #include "core/dcontext.h"
 #include "core/dworker.h"
@@ -26,13 +26,13 @@ static int dispatcher_init(void)
     int ret = Success;
 
     memset(&dispatcher, 0, sizeof(dispatcher));
-    dcomp_init(&dispatcher, ModuleDispatcher);
+    dcomp_init(&dispatcher, ModDispatcherName, ModDispatcherId);
     dcomp_set_handlers(&dispatcher, ARRAY_SIZE(dispatcher_handlers), dispatcher_handlers);
 
     ret = dcomp_record_add(&dispatcher);
     if (unlikely(ret != Success))
     {
-        derror("failed to add module[%s] to record\n", ModuleDispatcher);
+        derror("failed to add module[%s] to record\n", ModDispatcherName);
         return ret;
     }
 
@@ -44,15 +44,10 @@ static int dispatcher_init(void)
 static void dispatcher_exit(void)
 {
     dcomp_record_del(&dispatcher);
-    dprint("[%s] exit\n", ModuleDispatcher);
+    dprint("[%s] exit\n", ModDispatcherName);
 
     return ;
 }
 
 DCOMP_INIT_HIGHPRIO(dispatcher_init);
 DCOMP_EXIT_HIGHPRIO(dispatcher_exit);
-
-unsigned int dispatcher_compid(void)
-{
-    return dispatcher.dcompid;
-}

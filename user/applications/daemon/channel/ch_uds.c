@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -13,7 +15,7 @@
 #include "dconf.h"
 #include "dmsgid.h"
 #include "dextension.h"
-#include "dcomp_name.h"
+#include "dcomp_info.h"
 #include "core/dcontext.h"
 #include "core/dchannel.h"
 #include "core/dworker.h"
@@ -31,7 +33,6 @@ struct uds_client {
 
 static struct dchannel ch_uds_server;
 static struct uds_client clients[CLIENT_MAXNUM];
-static unsigned int dispatcher_id = DCOMPID_RESERVED;
 
 static int ch_uds_client_read_from_out(struct dchannel *ch);
 static int uds_client_send(struct uds_client *client, const char *data,
@@ -56,14 +57,6 @@ static int ch_uds_response_handler(const struct dcomp *self, unsigned int srcid,
 static const struct msg_handler client_handlers[] = {
     { .name = "response", .msgid = MSGID_UDS_RESPONSE, .func = ch_uds_response_handler },
 };
-
-static inline void set_nonblock_cloexec(int fd)
-{
-    int flags = fcntl(fd, F_GETFL, 0);
-    fcntl(fd, F_SETFL, flags | O_NONBLOCK | O_CLOEXEC);
-
-    return ;
-}
 
 static int uds_client_send(struct uds_client *client, const char *data,
     unsigned int size)
@@ -145,7 +138,6 @@ static void ch_uds_client_release(struct uds_client *client)
     pthread_mutex_unlock(&client->lock);
 
     client->used = false;
-    lnode_init(&client->ch.comp.name_node);
     lnode_init(&client->ch.comp.id_node);
 
     dprint("uds client released\n");
@@ -160,7 +152,7 @@ static void ch_uds_client_hangup(struct dchannel *ch)
 static void ch_uds_forward(struct uds_client *client, const char *data,
     unsigned int len)
 {
-    if (unlikely(task_enqueue_by_id(client->ch.comp.dcompid, dispatcher_id,
+    if (unlikely(task_enqueue_by_id(client->ch.comp.dcompid, ModDispatcherId,
         MSGID_INPUT_SOCKET, len, data) != Success))
     {
         derror("uds client request of %u bytes dropped, queue is full\n", len);
@@ -229,7 +221,7 @@ static int ch_uds_client_setup(struct uds_client *client, int fd)
 {
     int ret = Success;
 
-    dcomp_init(&client->ch.comp, ChannelUnixDomainSocketClient);
+    dcomp_init(&client->ch.comp, ChUnixDomainSocketClientName, DCOMPID_RESERVED);
     dcomp_set_handlers(&client->ch.comp, ARRAY_SIZE(client_handlers), client_handlers);
     client->ch.read_from_out = ch_uds_client_read_from_out;
     client->ch.on_hangup = ch_uds_client_hangup;
@@ -276,7 +268,7 @@ static int ch_uds_server_read_from_out(struct dchannel *ch)
 
     while (accepted < LISTENED_CLIENT_NUM)
     {
-        fd = accept(ch->fd, NULL, NULL);
+        fd = accept4(ch->fd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
         if (fd < 0)
         {
             if (errno == EINTR || errno == ECONNABORTED)
@@ -293,7 +285,6 @@ static int ch_uds_server_read_from_out(struct dchannel *ch)
         }
         accepted++;
 
-        set_nonblock_cloexec(fd);
         client = ch_uds_client_alloc();
         if (client == NULL)
         {
@@ -330,15 +321,9 @@ static int ch_uds_init(void)
         pthread_mutex_init(&clients[i].lock, NULL);
     }
 
-    dcomp_init(&ch_uds_server.comp, ChannelUnixDomainSocket);
+    dcomp_init(&ch_uds_server.comp, ChUnixDomainSocketName, ChUnixDomainSocketId);
     dcomp_set_handlers(&ch_uds_server.comp, 0, NULL);
     ch_uds_server.read_from_out = ch_uds_server_read_from_out;
-    dispatcher_id = dispatcher_compid();
-    if (unlikely(dispatcher_id == DCOMPID_RESERVED))
-    {
-        derror("uds: dispatcher id is Invalid\n");
-        return Fail;
-    }
 
     ch_uds_server.fd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (unlikely(ch_uds_server.fd < 0))
@@ -374,9 +359,8 @@ static int ch_uds_init(void)
         goto fail;
     }
 
-    dprint("[%s] info: fd[%d], id[%u], path[%s], dispatcher[%u]\n",
-        ch_uds_server.comp.name, ch_uds_server.fd, ch_uds_server.comp.dcompid,
-        UDS_PATH, dispatcher_id);
+    dprint("[%s] info: fd[%d], id[%u], path[%s]\n",
+        ch_uds_server.comp.name, ch_uds_server.fd, ch_uds_server.comp.dcompid, UDS_PATH);
 
     return Success;
 
@@ -410,7 +394,6 @@ static void ch_uds_exit(void)
         ch_uds_server.fd = -1;
     }
     unlink(UDS_PATH);
-    dispatcher_id = DCOMPID_RESERVED;
 
     dprint("[%s] exit\n", ch_uds_server.comp.name);
     return ;

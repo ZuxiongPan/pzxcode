@@ -13,7 +13,7 @@
 #include "dlog.h"
 #include "dconf.h"
 #include "dextension.h"
-#include "dcomp_name.h"
+#include "dcomp_info.h"
 #include "core/dchannel.h"
 #include "core/dworker.h"
 #include "core/dfuncalls.h"
@@ -339,7 +339,7 @@ static int ch_timer_init(void)
     memset(&rtimer_mgr, 0, sizeof(rtimer_mgr));
     memset(&otimer_mgr, 0, sizeof(otimer_mgr));
 
-    dcomp_init(&rtimer_mgr.ch_repeat.comp, ChannelTimerRepeat);
+    dcomp_init(&rtimer_mgr.ch_repeat.comp, ChTimerRepeatName, ChTimerRepeatId);
     dcomp_set_handlers(&rtimer_mgr.ch_repeat.comp, 0, NULL);
     lnode_init(&rtimer_mgr.rep_timers);
     pthread_mutex_init(&rtimer_mgr.lock, NULL);
@@ -362,7 +362,7 @@ static int ch_timer_init(void)
     }
     dprint("[%s] info: fd[%d], id[%u]\n", rtimer_mgr.ch_repeat.comp.name, rtimer_mgr.ch_repeat.fd, rtimer_mgr.ch_repeat.comp.dcompid);
 
-    dcomp_init(&otimer_mgr.ch_once.comp, ChannelTimerOnce);
+    dcomp_init(&otimer_mgr.ch_once.comp, ChTimerOnceName, ChTimerOnceId);
     dcomp_set_handlers(&otimer_mgr.ch_once.comp, 0, NULL);
     pthread_mutex_init(&otimer_mgr.lock, NULL);
     memset(otimer_mgr.once_timers, 0, sizeof(otimer_mgr.once_timers));

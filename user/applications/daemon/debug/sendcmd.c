@@ -9,7 +9,7 @@
 #include <sys/un.h>
 
 #include "dconf.h"
-#include "dcomp_name.h"
+#include "dcomp_info.h"
 #include "lib/cJSON.h"
 
 #define IO_TIMEOUT_SEC  3
@@ -165,7 +165,7 @@ int main(int argc, char **argv)
             break;
         case 'd':
             dispatch = true;
-            snprintf(buffer, sizeof(buffer), "{\"target\": \"%s\", \"command\": \"%s\"}", ModuleDispatcher, optarg);
+            snprintf(buffer, sizeof(buffer), "{\"target\": \"%s\", \"command\": \"%s\"}", ModDispatcherName, optarg);
             break;
         case 't':
             cJSON_AddStringToObject(root, "target", optarg);

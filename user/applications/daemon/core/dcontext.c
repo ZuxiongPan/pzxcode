@@ -8,6 +8,7 @@
 
 #include "dlog.h"
 #include "dconf.h"
+#include "dcomp_info.h"
 #include "core/dchannel.h"
 #include "core/dworker.h"
 #include "core/dcontext.h"
@@ -40,13 +41,10 @@ void dctx_init(void)
     g_ctx.wakefd = -1;
 
     atomic_init(&g_ctx.status, false);
-    // 0 is reserved for "invalid / broadcast", the first real component is 1
-    atomic_init(&g_ctx.next_id, DCOMPID_RESERVED + 1);
-    pthread_rwlock_init(&g_ctx.name_tb.rwlock, NULL);
+    atomic_init(&g_ctx.next_dynamic_id, DCOMPID_DYNAMIC_START);
     pthread_rwlock_init(&g_ctx.id_tb.rwlock, NULL);
     for (unsigned int i = 0; i < COMPREC_HTABLE_SIZE; i++)
     {
-        lnode_init(&g_ctx.name_tb.list[i]);
         lnode_init(&g_ctx.id_tb.list[i]);
     }
 
@@ -159,7 +157,6 @@ void dctx_destroy(void)
         g_ctx.epfd = -1;
     }
 
-    pthread_rwlock_destroy(&g_ctx.name_tb.rwlock);
     pthread_rwlock_destroy(&g_ctx.id_tb.rwlock);
 
     return ;
@@ -190,22 +187,29 @@ static inline unsigned int str_to_key(const char *str)
     return key;
 }
 
-void dcomp_init(struct dcomp *comp, const char *name)
+void dcomp_init(struct dcomp *comp, const char *name, unsigned int id)
 {
-    if (comp == NULL)
+    if (comp == NULL || name == NULL)
     {
-        derror("component is invalid\n");
+        derror("component/name is invalid\n");
         return ;
     }
 
-    comp->dcompid = atomic_fetch_add(&g_ctx.next_id, 1);
+    if (id == DCOMPID_RESERVED)
+    {
+        comp->dcompid = atomic_fetch_add(&g_ctx.next_dynamic_id, 1);
+    }
+    else
+    {
+        comp->dcompid = id;
+    }
+
     if (unlikely(comp->dcompid == DCOMPID_RESERVED))
     {
         // next_id wrapped around, ids must stay unique inside the record table
         derror("component id space exhausted, name[%s]\n", name);
     }
     comp->name = name;
-    lnode_init(&comp->name_node);
     lnode_init(&comp->id_node);
 }
 
@@ -218,12 +222,6 @@ int dcomp_record_add(struct dcomp *comp)
     }
 
     unsigned int idx = 0;
-    unsigned int skey = str_to_key(comp->name);
-
-    pthread_rwlock_wrlock(&g_ctx.name_tb.rwlock);
-    idx = skey % COMPREC_HTABLE_SIZE;
-    list_add_tail(&comp->name_node, &g_ctx.name_tb.list[idx]);
-    pthread_rwlock_unlock(&g_ctx.name_tb.rwlock);
 
     pthread_rwlock_wrlock(&g_ctx.id_tb.rwlock);
     idx = comp->dcompid % COMPREC_HTABLE_SIZE;
@@ -240,10 +238,6 @@ void dcomp_record_del(struct dcomp *comp)
         derror("component is invalid\n");
         return ;
     }
-
-    pthread_rwlock_wrlock(&g_ctx.name_tb.rwlock);
-    list_del(&comp->name_node);
-    pthread_rwlock_unlock(&g_ctx.name_tb.rwlock);
 
     pthread_rwlock_wrlock(&g_ctx.id_tb.rwlock);
     list_del(&comp->id_node);
@@ -274,27 +268,13 @@ const struct dcomp* find_dcomp_by_id(unsigned int compid)
 
 const struct dcomp* find_dcomp_by_name(const char *name)
 {
-    if (unlikely(name == NULL))
-    {
-        derror("invalid name\n");
-        return NULL;
-    }
+    unsigned int id = find_fix_dcompid(name);
+    const struct dcomp *comp = NULL;
 
-    unsigned int idx = str_to_key(name) % COMPREC_HTABLE_SIZE;
-    struct dcomp *tmp = NULL, *comp = NULL;
-    struct lnode *node = NULL;
-
-    pthread_rwlock_rdlock(&g_ctx.name_tb.rwlock);
-    for (node = g_ctx.name_tb.list[idx].next; node != &g_ctx.name_tb.list[idx]; node = node->next)
+    if (id != DCOMPID_RESERVED)
     {
-        tmp = container_of(node, struct dcomp, name_node);
-        if (strcmp(tmp->name, name) == 0)
-        {
-            comp = tmp;
-            break;
-        }
+        comp = find_dcomp_by_id(id);
     }
-    pthread_rwlock_unlock(&g_ctx.name_tb.rwlock);
 
     return comp;
 }

@@ -5,9 +5,11 @@
 #include "dlog.h"
 #include "dextension.h"
 #include "core/dcontext.h"
+#include "dcomp_info.h"
 #include "core/dworker.h"
 
-// a task slot must always fit into a stack buffer of the worker thread
+// a slot must be able to hold at least the header when the payload is empty,
+// otherwise pool_select() would push every task up into the medium pool
 _Static_assert(sizeof(struct dtask) <= SMALL_POOL_SLOT_SIZE,
     "dtask header exceeds the smallest pool slot");
 
@@ -76,52 +78,18 @@ static inline void recycle_slot(int poolid, unsigned int slot_idx)
     return ;
 }
 
-static inline void recycle_task(struct dtask *task)
-{
-    int poolid = pool_select(task->data_size);
-    if (unlikely(poolid == PoolMax))
-    {
-        derror("invalid task size %u\n", task->data_size);
-        return ;
-    }
-
-    recycle_slot(poolid, task->slot_idx);
-
-    return;
-}
-
-static inline void process_task(void *buf)
+static inline void process_task(struct dtask *task)
 {
     int ret = Success;
     bool handled = false;
-    // this buffer must be valid, so skip check
-    struct dtask *task = (struct dtask *)buf;
-    const struct dcomp *comp = NULL;
-
-    if (task->dstinfo.type == DEST_ID)
-    {
-        comp = find_dcomp_by_id(task->dstinfo.dst.dstid);
-    }
-    else if (task->dstinfo.type == DEST_NAME)
-    {
-        comp = find_dcomp_by_name(task->dstinfo.dst.dstname);
-    }
+    // the destination is resolved to an id before enqueue, so there is exactly
+    // one lookup path here; a stale id (component unregistered after enqueue)
+    // simply misses, it can never land on a different component
+    const struct dcomp *comp = find_dcomp_by_id(task->dstid);
 
     if (comp == NULL)
     {
-        // never print dstname for DEST_ID: the union holds an integer there and
-        // passing it to "%s" dereferences a bogus pointer
-        if (task->dstinfo.type == DEST_ID)
-        {
-            derror("component id[%u] not found, msgid[0x%x]\n",
-                task->dstinfo.dst.dstid, task->msgid);
-        }
-        else
-        {
-            derror("component name[%s] not found, msgid[0x%x]\n",
-                task->dstinfo.dst.dstname == NULL ? "(null)" : task->dstinfo.dst.dstname,
-                task->msgid);
-        }
+        derror("component id[%u] not found, msgid[0x%x]\n", task->dstid, task->msgid);
         return ;
     }
 
@@ -143,7 +111,6 @@ static inline void process_task(void *buf)
 static void* worker_thread(void *arg)
 {
     UNUSED(arg);
-    char buffer[LARGE_POOL_SLOT_SIZE];
     struct dtask *task = NULL;
     struct dctx *ctx = dctx_instance();
     struct dtask_queue *queue = &worker_mgr.queue;
@@ -182,15 +149,29 @@ static void* worker_thread(void *arg)
         queue->count--;
         pthread_mutex_unlock(&queue->lock);
 
-        // the slot is off the queue now, nobody else can touch it, so the copy
-        // can be done outside the global queue lock instead of inside it
-        memcpy(buffer, task, sizeof(struct dtask) + task->data_size);
+        // the slot keeps its bitmap bit set for the whole callback, so
+        // alloc_task() can never hand it out again and the payload stays valid
+        // in place - this is what makes the copy the old version needed obsolete
+        unsigned int slot_idx = task->slot_idx;
+        int poolid = pool_select(task->data_size);
 
+        process_task(task);
+
+        // recycle only once the callback returned: recycling first would let the
+        // next enqueue allocate this slot and overwrite what the handler reads.
+        // the header is not read below, a handler must not have to be trusted
+        // with keeping it intact
         pthread_mutex_lock(&queue->lock);
-        recycle_task(task);
+        if (unlikely(poolid == PoolMax))
+        {
+            // unreachable: task_submit() never allocates a slot for such a size
+            derror("task slot cannot be mapped back to a pool\n");
+        }
+        else
+        {
+            recycle_slot(poolid, slot_idx);
+        }
         pthread_mutex_unlock(&queue->lock);
-
-        process_task(buffer);
 
         atomic_fetch_sub(&worker_mgr.busy, 1);
     }
@@ -424,13 +405,19 @@ void worker_mgr_destroy(void)
     return;
 }
 
-static int task_submit(const struct destinfo *dstinfo, unsigned int srcid,
+static int task_submit(unsigned int dstid, unsigned int srcid,
     unsigned int msgid, unsigned int data_size, const char *data)
 {
     struct dtask_queue *q = &worker_mgr.queue;
     struct dtask *task = NULL;
     int poolid = pool_select(data_size);
     unsigned int dropped = 0;
+
+    if (unlikely(dstid == DCOMPID_RESERVED))
+    {
+        derror("invalid destination id\n");
+        return Fail;
+    }
 
     if (unlikely(data_size > 0 && data == NULL))
     {
@@ -472,7 +459,7 @@ static int task_submit(const struct destinfo *dstinfo, unsigned int srcid,
     }
 
     task->srcid = srcid;
-    task->dstinfo = *dstinfo;
+    task->dstid = dstid;
     task->msgid = msgid;
     task->data_size = data_size;
 
@@ -509,31 +496,15 @@ static int task_submit(const struct destinfo *dstinfo, unsigned int srcid,
 int task_enqueue_by_id(unsigned int srcid, unsigned int dstid, unsigned int msgid,
     unsigned int data_size, const char *data)
 {
-    struct destinfo dstinfo;
-
-    memset(&dstinfo, 0, sizeof(dstinfo));
-    dstinfo.type = DEST_ID;
-    dstinfo.dst.dstid = dstid;
-
-    return task_submit(&dstinfo, srcid, msgid, data_size, data);
+    return task_submit(dstid, srcid, msgid, data_size, data);
 }
 
 int task_enqueue_by_name(unsigned int srcid, const char *dst_name, unsigned int msgid,
     unsigned int data_size, const char *data)
 {
-    struct destinfo dstinfo;
+    unsigned int dstid = find_fix_dcompid(dst_name);
 
-    if (dst_name == NULL || strstr(dst_name, "client") != NULL)
-    {
-        derror("destination is invalid!\n");
-        return Fail;
-    }
-
-    memset(&dstinfo, 0, sizeof(dstinfo));
-    dstinfo.type = DEST_NAME;
-    dstinfo.dst.dstname = dst_name;
-
-    return task_submit(&dstinfo, srcid, msgid, data_size, data);
+    return task_submit(dstid, srcid, msgid, data_size, data);
 }
 
 void dworker_info(void)

@@ -10,7 +10,7 @@
 #include "dconf.h"
 #include "dmsgid.h"
 #include "dextension.h"
-#include "dcomp_name.h"
+#include "dcomp_info.h"
 #include "core/dworker.h"
 #include "core/dchannel.h"
 #include "core/dfuncalls.h"
@@ -23,7 +23,6 @@
 #define UEVENT_GROUP_KERNEL 1
 
 static struct dchannel ch_uevent;
-static unsigned int dispatcher_id = DCOMPID_RESERVED;
 
 static int ch_uevent_read_from_out(struct dchannel *chnl)
 {
@@ -33,6 +32,7 @@ static int ch_uevent_read_from_out(struct dchannel *chnl)
 
     while (handled < UEVENT_RECV_BATCH)
     {
+        handled++;
         // MSG_TRUNC reports the real length, so a record that does not fit is
         // dropped as a whole instead of being forwarded truncated
         len = recv(chnl->fd, buf, sizeof(buf), MSG_TRUNC);
@@ -66,8 +66,6 @@ static int ch_uevent_read_from_out(struct dchannel *chnl)
             continue;
         }
 
-        handled++;
-
         if (unlikely((size_t)len > sizeof(buf)))
         {
             derror("[%s] uevent of %zd bytes exceeds %zu, dropped\n",
@@ -75,7 +73,7 @@ static int ch_uevent_read_from_out(struct dchannel *chnl)
             continue;
         }
 
-        if (unlikely(task_enqueue_by_id(chnl->comp.dcompid, dispatcher_id,
+        if (unlikely(task_enqueue_by_id(chnl->comp.dcompid, ModDispatcherId,
                 MSGID_INPUT_UEVENT, (unsigned int)len, buf) != Success))
         {
             derror("[%s] task queue rejected a uevent of %zd bytes\n",
@@ -111,29 +109,22 @@ static int ch_uevent_init(void)
     // a channel that never got a socket must not close fd 0 on exit
     ch_uevent.fd = -1;
 
-    dcomp_init(&ch_uevent.comp, ChannelUevent);
+    dcomp_init(&ch_uevent.comp, ChUeventName, ChUeventId);
     dcomp_set_handlers(&ch_uevent.comp, 0, NULL);
     ch_uevent.read_from_out = ch_uevent_read_from_out;
     ch_uevent.on_hangup = ch_uevent_hangup;
-
-    dispatcher_id = dispatcher_compid();
-    if (unlikely(dispatcher_id == DCOMPID_RESERVED))
-    {
-        derror("[%s] dispatcher id is invalid\n", ChannelUevent);
-        return Fail;
-    }
 
     ch_uevent.fd = socket(AF_NETLINK, SOCK_DGRAM | SOCK_NONBLOCK | SOCK_CLOEXEC,
         NETLINK_KOBJECT_UEVENT);
     if (unlikely(ch_uevent.fd < 0))
     {
-        derror("[%s] socket create failed, errno: %d\n", ChannelUevent, errno);
+        derror("[%s] socket create failed, errno: %d\n", ChUeventName, errno);
         return Fail;
     }
 
     if (setsockopt(ch_uevent.fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf)) < 0)
     {
-        ddebug("[%s] SO_RCVBUF not applied, errno: %d\n", ChannelUevent, errno);
+        ddebug("[%s] SO_RCVBUF not applied, errno: %d\n", ChUeventName, errno);
     }
 
     memset(&addr, 0, sizeof(addr));
@@ -143,19 +134,19 @@ static int ch_uevent_init(void)
 
     if (unlikely(bind(ch_uevent.fd, (struct sockaddr *)&addr, sizeof(addr)) < 0))
     {
-        derror("[%s] bind failed, errno: %d\n", ChannelUevent, errno);
+        derror("[%s] bind failed, errno: %d\n", ChUeventName, errno);
         goto fail;
     }
 
     ret = dchannel_register(EPOLLIN, &ch_uevent);
     if (unlikely(ret != Success))
     {
-        derror("[%s] channel register failed\n", ChannelUevent);
+        derror("[%s] channel register failed\n", ChUeventName);
         goto fail;
     }
 
-    dprint("[%s] info: fd[%d], id[%u], dispatcher[%u]\n", ChannelUevent,
-        ch_uevent.fd, ch_uevent.comp.dcompid, dispatcher_id);
+    dprint("[%s] info: fd[%d], id[%u]\n", ChUeventName,
+        ch_uevent.fd, ch_uevent.comp.dcompid);
 
     return Success;
 
@@ -165,7 +156,6 @@ fail:
         close(ch_uevent.fd);
         ch_uevent.fd = -1;
     }
-    dispatcher_id = DCOMPID_RESERVED;
 
     return Fail;
 }
@@ -179,9 +169,7 @@ static void ch_uevent_exit(void)
         ch_uevent.fd = -1;
     }
 
-    dispatcher_id = DCOMPID_RESERVED;
-
-    dprint("[%s] exit\n", ChannelUevent);
+    dprint("[%s] exit\n", ChUeventName);
     return ;
 }
 
