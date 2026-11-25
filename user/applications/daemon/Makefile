@@ -2,18 +2,14 @@ include config.mk
 
 TARGET := armd
 
-define add_dir_objs
-	OBJS-y += $(patsubst %.c,%.o,$(wildcard $(1)/*.c))
-endef
-
-$(foreach dir, $(DIRS-y), $(eval $(call add_dir_objs,$(dir))))
-$(foreach dir, $(MOD_SUBDIRS-y), $(eval $(call add_dir_objs,$(dir))))
+# sendcmd only rely on following objects
+SENDCMD_OBJS := debug/sendcmd.o lib/cJSON.o
 
 CFLAGS += -I$(DAEMON_DIR)/include -I$(DAEMON_DIR) -I$(CODE_DIR)/include
 CFLAGS += -MMD -MP
 LDFLAGS += -lpthread
 
-DEPS := $(OBJS-y:.o=.d)
+DEPS := $(sort $(OBJS-y:.o=.d) $(SENDCMD_OBJS:.o=.d))
 
 all: $(TARGET) sendcmd
 
@@ -24,7 +20,7 @@ $(TARGET): $(OBJS-y)
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-sendcmd: debug/sendcmd.o lib/cJSON.o
+sendcmd: $(SENDCMD_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 install:
@@ -32,6 +28,16 @@ install:
 	cp sendcmd $(ROOT_DIR)/usr/bin/ -f
 
 clean:
-	rm -f $(TARGET) $(OBJS-y) $(DEPS) debug/sendcmd.o debug/sendcmd.d sendcmd
+	rm -f $(TARGET) sendcmd $(OBJS-y) $(SENDCMD_OBJS) $(DEPS)
 
 -include $(DEPS)
+
+.PHONY: all install clean check-obj
+check-obj:
+	@for f in $$(find . -name '*.c' | sed 's|^\./||' | sort); do \
+		o=$${f%.c}.o; \
+		case " $(OBJS-y) $(SENDCMD_OBJS) " in \
+			*" $$o "*) ;; \
+			*) echo "un registered file: $$f" ;; \
+		esac; \
+	done

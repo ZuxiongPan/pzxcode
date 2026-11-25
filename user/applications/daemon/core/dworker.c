@@ -1,3 +1,6 @@
+// for pthread_cond_clockwait
+#define _GNU_SOURCE
+
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -7,6 +10,7 @@
 #include "core/dcontext.h"
 #include "dcomp_info.h"
 #include "core/dworker.h"
+#include "core/dsync.h"
 
 // a slot must be able to hold at least the header when the payload is empty,
 // otherwise pool_select() would push every task up into the medium pool
@@ -197,7 +201,8 @@ static void* monitor_thread(void *arg)
 
         clock_gettime(CLOCK_MONOTONIC, &ts);
         ts.tv_sec += MONITOR_INTERVAL_SEC;
-        pthread_cond_timedwait(&worker_mgr.monitor_cond, &worker_mgr.monitor_lock, &ts);
+        pthread_cond_clockwait(&worker_mgr.monitor_cond, &worker_mgr.monitor_lock,
+            CLOCK_MONOTONIC, &ts);
         pthread_mutex_unlock(&worker_mgr.monitor_lock);
 
         pthread_mutex_lock(&queue->lock);
@@ -252,7 +257,6 @@ static void task_queue_init(struct dtask_queue *q)
 int worker_mgr_init(void)
 {
     int inner_ret = 0;
-    pthread_condattr_t attr;
 
     worker_mgr.initialized = false;
     worker_mgr.stopped = false;
@@ -260,26 +264,7 @@ int worker_mgr_init(void)
     atomic_init(&worker_mgr.stop, false);
 
     pthread_mutex_init(&worker_mgr.monitor_lock, NULL);
-
-    inner_ret = pthread_condattr_init(&attr);
-    if (inner_ret != 0)
-    {
-        derror("monitor condattr init failed: %d\n", inner_ret);
-        pthread_mutex_destroy(&worker_mgr.monitor_lock);
-        return Fail;
-    }
-
-    inner_ret = pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-    if (inner_ret != 0)
-    {
-        derror("failed to set clock for monitor condattr: %d\n", inner_ret);
-        pthread_condattr_destroy(&attr);
-        pthread_mutex_destroy(&worker_mgr.monitor_lock);
-        return Fail;
-    }
-
-    inner_ret = pthread_cond_init(&worker_mgr.monitor_cond, &attr);
-    pthread_condattr_destroy(&attr);
+    inner_ret = pthread_cond_init(&worker_mgr.monitor_cond, NULL);
     if (inner_ret != 0)
     {
         derror("monitor cond init failed: %d\n", inner_ret);
@@ -345,6 +330,10 @@ void worker_mgr_stop(void)
 
     worker_mgr.stopped = true;
     atomic_store(&worker_mgr.stop, true);
+
+    // a worker blocked in dsync_wait() never looks at the queue again, and a
+    // wait without deadline has no other exit: wake them before join
+    dsync_abort_all();
 
     pthread_mutex_lock(&worker_mgr.queue.lock);
     pthread_cond_broadcast(&worker_mgr.queue.cond);
@@ -505,6 +494,11 @@ int task_enqueue_by_name(unsigned int srcid, const char *dst_name, unsigned int 
     unsigned int dstid = find_fix_dcompid(dst_name);
 
     return task_submit(dstid, srcid, msgid, data_size, data);
+}
+
+unsigned int worker_total(void)
+{
+    return (unsigned int)real_workers;
 }
 
 void dworker_info(void)

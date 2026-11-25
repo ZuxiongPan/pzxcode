@@ -6,6 +6,7 @@
 #include "dcomp_info.h"
 #include "core/dcontext.h"
 #include "core/dworker.h"
+#include "core/dsync.h"
 #include "channel/chnl_api.h"
 #include "lib/cJSON.h"
 
@@ -21,6 +22,7 @@ static void handle_command(const char *cmd)
         dctx_info();
         dworker_info();
         dtimer_info();
+        dsync_info();
     }
     else
     {

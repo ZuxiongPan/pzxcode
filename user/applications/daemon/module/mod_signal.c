@@ -1,6 +1,8 @@
 #include <string.h>
 #include <stdbool.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/signalfd.h>
 
 #include "dlog.h"
@@ -9,6 +11,8 @@
 #include "dcomp_info.h"
 #include "core/dcontext.h"
 #include "core/dfuncalls.h"
+#include "core/dsync.h"
+#include "lib/util.h"
 
 static struct dcomp signalmod;
 
@@ -38,8 +42,24 @@ static int msg_signal_handler(const struct dcomp *comp, uint32_t srcid,
             break;
         }
         case SIGCHLD:
-            dprint("receive child signal\n");
+        {
+            int wstatus = 0;
+            int code = 0;
+            pid_t pid = 0;
+
+            // reap everything, not just the pid this signal reports: one SIGCHLD
+            // can stand for several exits, and a child nobody waits for still
+            // has to be collected or it stays a zombie until the daemon exits
+            while ((pid = waitpid(-1, &wstatus, WNOHANG)) > 0)
+            {
+                code = child_exit_code(wstatus);
+                if (dsync_complete(SyncChild, (unsigned int)pid, code) != 0)
+                {
+                    dprint("child[%d] reaped, code[%d], no waiter\n", pid, code);
+                }
+            }
             break;
+        }
         default:
             derror("unknown signal %d\n", info->ssi_signo);
             break;

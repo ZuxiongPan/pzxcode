@@ -1,23 +1,47 @@
 include compile_cfg
 
 DAEMON_DIR := .
-CHANNEL_DIR := $(DAEMON_DIR)/channel
-CORE_DIR := $(DAEMON_DIR)/core
-DISPATCHER_DIR := $(DAEMON_DIR)/dispatcher
-INIT_DIR := $(DAEMON_DIR)/init
-LIB_DIR := $(DAEMON_DIR)/lib
-MODULE_DIR := $(DAEMON_DIR)/module
-UEVENT_DIR := $(DAEMON_DIR)/uevent
+CORE_DIR := core
+CHANNEL_DIR := channel
+DISPATCHER_DIR := dispatcher
+INIT_DIR := init
+LIB_DIR := lib
+MODULE_DIR := module
+VIRTBD_DIR := virt_bd
 
-DIRS-y := $(CHANNEL_DIR) $(CORE_DIR) $(DISPATCHER_DIR) $(INIT_DIR) $(LIB_DIR) $(MODULE_DIR)
+# Object lists
+obj-y :=
 
-OBJS-y :=
-MOD_SUBDIRS-y :=
+obj-y += $(CHANNEL_DIR)/ch_signal.o
+obj-y += $(CHANNEL_DIR)/ch_timer.o
+obj-y += $(CHANNEL_DIR)/ch_uds.o
+obj-y += $(CHANNEL_DIR)/ch_uevent.o
 
-DIRS-$(QEMU_VIRT) += $(DAEMON_DIR)/virt_bd
+obj-y += $(CORE_DIR)/dchannel.o
+obj-y += $(CORE_DIR)/dcontext.o
+obj-y += $(CORE_DIR)/dworker.o
+obj-y += $(CORE_DIR)/dsync.o
 
-# input/ and module/memblk still use the pre-refactor API (dchannel_t,
-# dmodule_register, TASK_DATA_MAXSIZE), so they stay out of the build until they
-# are ported to the channel/dispatcher/components structure.
-# DIRS-$(CONFIG_INPUT_SUPPORT) += $(DAEMON_DIR)/input
-# MOD_SUBDIRS-$(CONFIG_MODULE_MEMBLK) += $(MODULE_DIR)/memblk
+obj-y += $(DISPATCHER_DIR)/dispatcher.o
+obj-y += $(DISPATCHER_DIR)/proto_netlink.o
+obj-y += $(DISPATCHER_DIR)/proto_socket.o
+
+obj-y += $(INIT_DIR)/fix_comp.o
+obj-y += $(INIT_DIR)/main.o
+
+obj-y += $(LIB_DIR)/cJSON.o
+obj-y += $(LIB_DIR)/util.o
+
+obj-y += $(MODULE_DIR)/mod_signal.o
+
+# code for qemu-virt board
+obj-$(QEMU_VIRT) += $(VIRTBD_DIR)/mod_upgrade.o
+
+# selected objects
+obj-$(CONFIG_GENERIC_NETLINK) += $(CHANNEL_DIR)/ch_genl.o
+
+ccflags-y :=
+
+# guard for only one instance of each object
+uniq = $(if $1,$(firstword $1) $(call uniq,$(filter-out $(firstword $1),$1)))
+OBJS-y := $(call uniq,$(obj-y))

@@ -3,79 +3,109 @@
 #include <errno.h>
 #include <sys/wait.h>
 
+#include "dlog.h"
 #include "lib/util.h"
+#include "core/dsync.h"
 
 extern char *environ[];
-
-static sync_child_t *sync_child_list = NULL;
-static pthread_mutex_t list_lock = PTHREAD_MUTEX_INITIALIZER;
 
 pid_t run_new_program(const char *program, char *const args[])
 {
     pid_t pid = 0;
     int ret = posix_spawnp(&pid, program, NULL, NULL, args, environ);
-    if(ret != 0)
+
+    if (ret != 0)
     {
-        return -1;
+        return (pid_t)-ret;
     }
 
     return pid;
 }
 
-int run_new_program_sync(const char *program, char *const args[])
+int child_exit_code(int wstatus)
 {
-    pid_t pid = 0;
-    int ret = posix_spawnp(&pid, program, NULL, NULL, args, environ);
-    if (ret != 0)
+    if (WIFEXITED(wstatus))
     {
-        return -1;
+        return WEXITSTATUS(wstatus);
     }
 
-    sync_child_t child;
-    child.pid = pid;
-    child.finished = false;
-    child.exit_code = -1;
-    pthread_mutex_init(&child.mutex, NULL);
-    pthread_cond_init(&child.cond, NULL);
-    child.next = NULL;
-
-    pthread_mutex_lock(&list_lock);
-    child.next = sync_child_list;
-    sync_child_list = &child;
-    pthread_mutex_unlock(&list_lock);
-
-    pthread_mutex_lock(&child.mutex);
-    while (!child.finished)
+    if (WIFSIGNALED(wstatus))
     {
-        pthread_cond_wait(&child.cond, &child.mutex);
+        return -WTERMSIG(wstatus);
     }
-    ret = child.exit_code;
-    pthread_mutex_unlock(&child.mutex);
 
-    pthread_mutex_destroy(&child.mutex);
-    pthread_cond_destroy(&child.cond);
-
-    return ret;
+    return -1;
 }
 
-void set_child_finished(pid_t pid, int exit_code)
+int run_new_program_sync(const char *program, char *const args[], uint64_t timeout_ms)
 {
-    pthread_mutex_lock(&list_lock);
-    sync_child_t **child = &sync_child_list;
-    while (*child != NULL)
-    {
-        if ((*child)->pid == pid)
-        {
-            pthread_mutex_lock(&((*child)->mutex));
-            (*child)->finished = true;
-            (*child)->exit_code = exit_code;
-            pthread_cond_signal(&((*child)->cond));
-            pthread_mutex_unlock(&((*child)->mutex));
-            break;
-        }
-        child = &((*child)->next);
-    }
-    pthread_mutex_unlock(&list_lock);
+    struct dsync unit;
+    pid_t pid = 0;
+    pid_t reaped = 0;
+    int wstatus = 0;
+    int status = 0;
+    int ret = 0;
 
-    return ;
+    if (program == NULL || args == NULL)
+    {
+        return -EINVAL;
+    }
+
+    // refuse before spawning anything: a child created for a wait that is going
+    // to be turned down would keep running with nobody waiting for it
+    if (!dsync_can_block())
+    {
+        derror("no worker can be spared for %s, refused\n", program);
+        return -EBUSY;
+    }
+
+    pid = run_new_program(program, args);
+    if (pid < 0)
+    {
+        derror("failed to spawn %s, ret[%d]\n", program, (int)pid);
+        return (int)pid;
+    }
+
+    // the pid only exists once spawn returned, so the unit is registered and
+    // armed first: a child that exits immediately would otherwise be reaped by
+    // the SIGCHLD path while nobody is waiting for it, and its code is lost
+    dsync_init(&unit, SyncChild, (unsigned int)pid);
+    dsync_arm(&unit);
+
+    // close the window left between spawn and arm, ask the kernel directly in
+    // case the signal path already ran. 0 means the child is still running and
+    // the SIGCHLD message will complete the unit later
+    reaped = waitpid(pid, &wstatus, WNOHANG);
+    if (reaped == pid)
+    {
+        dsync_complete(SyncChild, (unsigned int)pid, child_exit_code(wstatus));
+    }
+    else if (reaped < 0)
+    {
+        // ECHILD: it was collected somewhere else and will never report again,
+        // completing here keeps the wait from burning the whole timeout
+        dsync_complete(SyncChild, (unsigned int)pid, -1);
+    }
+
+    ret = dsync_wait(&unit, timeout_ms, &status);
+    if (ret != 0)
+    {
+        // -EBUSY is decided before dsync_wait links the unit and a timeout
+        // unlinks it, cancel is idempotent and covers both
+        dsync_cancel(&unit);
+
+        // the hint above can lose a race for the last slot: the child exists but
+        // nobody will ever consume its code, so it must not be left running.
+        // a timeout is different, the child may be halfway through its work and
+        // is left alone, its exit is still reaped and logged later
+        if (ret == -EBUSY)
+        {
+            kill(pid, SIGKILL);
+        }
+
+        derror("wait for %s[%d] failed, ret[%d]\n", program, (int)pid, ret);
+        return ret;
+    }
+
+    return status;
 }

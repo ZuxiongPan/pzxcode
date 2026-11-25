@@ -95,6 +95,9 @@ int task_enqueue_by_id(unsigned int srcid, unsigned int dstid, unsigned int msgi
 int task_enqueue_by_name(unsigned int srcid, const char *dst_name, unsigned int msgid,
     unsigned int data_size, const char *data);
 
+// workers that were actually created, it can be lower than WORKER_MAXNUM
+unsigned int worker_total(void);
+
 void dworker_info(void);
 
 #endif

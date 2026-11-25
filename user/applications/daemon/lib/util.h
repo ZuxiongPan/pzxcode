@@ -1,22 +1,18 @@
 #ifndef _UTIL_H_
 #define _UTIL_H_
 
+#include <stdint.h>
 #include <sys/types.h>
-#include <pthread.h>
-#include <stdbool.h>
-
-struct sync_child {
-    pid_t pid;
-    bool finished;
-    int exit_code;
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    struct sync_child *next;
-};
-typedef struct sync_child sync_child_t;
 
 pid_t run_new_program(const char *program, char *const args[]);
-int run_new_program_sync(const char *program, char *const args[]);
-void set_child_finished(pid_t pid, int exit_code);
+
+// spawn a program and block the caller until it exits. timeout_ms == 0 waits
+// without a deadline, otherwise the wait gives up after timeout_ms.
+// returns the child's exit code (0..255), or -WTERMSIG when it was killed by a
+// signal, or a negative error: -ETIMEDOUT / -EBUSY / -EINVAL / -errno from spawn
+int run_new_program_sync(const char *program, char *const args[], uint64_t timeout_ms);
+
+// decode a wait status into the same convention run_new_program_sync returns
+int child_exit_code(int wstatus);
 
 #endif
