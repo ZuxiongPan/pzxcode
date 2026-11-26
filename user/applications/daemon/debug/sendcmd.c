@@ -184,7 +184,16 @@ int main(int argc, char **argv)
     ret = Success;
     if (!dispatch)
     {
-        len = cJSON_PrintPreallocated(root, buffer, sizeof(buffer), 0);
+        /* cJSON_PrintPreallocated 返回的是 cJSON_bool（成功为 1），不是写入
+         * 的字节数，长度只能用 strlen 量。之前把返回值当长度，请求会被截成
+         * 1 个字节，服务端解析全部失败 */
+        if (!cJSON_PrintPreallocated(root, buffer, sizeof(buffer), 0))
+        {
+            printf("cJSON_PrintPreallocated: %s\n", cJSON_GetErrorPtr());
+            cJSON_Delete(root);
+            return Fail;
+        }
+        len = strlen(buffer);
     }
     else
     {

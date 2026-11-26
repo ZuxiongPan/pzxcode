@@ -32,6 +32,9 @@
 #define ModSignalId (DCOMPID_MODULE_START + 1U)
 #define ModSignalName "module.signal"
 
+#define ModMemblkId (DCOMPID_MODULE_START + 2U)
+#define ModMemblkName "module.memblk"
+
 
 // this is dynamic component, id is not fixed
 #define ChUnixDomainSocketClientName "channel.uds.client"

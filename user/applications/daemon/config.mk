@@ -33,6 +33,7 @@ obj-y += $(LIB_DIR)/cJSON.o
 obj-y += $(LIB_DIR)/util.o
 
 obj-y += $(MODULE_DIR)/mod_signal.o
+obj-y += $(MODULE_DIR)/mod_memblk.o
 
 # code for qemu-virt board
 obj-$(QEMU_VIRT) += $(VIRTBD_DIR)/mod_upgrade.o
