@@ -31,7 +31,7 @@ static struct genl_family pzx_genl_family __ro_after_init = {
     .module = THIS_MODULE,
 };
 
-int genl_async_send(const char *target, const void *data, size_t data_len)
+int genl_async_send(const char *target, u32 act, const void *data, size_t data_len)
 {
     if (NULL == target)
     {
@@ -67,6 +67,15 @@ int genl_async_send(const char *target, const void *data, size_t data_len)
         return ret;
     }
 
+    ret = nla_put_u32(skb, NLATTR_ACTION, act);
+    if (ret)
+    {
+        pr_err("put action failed\n");
+        genlmsg_cancel(skb, hdr);
+        nlmsg_free(skb);
+        return ret;
+    }
+
     if (NULL != data && data_len > 0)
     {
         ret = nla_put(skb, NLATTR_DATA, data_len, data);
@@ -89,7 +98,7 @@ EXPORT_SYMBOL(genl_async_send);
 #if NETLINK_TIMER_TEST
 static struct delayed_work timer_work;
 static int ticks = 0;
-static const int timeout = 10;
+static const int timeout = 1000;
 static bool running = false;
 static struct proc_dir_entry *genl_proc = NULL;
 
@@ -100,7 +109,7 @@ static void timer_work_func(struct work_struct *work)
 
     ticks++;
     len = snprintf(payload, sizeof(payload), "ABCD ticks = %d wxyz", ticks);
-    ret = genl_async_send("uevent", payload, len + 1);
+    ret = genl_async_send(USER_DISPATCHER_MODNAME, ACT_TEST, payload, len + 1);
     if (ret && ret != -ESRCH)
         pr_err("genl_async_send failed: ret = %d\n", ret);
 

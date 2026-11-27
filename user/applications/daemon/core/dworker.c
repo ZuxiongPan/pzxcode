@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <errno.h>
 
 #include "dlog.h"
 #include "dextension.h"
@@ -84,12 +85,12 @@ static inline void recycle_slot(int poolid, unsigned int slot_idx)
 
 static inline void process_task(struct dtask *task)
 {
-    int ret = Success;
-    bool handled = false;
+    int ret = -ENOENT;
     // the destination is resolved to an id before enqueue, so there is exactly
     // one lookup path here; a stale id (component unregistered after enqueue)
     // simply misses, it can never land on a different component
     const struct dcomp *comp = find_dcomp_by_id(task->dstid);
+    UNUSED(ret);
 
     if (comp == NULL)
     {
@@ -102,12 +103,11 @@ static inline void process_task(struct dtask *task)
         if (comp->handlers[i].msgid == task->msgid)
         {
             ret = comp->handlers[i].func(comp, task->srcid, task->data_size, task->data);
-            handled = true;
             break;
         }
     }
 
-    ddebug("process task msgid[0x%x], msg handle exists[%d], ret[%d]\n", task->msgid, handled, ret);
+    ddebug("process task msgid[0x%x], ret[%d]\n", task->msgid, ret);
 
     return ;
 }

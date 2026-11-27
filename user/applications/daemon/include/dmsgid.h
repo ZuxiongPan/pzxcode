@@ -21,16 +21,9 @@
 #define MSGID_CHANNEL_START (MSGID_INTERNAL | 0x00030000)
 #define MSGID_CHANNEL_GENL_RETRY (MSGID_CHANNEL_START + 1)
 
-// module messages: 内核事件由 dispatcher 按 target 路由到模块时使用，每个模块
-// 占一段。同一个 msgid 同时用于内核事件和 sock 请求，因为两者的 payload 都是
-// 裸字符串，模块不需要区分来源。
-#define MSGID_MODULE_START (MSGID_INTERNAL | 0x00040000)
-
-#define MSGID_MEMBLK_START (MSGID_MODULE_START + 0x0100U)
-#define MSGID_MEMBLK_DEV_ADD (MSGID_MEMBLK_START + 1)      // data: 设备名
-#define MSGID_MEMBLK_DEV_DEL (MSGID_MEMBLK_START + 2)      // data: 设备名
-#define MSGID_MEMBLK_CMD (MSGID_MEMBLK_START + 3)          // data: 命令字符串
-#define MSGID_MEMBLK_STATVFS_TIMER (MSGID_MEMBLK_START + 4) // 无 payload
+#define MSGID_GENL_ACTION_START (MSGID_INTERNAL | 0x00040000)
+#define MSGID_GENL_ACT_ADD (MSGID_GENL_ACTION_START + 1)
+#define MSGID_GENL_ACT_REMOVE (MSGID_GENL_ACTION_START + 2)
 
 #define MSGID_TEST_START (MSGID_INTERNAL | 0x000f0000)
 #define MSGID_TEST_TIMER (MSGID_TEST_START + 1)

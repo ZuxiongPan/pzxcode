@@ -7,6 +7,7 @@
 struct genl_upmsg {
     uint16_t target_len;    // bytes of target, the trailing NUL is not counted
     uint16_t data_len;
+    uint32_t act;
     char body[];            // target[target_len], '\0', data[data_len]
 };
 
@@ -18,6 +19,11 @@ static inline const char *genl_upmsg_target(const struct genl_upmsg *msg)
 static inline const char *genl_upmsg_data(const struct genl_upmsg *msg)
 {
     return msg->body + msg->target_len + 1;
+}
+
+static inline uint32_t genl_upmsg_act(const struct genl_upmsg *msg)
+{
+    return msg->act;
 }
 
 /* returns NULL when the payload does not carry the layout above */

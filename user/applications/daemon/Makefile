@@ -6,7 +6,7 @@ TARGET := armd
 SENDCMD_OBJS := debug/sendcmd.o lib/cJSON.o
 
 CFLAGS += -I$(DAEMON_DIR)/include -I$(DAEMON_DIR) -I$(CODE_DIR)/include
-CFLAGS += -MMD -MP
+CFLAGS += -MMD -MP -DDEBUG
 LDFLAGS += -lpthread
 
 DEPS := $(sort $(OBJS-y:.o=.d) $(SENDCMD_OBJS:.o=.d))

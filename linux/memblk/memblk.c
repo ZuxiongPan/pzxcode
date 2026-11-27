@@ -136,13 +136,14 @@ static int memblk_probe(struct platform_device *pdev)
     }
 
     pr_info("memblk init ret = %d, block device start address 0x%llx\n", ret, (unsigned long long)memblk->vaddr);
-    genl_async_send(USER_MEMBLK_MODNAME, MEMBLK_DEVICE_NAME, sizeof(MEMBLK_DEVICE_NAME));
+    genl_async_send(USER_MEMBLK_MODNAME, ACT_ADD, MEMBLK_DEVICE_NAME, sizeof(MEMBLK_DEVICE_NAME));
 
     return ret;
 }
 
 static void memblk_remove(struct platform_device *pdev)
 {
+    genl_async_send(USER_MEMBLK_MODNAME, ACT_REMOVE, MEMBLK_DEVICE_NAME, sizeof(MEMBLK_DEVICE_NAME));
     del_gendisk(memblk->disk);
     put_disk(memblk->disk);
     unregister_blkdev(memblk->major, MEMBLK_DEVICE_NAME);

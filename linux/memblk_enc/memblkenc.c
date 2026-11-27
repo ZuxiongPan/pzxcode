@@ -194,13 +194,14 @@ static int memblkenc_probe(struct platform_device *pdev)
     }
 
     pr_info("memblkenc init ret = %d, block device start address 0x%llx\n", ret, (unsigned long long)memblkenc->vaddr);
-    genl_async_send(USER_MEMBLK_MODNAME, MEMBLKENC_DEVICE_NAME, sizeof(MEMBLKENC_DEVICE_NAME));
+    genl_async_send(USER_MEMBLK_MODNAME, ACT_ADD, MEMBLKENC_DEVICE_NAME, sizeof(MEMBLKENC_DEVICE_NAME));
 
     return ret;
 }
 
 static void memblkenc_remove(struct platform_device *pdev)
 {
+    genl_async_send(USER_MEMBLK_MODNAME, ACT_REMOVE, MEMBLKENC_DEVICE_NAME, sizeof(MEMBLKENC_DEVICE_NAME));
     del_gendisk(memblkenc->disk);
     put_disk(memblkenc->disk);
     unregister_blkdev(memblkenc->major, MEMBLKENC_DEVICE_NAME);

@@ -69,7 +69,7 @@ static int msg_signal_handler(const struct dcomp *comp, uint32_t srcid,
 }
 
 static const struct msg_handler handlers[] = {
-    { .name = "signal", .msgid = MSGID_SYS_SIGNAL, .func = msg_signal_handler},
+    { .name = "signal", .msgid = MSGID_SYS_SIGNAL, .func = msg_signal_handler },
 };
 
 static int signalmod_init(void)

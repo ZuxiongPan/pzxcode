@@ -7,14 +7,22 @@
 
 #define NLCMD_INFORM 0x55
 
+enum action {
+    ACT_TEST,
+    ACT_ADD,
+    ACT_REMOVE,
+};
+
 enum uk_nlattr {
     NLATTR_UNSPEC,
     NLATTR_TARGET,  // this is a string
+    NLATTR_ACTION,
     NLATTR_DATA,
     __NLATTR_MAX,
 };
 #define NLATTR_MAX (__NLATTR_MAX - 1)
 
-#define USER_MEMBLK_MODNAME "memblk"
+#define USER_DISPATCHER_MODNAME "module.dispatcher"
+#define USER_MEMBLK_MODNAME "module.memblk"
 
 #endif

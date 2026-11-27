@@ -1,7 +1,6 @@
 #include <string.h>
 
 #include "dcomp_info.h"
-#include "common/uk_netlink.h"
 
 struct fix_dcomp_info {
     unsigned int id;
@@ -18,9 +17,6 @@ static const struct fix_dcomp_info infos[] = {
     {ModDispatcherId, ModDispatcherName},
     {ModSignalId, ModSignalName},
     {ModMemblkId, ModMemblkName},
-    // 内核通用 netlink 用裸设备名做 target（见 include/common/uk_netlink.h），
-    // 这里给它挂一个别名，dispatcher 的按名路由才找得到 memblk 模块
-    {ModMemblkId, USER_MEMBLK_MODNAME},
 };
 
 unsigned int find_fix_dcompid(const char *name)

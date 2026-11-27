@@ -472,8 +472,10 @@ static int genl_forward(struct genl_chnl *ch, const struct nlmsghdr *nlh)
     struct nlattr *tb[NLATTR_MAX + 1];
     const struct nlattr *target_nla = NULL;
     const struct nlattr *data_nla = NULL;
+    const struct nlattr *act_nla = NULL;
     const char *target = NULL;
     const void *data = NULL;
+    uint32_t act = 0;
     struct genl_upmsg *up = NULL;
     char payload[GENL_TASK_DATA_MAX];
     unsigned int attr_len = 0;
@@ -521,6 +523,12 @@ static int genl_forward(struct genl_chnl *ch, const struct nlmsghdr *nlh)
         data_len = genl_nla_payload(data_nla);
     }
 
+    act_nla = tb[NLATTR_ACTION];
+    if (act_nla != NULL && genl_nla_payload(act_nla) >= sizeof(uint32_t))
+    {
+        act = *(const uint32_t *)genl_nla_data(act_nla);
+    }
+
     total = (unsigned int)sizeof(*up) + target_len + 1 + data_len;
     if (unlikely(total > sizeof(payload)))
     {
@@ -532,6 +540,7 @@ static int genl_forward(struct genl_chnl *ch, const struct nlmsghdr *nlh)
     up = (struct genl_upmsg *)payload;
     up->target_len = (uint16_t)target_len;
     up->data_len = (uint16_t)data_len;
+    up->act = act;
     memcpy(up->body, target, target_len);
     up->body[target_len] = '\0';
     if (data_len > 0)
@@ -590,6 +599,7 @@ static int genl_handle_ctrl(struct genl_chnl *ch, const struct nlmsghdr *nlh)
     const char *state = NULL;
     bool ours = false;
     int ret = Success;
+    UNUSED(state);
 
     pthread_mutex_lock(&ch->priv.lock);
     ours = (ch->priv.state == GenlStateResolving && nlh->nlmsg_seq == ch->priv.seq);
@@ -617,6 +627,7 @@ static int genl_handle_event(struct genl_chnl *ch, const struct nlmsghdr *nlh)
     unsigned short family_id = 0;
     const char *state = NULL;
     bool accepted = false;
+    UNUSED(state);
 
     pthread_mutex_lock(&ch->priv.lock);
     family_id = ch->priv.family_id;
