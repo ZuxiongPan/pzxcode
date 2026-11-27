@@ -61,11 +61,22 @@ int run_new_program_sync(const char *program, char *const args[], uint64_t timeo
         return -EBUSY;
     }
 
-    ret = run_new_program(program, args, pid_ptr);
+    ret = run_new_program(program, args, &pid);
     if (ret < 0)
     {
         derror("failed to spawn %s, ret[%d]\n", program, ret);
         return ret;
+    }
+
+    if (pid <= 0)
+    {
+        derror("spawned %s but got no valid pid[%d]\n", program, (int)pid);
+        return -EINVAL;
+    }
+
+    if (pid_ptr != NULL)
+    {
+        *pid_ptr = pid;
     }
 
     dsync_init(&unit, SyncChild, (unsigned int)pid);
