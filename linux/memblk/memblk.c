@@ -1,13 +1,15 @@
 #include <linux/module.h>
 #include <linux/blkdev.h>
-#include <linux/bio.h>
+#include <linux/blk-mq.h>
 #include <linux/platform_device.h>
 #include <linux/of_address.h>
 #include <linux/of_reserved_mem.h>
 #include "kernel/pzxktools.h"
 #include "common/uk_netlink.h"
 
-#define MEMBLK_DEVICE_NAME "memblk"
+#define MEMBLK_DEVICE_NAME  "memblk"
+#define MEMBLK_QUEUE_DEPTH  128
+#define MEMBLK_HW_QUEUES    1
 
 struct memblk_device {
     void __iomem *vaddr;
@@ -15,29 +17,48 @@ struct memblk_device {
     resource_size_t memsize;
     int major;
     struct gendisk *disk;
+    struct blk_mq_tag_set tag_set;
 };
 
 static struct memblk_device *memblk = NULL;
 
-static void memblk_submit_bio(struct bio *bio)
+static blk_status_t memblk_queue_rq(struct blk_mq_hw_ctx *hctx,
+                                    const struct blk_mq_queue_data *bd)
 {
-    struct memblk_device *mbd = bio->bi_bdev->bd_disk->private_data;
+    struct request *rq = bd->rq;
+    struct memblk_device *mbd = rq->q->queuedata;
     struct bio_vec bvec;
-    struct bvec_iter biter;
-    sector_t sector = bio->bi_iter.bi_sector;
+    struct req_iterator iter;
+    sector_t sector = blk_rq_pos(rq);
     size_t offset = sector << SECTOR_SHIFT;
+    blk_status_t ret = BLK_STS_OK;
 
-    bio_for_each_segment(bvec, bio, biter)
+    blk_mq_start_request(rq);
+
+    switch(req_op(rq))
+    {
+    case REQ_OP_READ:
+    case REQ_OP_WRITE:
+        break;
+    case REQ_OP_FLUSH:
+        blk_mq_end_request(rq, BLK_STS_OK);
+        return BLK_STS_OK;
+    default:
+        blk_mq_end_request(rq, BLK_STS_NOTSUPP);
+        return BLK_STS_OK;
+    }
+
+    rq_for_each_segment(bvec, rq, iter)
     {
         if(unlikely(offset + bvec.bv_len > mbd->memsize))
         {
-            bio_io_error(bio);
-            return ;
+            ret = BLK_STS_IOERR;
+            break;
         }
 
         void *addr = bvec_kmap_local(&bvec);
 
-        if(WRITE == bio_data_dir(bio))
+        if(WRITE == rq_data_dir(rq))
         {
             memcpy_toio(mbd->vaddr + offset, addr, bvec.bv_len);
         }
@@ -50,13 +71,16 @@ static void memblk_submit_bio(struct bio *bio)
         kunmap_local(addr);
     }
 
-    bio_endio(bio);
-    return ;
+    blk_mq_end_request(rq, ret);
+    return BLK_STS_OK;
 }
+
+static const struct blk_mq_ops memblk_mq_ops = {
+    .queue_rq = memblk_queue_rq,
+};
 
 const struct block_device_operations memdisk_fops = {
     .owner = THIS_MODULE,
-    .submit_bio = memblk_submit_bio,
 };
 
 static int memblk_probe(struct platform_device *pdev)
@@ -70,7 +94,6 @@ static int memblk_probe(struct platform_device *pdev)
     blk_set_stacking_limits(&lim);
     lim.logical_block_size = SECTOR_SIZE;
     lim.physical_block_size = PAGE_SIZE;
-    lim.features |= BLK_FEAT_SYNCHRONOUS;
     memblk = devm_kzalloc(&pdev->dev, sizeof(struct memblk_device), GFP_KERNEL);
     if(NULL == memblk)
     {
@@ -110,12 +133,27 @@ static int memblk_probe(struct platform_device *pdev)
         return -ENODEV;
     }
 
-    memblk->disk = blk_alloc_disk(&lim, NUMA_NO_NODE);
+    memblk->tag_set.ops = &memblk_mq_ops;
+    memblk->tag_set.nr_hw_queues = MEMBLK_HW_QUEUES;
+    memblk->tag_set.queue_depth = MEMBLK_QUEUE_DEPTH;
+    memblk->tag_set.numa_node = NUMA_NO_NODE;
+
+    ret = blk_mq_alloc_tag_set(&memblk->tag_set);
+    if(ret < 0)
+    {
+        pr_err("alloc tag set for %s failed\n", MEMBLK_DEVICE_NAME);
+        unregister_blkdev(memblk->major, MEMBLK_DEVICE_NAME);
+        return ret;
+    }
+
+    memblk->disk = blk_mq_alloc_disk(&memblk->tag_set, &lim, memblk);
     if(IS_ERR(memblk->disk))
     {
         pr_err("failed to allocate disk for %s\n", MEMBLK_DEVICE_NAME);
+        ret = PTR_ERR(memblk->disk);
+        blk_mq_free_tag_set(&memblk->tag_set);
         unregister_blkdev(memblk->major, MEMBLK_DEVICE_NAME);
-        return PTR_ERR(memblk->disk);
+        return ret;
     }
 
     memblk->disk->major = memblk->major;
@@ -132,6 +170,7 @@ static int memblk_probe(struct platform_device *pdev)
     {
         pr_err("add %s disk failed\n", MEMBLK_DEVICE_NAME);
         put_disk(memblk->disk);
+        blk_mq_free_tag_set(&memblk->tag_set);
         unregister_blkdev(memblk->major, MEMBLK_DEVICE_NAME);
     }
 
@@ -146,6 +185,7 @@ static void memblk_remove(struct platform_device *pdev)
     genl_async_send(USER_MEMBLK_MODNAME, ACT_REMOVE, MEMBLK_DEVICE_NAME, sizeof(MEMBLK_DEVICE_NAME));
     del_gendisk(memblk->disk);
     put_disk(memblk->disk);
+    blk_mq_free_tag_set(&memblk->tag_set);
     unregister_blkdev(memblk->major, MEMBLK_DEVICE_NAME);
     pr_info("memory block disk released\n");
 
